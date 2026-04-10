@@ -4,7 +4,7 @@ All assumptions made throughout the REMA project. Updated after every section.
 Judges reward honest assumptions over false precision.
 
 | # | Section | Assumption Made | Reason / Source |
-| --- | --- | --- | --- |
+|---|---|---|---|
 | 1 | Section 0 | City is Ho Chi Minh City or comparable Vietnamese delta city | Scenario describes sinking urban city with recurrent flooding; HCMC is the primary real-world reference |
 | 2 | Section 0 | Red Cross has at least 1 functioning central warehouse that remains above flood level | Without this, no logistics system is viable; assumed as minimum baseline capacity |
 | 3 | Section 0 | Internet connectivity is partially available (degraded, not absent) | Allows for lightweight digital tools; full offline fallback still built in |
@@ -24,29 +24,32 @@ Judges reward honest assumptions over false precision.
 | 17 | Section B | Central warehouse remains above flood level throughout entire event | Highest infrastructure risk — must be verified in Phase 0 |
 | 18 | Section B | Red Cross has access to minimum 3 trucks for initial dispatch | If fewer available, sub-warehouses stocked sequentially by risk level |
 | 19 | Section B | Each district has a pre-identified backup sub-warehouse location | Required for Level 3 contingency — arranged in Phase 0 |
-| 20 | Section C | Volunteers rely on self-reported household data — no clinical diagnosis | Volunteers are not medically trained; scoring is observation and reporting only |
-| 21 | Section C | Vulnerability scoring criteria are pre-printed in Vietnamese on assessment forms | Forms prepared during Phase 0; scoring takes ~3 minutes per household |
-| 22 | Section C | EMK-3 stock-out triggers immediate escalation to Ministry of Health reserve | Life-sustaining medication cannot wait for end-of-day reporting |
-| 23 | Section C | Prioritization criteria are communicated to communities before flood season | Without pre-communication, scoring appears arbitrary and trust breaks down |
-| 24 | Section C | Each delivery run carries a 10% EMK-1 buffer for unregistered households | Unregistered households are inevitable; buffer is factored into stock calculation |
-| 25 | Section D | Each delivery run carries a 10% EMK-1 buffer for unregistered households | Unregistered households are inevitable; buffer is factored into stock calculation |
-- D-1: Ward People's Committees have pre-signed MOUs for facility use and data sharing
-- D-2: Civil defense maintains radio contact on agreed frequencies
-- D-3: 36 volunteers minimum; roster of 45 with 20% buffer
-- D-4: At least one ward health station per district remains operational throughout the flood
-- D-5: One logistics contractor has a pre-signed emergency transport agreement
-- D-6: Boat owner agreements confirmed annually in Phase 0
-- D-7: 4 functioning radios with shared pre-programmed frequency
-- D-8: Red Cross has a Partnerships Officer role for maintaining all pre-flood agreements
-- E-1: Separate dry-season operations budget exists distinct from flood response budget
-- E-2: All templates stored in 3 formats: printed, Google Drive, USB offline backup
-- E-3: Scaling beyond 6 districts requires Zone Coordinator tier — out of scope for this version
-- E-4: At least 60% volunteer continuity season-to-season; new recruits capped at 40% per team
-- E-5: REMA is designed for 30–80cm moderate flooding — not catastrophic inundation events
-- F-1: Community buildings have usable furniture; if not, add ~$200/sub-warehouse
-- F-2: Emergency Coordinator and Warehouse Manager are existing Red Cross staff
-- F-3: 70% consumption rate per activation; severe event buffer adds ~$18,000
-- F-4: Bulk pricing 15–20% below retail via pre-signed distributor agreements
-- F-5: Volunteer rates benchmarked to Vietnamese Red Cross practice
-- F-6: 21,000 total households across 3 districts; 70% coverage = ~51,450 beneficiaries/event
-- F-7: EMK restocking (~$63,000/year) requires MoH or national Red Cross co-funding
+| 20 | Section B | EMK-3 medications stored at MoH district cold storage year-round, not at sub-warehouses | Red Cross community buildings cannot maintain 2–8°C cold chain |
+| 21 | Section B | MoH cold storage remains operational and accessible during flood activation | Single cold chain dependency — confirmed at Phase 1 activation |
+| 22 | Section B | MoH provides insulated cold boxes for EMK-3 transfer; Red Cross does not procure cold storage equipment | Budget constraint; MoH already has this infrastructure |
+| 23 | Section B | All EMK-1 and EMK-2 items sourced with minimum 12-month shelf life at time of assembly | Ensures stock remains valid through full flood season plus dry-season buffer |
+| 24 | Section C | Volunteers rely on self-reported household data — no clinical diagnosis | Volunteers are not medically trained; scoring is observation and reporting only |
+| 25 | Section C | Vulnerability scoring criteria are pre-printed in Vietnamese on assessment forms | Forms prepared during Phase 0; scoring takes ~3 minutes per household |
+| 26 | Section C | EMK-3 stock-out triggers immediate escalation to Ministry of Health reserve | Life-sustaining medication cannot wait for end-of-day reporting |
+| 27 | Section C | Prioritization criteria are communicated to communities before flood season | Without pre-communication, scoring appears arbitrary and trust breaks down |
+| 28 | Section C | Each delivery run carries a 10% EMK-1 buffer for unregistered households | Unregistered households are inevitable; buffer is factored into stock calculation |
+| 29 | Section D | Ward People's Committees have pre-signed MOUs for facility use and data sharing before flood season | Without this, sub-warehouse setup is legally and practically uncertain |
+| 30 | Section D | District civil defense maintains radio contact with Operations Center on agreed frequencies throughout the flood | Agreed channel frequencies established in Phase 0 |
+| 31 | Section D | 36 volunteers is the minimum viable number; Red Cross maintains roster of 45 with 20% buffer | Accounts for unavailability during flood events |
+| 32 | Section D | At least one ward health station per district remains operational throughout the 5–7 day flood event | Required for clinical referral and escalation to function |
+| 33 | Section D | At least one logistics contractor has a pre-signed emergency transport agreement with guaranteed availability | Prevents transport failure at Phase 1 activation |
+| 34 | Section D | Boat owner agreements are confirmed annually during Phase 0; Red Cross does not own boats | Community asset agreements are the only viable model given budget constraints |
+| 35 | Section D | Red Cross maintains at least 4 functioning handheld radios with shared pre-programmed frequency | One per sub-warehouse + one at Operations Center; charged batteries stored before flood season |
+| 36 | Section D | Red Cross has a dedicated Partnerships Officer role responsible for maintaining all pre-flood agreements | Without this role, Phase 0 coordination tasks create unacceptable workload on Emergency Coordinator |
+| 37 | Section E | Red Cross allocates a defined dry-season operations budget separate from flood response budget | Without this, the annual renewal cycle breaks and REMA degrades year-on-year |
+| 38 | Section E | All templates stored in 3 formats: printed hard copies, shared Google Drive folder, and USB offline backup | Ensures templates survive digital failure and staff turnover |
+| 39 | Section E | Scaling beyond 6 districts requires a Zone Coordinator tier — out of scope for this version of REMA | Current model is explicitly designed for 3–6 district operations only |
+| 40 | Section E | At least 60% of volunteers from the previous flood season are available for the following season | New recruits capped at 40% per team to preserve operational effectiveness |
+| 41 | Section E | REMA is designed for recurrent moderate urban flooding (30–80cm, 5–7 days, 3–4 districts) — not catastrophic inundation | If entire city floods above 80cm, REMA transitions to civil defense support role only |
+| 42 | Section F | Community buildings used as sub-warehouses have usable furniture (tables, shelving) | If not, add ~5,000,000 VND (~$200) per sub-warehouse for folding tables and basic shelving |
+| 43 | Section F | Emergency Coordinator and Warehouse Manager are existing Red Cross permanent staff | REMA does not create new permanent positions; if roles don't exist, add ~$7,200/year for two staff |
+| 44 | Section F | 70% EMK consumption rate per activation is the planning assumption for a full 3-district event | Severe event buffer adds ~$18,000; partial activations scale proportionally |
+| 45 | Section F | Bulk pricing is 15–20% below retail via pre-signed distributor agreements | Without bulk agreements, unit costs increase ~15% across all EMK types |
+| 46 | Section F | Volunteer daily rates are benchmarked to Vietnamese Red Cross volunteer practice | Reflects food, transport, and modest compensation — not professional wages |
+| 47 | Section F | 21,000 total households across 3 districts; 70% coverage = ~51,450 beneficiaries per event | Based on GSO ward-level census data with 15% informal settlement buffer |
+| 48 | Section F | EMK restocking (~$63,000/year) requires MoH or national Red Cross co-funding | Cannot be covered by Red Cross provincial budget alone — primary fundraising dependency |
