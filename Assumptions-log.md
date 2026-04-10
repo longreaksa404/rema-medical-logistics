@@ -29,3 +29,24 @@ Judges reward honest assumptions over false precision.
 | 22 | Section C | EMK-3 stock-out triggers immediate escalation to Ministry of Health reserve | Life-sustaining medication cannot wait for end-of-day reporting |
 | 23 | Section C | Prioritization criteria are communicated to communities before flood season | Without pre-communication, scoring appears arbitrary and trust breaks down |
 | 24 | Section C | Each delivery run carries a 10% EMK-1 buffer for unregistered households | Unregistered households are inevitable; buffer is factored into stock calculation |
+| 25 | Section D | Each delivery run carries a 10% EMK-1 buffer for unregistered households | Unregistered households are inevitable; buffer is factored into stock calculation |
+- D-1: Ward People's Committees have pre-signed MOUs for facility use and data sharing
+- D-2: Civil defense maintains radio contact on agreed frequencies
+- D-3: 36 volunteers minimum; roster of 45 with 20% buffer
+- D-4: At least one ward health station per district remains operational throughout the flood
+- D-5: One logistics contractor has a pre-signed emergency transport agreement
+- D-6: Boat owner agreements confirmed annually in Phase 0
+- D-7: 4 functioning radios with shared pre-programmed frequency
+- D-8: Red Cross has a Partnerships Officer role for maintaining all pre-flood agreements
+- E-1: Separate dry-season operations budget exists distinct from flood response budget
+- E-2: All templates stored in 3 formats: printed, Google Drive, USB offline backup
+- E-3: Scaling beyond 6 districts requires Zone Coordinator tier — out of scope for this version
+- E-4: At least 60% volunteer continuity season-to-season; new recruits capped at 40% per team
+- E-5: REMA is designed for 30–80cm moderate flooding — not catastrophic inundation events
+- F-1: Community buildings have usable furniture; if not, add ~$200/sub-warehouse
+- F-2: Emergency Coordinator and Warehouse Manager are existing Red Cross staff
+- F-3: 70% consumption rate per activation; severe event buffer adds ~$18,000
+- F-4: Bulk pricing 15–20% below retail via pre-signed distributor agreements
+- F-5: Volunteer rates benchmarked to Vietnamese Red Cross practice
+- F-6: 21,000 total households across 3 districts; 70% coverage = ~51,450 beneficiaries/event
+- F-7: EMK restocking (~$63,000/year) requires MoH or national Red Cross co-funding
