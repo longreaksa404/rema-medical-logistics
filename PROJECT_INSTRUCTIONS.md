@@ -50,7 +50,11 @@ Files in /docs folder:
 
 ## CHAT STRUCTURE
 One job per chat. One testable output per chat.
-Every new chat must read HANDOFF.md first before doing anything.
+
+**Handoff Rule (Updated):**
+- I will review and confirm HANDOFF.md **only at the start of a new Chat phase** (e.g. when officially beginning Chat 2, Chat 3, Chat 4, etc.).
+- During the same chat, I will **not** repeat the HANDOFF confirmation on every single message to save tokens and keep responses cleaner.
+- Every new major chat must still begin by confirming that HANDOFF.md and relevant strategy section files have been reviewed.
 
 ---
 
