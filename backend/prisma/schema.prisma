@@ -1,0 +1,140 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
+}
+
+// ─── FLOOD ALERT ─────────────────────────────────────────────────────────────
+// Tracks activation state of REMA. A new alert is created when 2-of-3
+// trigger conditions are met (Section A.3).
+
+model FloodAlert {
+  id                   String   @id @default(cuid())
+  createdAt            DateTime @default(now())
+  updatedAt            DateTime @updatedAt
+
+  // Trigger conditions (2 of 3 must be true to activate)
+  warningLevelTwo      Boolean  @default(false) // City flood warning Level 2+
+  rainfallExceeds100mm Boolean  @default(false) // Forecast >100mm in 24h
+  streetFloodingReport Boolean  @default(false) // Any target district reports flooding
+
+  activated            Boolean  @default(false)
+  activatedAt          DateTime?
+  phase                Int      @default(0) // 0 = standby, 1 = active, 2 = last-mile
+
+  @@map("flood_alerts")
+}
+
+// ─── DISTRICT ────────────────────────────────────────────────────────────────
+// One sub-warehouse per district. 3 districts total (Section 0.5).
+
+model District {
+  id          String  @id @default(cuid())
+  name        String  @unique // e.g. "District 1"
+  population  Int     // estimated households
+  latitude    Float
+  longitude   Float
+
+  stock       Stock?
+  households  Household[]
+  routes      Route[]
+
+  @@map("districts")
+}
+
+// ─── STOCK ───────────────────────────────────────────────────────────────────
+// EMK stock levels per sub-warehouse (one per district).
+// EMK-3 is never pre-stored here — it comes from MoH cold storage at activation.
+// Section B.3 and B.10.
+
+model Stock {
+  id         String   @id @default(cuid())
+  updatedAt  DateTime @updatedAt
+
+  districtId String   @unique
+  district   District @relation(fields: [districtId], references: [id])
+
+  emk1Total     Int @default(0) // General household kits
+  emk1Remaining Int @default(0)
+
+  emk2Total     Int @default(0) // Vulnerable household kits
+  emk2Remaining Int @default(0)
+
+  // EMK-3 is tracked separately — quantity reflects MoH transfer only
+  emk3Total     Int @default(0) // Chronic illness bridge kits
+  emk3Remaining Int @default(0)
+
+  @@map("stock")
+}
+
+// ─── HOUSEHOLD ───────────────────────────────────────────────────────────────
+// Represents a household assessed by volunteers during Hours 8–16 (Section A.3).
+// Scoring follows the 5-category, 20-point system from Section C.
+
+model Household {
+  id         String   @id @default(cuid())
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  address    String
+  districtId String
+  district   District @relation(fields: [districtId], references: [id])
+
+  // Category 1 — Medical urgency (max 8 pts)
+  medicalUrgencyScore  Int @default(0)
+
+  // Category 2 — Household vulnerability (max 5 pts)
+  vulnerabilityScore   Int @default(0)
+
+  // Category 3 — Flood exposure (max 4 pts)
+  floodExposureScore   Int @default(0)
+
+  // Category 4 — Self-sufficiency (max 2 pts)
+  selfSufficiencyScore Int @default(0)
+
+  // Category 5 — Isolation (max 1 pt)
+  isolationScore       Int @default(0)
+
+  // Computed total (0–20)
+  totalScore           Int @default(0)
+
+  // Score band: CRITICAL | HIGH | MEDIUM | STANDARD
+  priorityBand         String @default("STANDARD")
+
+  // Recommended EMK type based on scoring
+  recommendedEmk       String @default("EMK1") // EMK1 | EMK2 | EMK3
+
+  // Delivery status
+  delivered            Boolean  @default(false)
+  deliveredAt          DateTime?
+
+  @@map("households")
+}
+
+// ─── ROUTE ───────────────────────────────────────────────────────────────────
+// Delivery mode recommendation per district zone based on water depth.
+// Section A.4 and B.5.
+
+model Route {
+  id         String   @id @default(cuid())
+  updatedAt  DateTime @updatedAt
+
+  districtId String
+  district   District @relation(fields: [districtId], references: [id])
+
+  // Water depth in cm reported for this zone
+  waterDepthCm Int
+
+  // Recommended delivery mode (from Section A.4)
+  // MOTORBIKE | BICYCLE_OR_FOOT | BOAT | SUSPENDED
+  deliveryMode String
+
+  active     Boolean @default(true)
+
+  @@map("routes")
+}
+// test
