@@ -256,7 +256,6 @@ paths:
                 $ref: '#/components/schemas/HealthResponse'
 
 
-  # ── AUTH TEST ROUTES (remove after Chat 3 verification) ──────────────────────
   /api/test/viewer:
     get:
       tags: [Auth Tests]
