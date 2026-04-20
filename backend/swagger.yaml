@@ -255,7 +255,6 @@ paths:
               schema:
                 $ref: '#/components/schemas/HealthResponse'
 
-    # ── ADD THESE PATHS TO swagger.yaml (paste before the closing of the `paths:` block) ──
 
   # ── AUTH TEST ROUTES (remove after Chat 3 verification) ──────────────────────
   /api/test/viewer:
