@@ -255,6 +255,59 @@ paths:
               schema:
                 $ref: '#/components/schemas/HealthResponse'
 
+    # ── ADD THESE PATHS TO swagger.yaml (paste before the closing of the `paths:` block) ──
+
+  # ── AUTH TEST ROUTES (remove after Chat 3 verification) ──────────────────────
+  /api/test/viewer:
+    get:
+      tags: [Auth Tests]
+      summary: "Test: requires any valid token"
+      description: "Should return 401 without token. Any role passes."
+      responses:
+        "200":
+          description: Access granted
+        "401":
+          description: No token
+
+  /api/test/hub-manager:
+    get:
+      tags: [Auth Tests]
+      summary: "Test: requires HUB_MANAGER or above"
+      description: "VIEWER and VOLUNTEER should get 403. HUB_MANAGER, EMERGENCY_COORDINATOR, SUPER_ADMIN pass."
+      responses:
+        "200":
+          description: Access granted
+        "401":
+          description: No token
+        "403":
+          description: Insufficient role
+
+  /api/test/coordinator:
+    get:
+      tags: [Auth Tests]
+      summary: "Test: requires EMERGENCY_COORDINATOR or above"
+      description: "Only EMERGENCY_COORDINATOR and SUPER_ADMIN pass."
+      responses:
+        "200":
+          description: Access granted
+        "401":
+          description: No token
+        "403":
+          description: Insufficient role
+
+  /api/test/admin:
+    get:
+      tags: [Auth Tests]
+      summary: "Test: requires SUPER_ADMIN only"
+      description: "Only SUPER_ADMIN passes."
+      responses:
+        "200":
+          description: Access granted
+        "401":
+          description: No token
+        "403":
+          description: Insufficient role
+
   # ── AUTH ────────────────────────────────────────────────────────────────────
   /api/auth/login:
     post:
