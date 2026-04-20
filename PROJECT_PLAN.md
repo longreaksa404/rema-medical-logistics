@@ -20,7 +20,7 @@
 |---|---|---|
 | Chat 1 | Strategy — Sections 0, A, B, C, D, E, F | ✅ Complete |
 | Chat 2 | Project Setup | ✅ Complete |
-| Chat 3 | Auth + RBAC | ⬜ Not started |
+| Chat 3 | Auth + RBAC | ✅ Complete |
 | Chat 4 | Activation + Scoring Engine | ⬜ Not started |
 | Chat 5 | Stock Management | ⬜ Not started |
 | Chat 6 | Delivery + Routing | ⬜ Not started |
@@ -81,14 +81,14 @@
 **Goal:** Login works. Protected routes reject unauthorized requests.
 
 **Steps:**
-- [ ] Step 1 — Seed users table (one test user per role: SUPER_ADMIN, EMERGENCY_COORDINATOR, HUB_MANAGER, VOLUNTEER, VIEWER)
-- [ ] Step 2 — POST /api/auth/login (validate email + password, return JWT)
-- [ ] Step 3 — POST /api/auth/logout (invalidate token)
-- [ ] Step 4 — GET /api/auth/me (return current user from JWT)
-- [ ] Step 5 — Auth middleware (verify JWT on protected routes)
-- [ ] Step 6 — Role guard middleware (reject requests below required role)
-- [ ] Step 7 — Apply auth middleware to a test protected route
-- [ ] Step 8 — Test in Swagger: login → get token → call protected route → verify 401 without token → verify 403 with wrong role
+- [x] Step 1 — Seed users table (one test user per role: SUPER_ADMIN, EMERGENCY_COORDINATOR, HUB_MANAGER, VOLUNTEER, VIEWER)
+- [x] Step 2 — POST /api/auth/login (validate email + password, return JWT)
+- [x] Step 3 — POST /api/auth/logout (invalidate token)
+- [x] Step 4 — GET /api/auth/me (return current user from JWT)
+- [x] Step 5 — Auth middleware (verify JWT on protected routes)
+- [x] Step 6 — Role guard middleware (reject requests below required role)
+- [x] Step 7 — Apply auth middleware to a test protected route
+- [x] Step 8 — Test in Swagger: login → get token → call protected route → verify 401 without token → verify 403 with wrong role
 
 **End state:** Can login, receive JWT, call protected endpoint, get 401 without token, get 403 with wrong role.
 
