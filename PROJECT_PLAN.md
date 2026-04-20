@@ -19,7 +19,7 @@
 | Chat | Topic | Status |
 |---|---|---|
 | Chat 1 | Strategy — Sections 0, A, B, C, D, E, F | ✅ Complete |
-| Chat 2 | Project Setup | 🔄 In Progress |
+| Chat 2 | Project Setup | ✅ Complete |
 | Chat 3 | Auth + RBAC | ⬜ Not started |
 | Chat 4 | Activation + Scoring Engine | ⬜ Not started |
 | Chat 5 | Stock Management | ⬜ Not started |
@@ -65,12 +65,12 @@
 - [x] Step 2 — Docker + docker-compose files
 - [x] Step 3 — Supabase PostgreSQL connection + .env configured
 - [x] Step 4 — Prisma schema (5 tables) + first migration run
-- [ ] Step 5 — Update Prisma schema to full 15-table design (PROJECT_SCOPE.md Section 8)
-- [ ] Step 6 — Run new migration: npx prisma migrate dev --name full-schema
-- [ ] Step 7 — Express boilerplate (src/index.ts + src/app.ts)
-- [ ] Step 8 — GET /api/health endpoint
-- [ ] Step 9 — Swagger setup at /api/docs
-- [ ] Step 10 — Test: server starts, health check returns 200, Swagger UI loads
+- [x] Step 5 — Update Prisma schema to full 15-table design (PROJECT_SCOPE.md Section 8)
+- [x] Step 6 — Run new migration: npx prisma migrate dev --name full-schema
+- [x] Step 7 — Express boilerplate (src/index.ts + src/app.ts)
+- [x] Step 8 — GET /api/health endpoint
+- [x] Step 9 — Swagger setup at /api/docs
+- [x] Step 10 — Test: server starts, health check returns 200, Swagger UI loads
 
 **End state:** npm run dev starts server, GET /api/health returns 200, Swagger UI loads at localhost:3000/api/docs.
 
