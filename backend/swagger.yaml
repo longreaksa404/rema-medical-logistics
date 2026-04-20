@@ -1,0 +1,1133 @@
+openapi: "3.0.3"
+info:
+  title: REMA API — Rapid Emergency Medical Access
+  description: |
+    Backend API for the REMA humanitarian logistics system.
+    Built for the Viet Nam Red Cross Medical Logistics challenge (University Track).
+
+    **Architecture:** 3-layer — Central Warehouse → Sub-Warehouses (×3) → Last-Mile Delivery
+
+    **Response window:** 24–48 hours during flood events
+
+    **Authentication:** JWT Bearer token (add via Authorize button above)
+  version: "1.0.0"
+  contact:
+    name: REMA Project
+
+servers:
+  - url: http://localhost:3000
+    description: Local development
+  - url: https://rema-backend.onrender.com
+    description: Production (Render)
+
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+
+  schemas:
+    HealthResponse:
+      type: object
+      properties:
+        status:
+          type: string
+          example: ok
+        system:
+          type: string
+          example: REMA — Rapid Emergency Medical Access
+        version:
+          type: string
+          example: 1.0.0
+        timestamp:
+          type: string
+          format: date-time
+
+    ErrorResponse:
+      type: object
+      properties:
+        error:
+          type: string
+
+    # ── Auth ──────────────────────────────────────────────────────────────────
+    LoginRequest:
+      type: object
+      required: [email, password]
+      properties:
+        email:
+          type: string
+          format: email
+        password:
+          type: string
+
+    LoginResponse:
+      type: object
+      properties:
+        token:
+          type: string
+        user:
+          $ref: '#/components/schemas/UserProfile'
+
+    UserProfile:
+      type: object
+      properties:
+        id:
+          type: string
+        email:
+          type: string
+        name:
+          type: string
+        role:
+          type: string
+          enum: [SUPER_ADMIN, EMERGENCY_COORDINATOR, HUB_MANAGER, VOLUNTEER, VIEWER]
+        districtId:
+          type: string
+          nullable: true
+
+    # ── Flood Alert ───────────────────────────────────────────────────────────
+    FloodAlertStatus:
+      type: object
+      properties:
+        id:
+          type: string
+        warningLevelTwo:
+          type: boolean
+        rainfallExceeds100mm:
+          type: boolean
+        streetFloodingReport:
+          type: boolean
+        activated:
+          type: boolean
+        activatedAt:
+          type: string
+          format: date-time
+          nullable: true
+        phase:
+          type: integer
+          enum: [0, 1, 2]
+          description: "0=standby, 1=active (Hours 0–24), 2=last-mile (Hours 24–48)"
+
+    TriggerRequest:
+      type: object
+      required: [condition]
+      properties:
+        condition:
+          type: string
+          enum: [warningLevelTwo, rainfallExceeds100mm, streetFloodingReport]
+
+    # ── Stock ─────────────────────────────────────────────────────────────────
+    StockLevel:
+      type: object
+      properties:
+        subWarehouseId:
+          type: string
+        districtId:
+          type: string
+        emk1Total:
+          type: integer
+        emk1Remaining:
+          type: integer
+        emk2Total:
+          type: integer
+        emk2Remaining:
+          type: integer
+        emk3Total:
+          type: integer
+          description: "EMK-3 only populated after MoH transfer at activation"
+        emk3Remaining:
+          type: integer
+        updatedAt:
+          type: string
+          format: date-time
+
+    # ── Households ────────────────────────────────────────────────────────────
+    HouseholdScore:
+      type: object
+      required: [cat1, cat2, cat3, cat4, cat5]
+      properties:
+        cat1:
+          type: integer
+          minimum: 0
+          maximum: 8
+          description: "Medical urgency: 0/2/5/8"
+        cat2:
+          type: integer
+          minimum: 0
+          maximum: 5
+          description: "Household vulnerability: sum of flags, capped at 5"
+        cat3:
+          type: integer
+          minimum: 0
+          maximum: 4
+          description: "Flood exposure: 0/1/3/4"
+        cat4:
+          type: integer
+          minimum: 0
+          maximum: 2
+          description: "Self-sufficiency: 0/1/2"
+        cat5:
+          type: integer
+          minimum: 0
+          maximum: 1
+          description: "Isolation: 0/1"
+
+    ScoreResult:
+      type: object
+      properties:
+        totalScore:
+          type: integer
+          minimum: 0
+          maximum: 20
+        priorityBand:
+          type: string
+          enum: [CRITICAL, HIGH, MEDIUM, STANDARD]
+        recommendedEmk:
+          type: string
+          enum: [EMK1, EMK2, EMK3]
+
+    # ── Incidents ─────────────────────────────────────────────────────────────
+    Incident:
+      type: object
+      properties:
+        id:
+          type: string
+        districtId:
+          type: string
+        type:
+          type: string
+          enum: [ROUTE_BLOCKED, VOLUNTEER_SAFETY, STOCK_SCARCITY, BUILDING_FLOODED, OTHER]
+        description:
+          type: string
+        status:
+          type: string
+          enum: [OPEN, ESCALATED, RESOLVED]
+        createdAt:
+          type: string
+          format: date-time
+
+    # ── Dashboard ─────────────────────────────────────────────────────────────
+    DashboardSummary:
+      type: object
+      properties:
+        phase:
+          type: integer
+        activated:
+          type: boolean
+        districts:
+          type: array
+          items:
+            $ref: '#/components/schemas/DistrictCard'
+
+    DistrictCard:
+      type: object
+      properties:
+        districtId:
+          type: string
+        name:
+          type: string
+        stockPct:
+          type: number
+          description: "Average remaining stock % across EMK types"
+        householdsAssessed:
+          type: integer
+        deliveredCount:
+          type: integer
+        openIncidents:
+          type: integer
+
+security:
+  - bearerAuth: []
+
+paths:
+  # ── HEALTH ──────────────────────────────────────────────────────────────────
+  /api/health:
+    get:
+      tags: [System]
+      summary: Health check
+      description: Returns system status. No authentication required.
+      security: []
+      responses:
+        "200":
+          description: System is running
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HealthResponse'
+
+  # ── AUTH ────────────────────────────────────────────────────────────────────
+  /api/auth/login:
+    post:
+      tags: [Auth]
+      summary: Login
+      description: Authenticate with email and password. Returns a JWT token.
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/LoginRequest'
+      responses:
+        "200":
+          description: Login successful
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/LoginResponse'
+        "401":
+          description: Invalid credentials
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /api/auth/logout:
+    post:
+      tags: [Auth]
+      summary: Logout
+      responses:
+        "200":
+          description: Logged out
+
+  /api/auth/me:
+    get:
+      tags: [Auth]
+      summary: Get current user
+      responses:
+        "200":
+          description: Current user profile
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UserProfile'
+        "401":
+          description: Unauthorized
+
+  # ── FLOOD ALERT ─────────────────────────────────────────────────────────────
+  /api/alert/trigger:
+    post:
+      tags: [Flood Alert]
+      summary: Submit a trigger condition
+      description: |
+        Submit one of the 3 trigger conditions. REMA auto-activates when 2 of 3 are true.
+
+        Trigger conditions (Section A.3):
+        - warningLevelTwo — City/provincial flood warning Level 2+
+        - rainfallExceeds100mm — Rainfall forecast exceeds 100mm in 24 hours
+        - streetFloodingReport — Any target district reports street-level flooding
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/TriggerRequest'
+      responses:
+        "200":
+          description: Trigger recorded; returns current alert status
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/FloodAlertStatus'
+
+  /api/alert/status:
+    get:
+      tags: [Flood Alert]
+      summary: Get current activation state and phase
+      responses:
+        "200":
+          description: Current alert status
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/FloodAlertStatus'
+
+  /api/alert/phase:
+    patch:
+      tags: [Flood Alert]
+      summary: Advance phase (Emergency Coordinator only)
+      description: Advance phase 0→1→2. Requires EMERGENCY_COORDINATOR role.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [phase]
+              properties:
+                phase:
+                  type: integer
+                  enum: [1, 2]
+      responses:
+        "200":
+          description: Phase updated
+        "403":
+          description: Forbidden — requires EMERGENCY_COORDINATOR
+
+  # ── DISTRICTS ───────────────────────────────────────────────────────────────
+  /api/districts:
+    get:
+      tags: [Districts]
+      summary: List all 3 districts
+      responses:
+        "200":
+          description: List of districts
+
+  /api/districts/{id}:
+    get:
+      tags: [Districts]
+      summary: Single district with sub-warehouse info
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: District detail
+
+  /api/districts/{id}/summary:
+    get:
+      tags: [Districts]
+      summary: District overview (stock + households + volunteers)
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: District summary card data
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DistrictCard'
+
+  # ── STOCK ───────────────────────────────────────────────────────────────────
+  /api/stock/status:
+    get:
+      tags: [Stock]
+      summary: Stock levels across all sub-warehouses
+      responses:
+        "200":
+          description: All stock levels
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/StockLevel'
+
+  /api/stock/{districtId}:
+    get:
+      tags: [Stock]
+      summary: Stock for one district
+      parameters:
+        - in: path
+          name: districtId
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: District stock level
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/StockLevel'
+
+  /api/stock/dispatch:
+    post:
+      tags: [Stock]
+      summary: Record dispatch from central warehouse to sub-warehouse
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [subWarehouseId, emkType, quantity]
+              properties:
+                subWarehouseId:
+                  type: string
+                emkType:
+                  type: string
+                  enum: [EMK1, EMK2, EMK3]
+                quantity:
+                  type: integer
+                reason:
+                  type: string
+      responses:
+        "200":
+          description: Dispatch recorded
+
+  /api/stock/reallocate:
+    post:
+      tags: [Stock]
+      summary: Cross-district reallocation (Emergency Coordinator only)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [fromSubWarehouseId, toSubWarehouseId, emkType, quantity]
+              properties:
+                fromSubWarehouseId:
+                  type: string
+                toSubWarehouseId:
+                  type: string
+                emkType:
+                  type: string
+                  enum: [EMK1, EMK2, EMK3]
+                quantity:
+                  type: integer
+                reason:
+                  type: string
+      responses:
+        "200":
+          description: Reallocation recorded
+        "403":
+          description: Forbidden — requires EMERGENCY_COORDINATOR
+
+  /api/stock/adjust:
+    post:
+      tags: [Stock]
+      summary: Manual adjustment with reason (Hub Manager)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [subWarehouseId, emkType, quantity, reason]
+              properties:
+                subWarehouseId:
+                  type: string
+                emkType:
+                  type: string
+                  enum: [EMK1, EMK2, EMK3]
+                quantity:
+                  type: integer
+                  description: "Positive = add, negative = remove"
+                reason:
+                  type: string
+      responses:
+        "200":
+          description: Adjustment recorded
+
+  /api/stock/movements:
+    get:
+      tags: [Stock]
+      summary: Full audit log of all stock changes
+      responses:
+        "200":
+          description: Stock movement audit log
+
+  /api/stock/movements/{districtId}:
+    get:
+      tags: [Stock]
+      summary: Audit log for one district
+      parameters:
+        - in: path
+          name: districtId
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: District stock movement log
+
+  # ── SCORING & HOUSEHOLDS ────────────────────────────────────────────────────
+  /api/score/household:
+    post:
+      tags: [Scoring]
+      summary: Score a household (20-point engine)
+      description: |
+        Applies the exact 5-category scoring system from Section C.
+
+        Score bands:
+        - 15–20 = CRITICAL (deliver in current run)
+        - 10–14 = HIGH (deliver same day)
+        - 5–9 = MEDIUM (deliver within 48h)
+        - 0–4 = STANDARD (community collection point)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/HouseholdScore'
+      responses:
+        "200":
+          description: Score result with band and EMK recommendation
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ScoreResult'
+
+  /api/households:
+    get:
+      tags: [Households]
+      summary: List households (filter by district, band)
+      parameters:
+        - in: query
+          name: districtId
+          schema:
+            type: string
+        - in: query
+          name: band
+          schema:
+            type: string
+            enum: [CRITICAL, HIGH, MEDIUM, STANDARD]
+        - in: query
+          name: delivered
+          schema:
+            type: boolean
+      responses:
+        "200":
+          description: List of households
+
+    post:
+      tags: [Households]
+      summary: Create household record
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [address, districtId, cat1, cat2, cat3, cat4, cat5]
+              properties:
+                address:
+                  type: string
+                districtId:
+                  type: string
+                cat1:
+                  type: integer
+                cat2:
+                  type: integer
+                cat3:
+                  type: integer
+                cat4:
+                  type: integer
+                cat5:
+                  type: integer
+                notes:
+                  type: string
+      responses:
+        "201":
+          description: Household created with score
+
+  /api/households/priority-queue:
+    get:
+      tags: [Households]
+      summary: Sorted delivery priority list by district
+      description: Returns households sorted by band (CRITICAL first) then by score descending.
+      parameters:
+        - in: query
+          name: districtId
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Prioritized household list
+
+  /api/households/{id}:
+    get:
+      tags: [Households]
+      summary: Single household detail
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Household detail
+
+    patch:
+      tags: [Households]
+      summary: Update household (triggers re-score)
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                cat1:
+                  type: integer
+                cat2:
+                  type: integer
+                cat3:
+                  type: integer
+                cat4:
+                  type: integer
+                cat5:
+                  type: integer
+                notes:
+                  type: string
+      responses:
+        "200":
+          description: Household updated and re-scored
+
+  # ── DELIVERY ────────────────────────────────────────────────────────────────
+  /api/delivery/runs:
+    post:
+      tags: [Delivery]
+      summary: Start a delivery run
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [subWarehouseId, teamNumber, zone, leadVolunteerId]
+              properties:
+                subWarehouseId:
+                  type: string
+                teamNumber:
+                  type: integer
+                zone:
+                  type: string
+                leadVolunteerId:
+                  type: string
+      responses:
+        "201":
+          description: Delivery run started
+
+    get:
+      tags: [Delivery]
+      summary: List all delivery runs
+      parameters:
+        - in: query
+          name: districtId
+          schema:
+            type: string
+        - in: query
+          name: status
+          schema:
+            type: string
+            enum: [IN_PROGRESS, COMPLETE, ABORTED]
+      responses:
+        "200":
+          description: List of delivery runs
+
+  /api/delivery/runs/{id}:
+    get:
+      tags: [Delivery]
+      summary: Single run with all receipts
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Delivery run detail with receipts
+
+  /api/delivery/runs/{id}/complete:
+    patch:
+      tags: [Delivery]
+      summary: Mark run complete
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Run marked complete
+
+  /api/delivery/receipts:
+    post:
+      tags: [Delivery]
+      summary: Record per-household delivery confirmation
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [deliveryRunId, householdId, emkType, deliveredAt]
+              properties:
+                deliveryRunId:
+                  type: string
+                householdId:
+                  type: string
+                emkType:
+                  type: string
+                  enum: [EMK1, EMK2, EMK3]
+                quantity:
+                  type: integer
+                  default: 1
+                deliveredAt:
+                  type: string
+                  format: date-time
+                notes:
+                  type: string
+      responses:
+        "201":
+          description: Delivery receipt recorded
+
+  # ── ROUTING ─────────────────────────────────────────────────────────────────
+  /api/route/recommend:
+    get:
+      tags: [Routing]
+      summary: Delivery mode recommendation by water depth
+      description: |
+        Returns delivery mode based on Section A.4 tiers:
+        - 0–30 cm → MOTORBIKE
+        - 30–60 cm → BICYCLE_OR_FOOT
+        - 60–80 cm → BOAT
+        - >80 cm → SUSPENDED
+      parameters:
+        - in: query
+          name: waterDepthCm
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Recommended delivery mode
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  waterDepthCm:
+                    type: integer
+                  deliveryMode:
+                    type: string
+                    enum: [MOTORBIKE, BICYCLE_OR_FOOT, BOAT, SUSPENDED]
+                  warning:
+                    type: string
+                    description: "Present when SUSPENDED — escalate to civil defense"
+
+  /api/route/update:
+    post:
+      tags: [Routing]
+      summary: Update water depth for a zone (creates route log)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [districtId, zone, waterDepthCm]
+              properties:
+                districtId:
+                  type: string
+                zone:
+                  type: string
+                waterDepthCm:
+                  type: integer
+      responses:
+        "200":
+          description: Route updated
+
+  /api/route/logs:
+    get:
+      tags: [Routing]
+      summary: Route status change history
+      parameters:
+        - in: query
+          name: districtId
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Route log history
+
+  # ── VOLUNTEERS ──────────────────────────────────────────────────────────────
+  /api/volunteers:
+    get:
+      tags: [Volunteers]
+      summary: List all volunteers (filter by district)
+      parameters:
+        - in: query
+          name: districtId
+          schema:
+            type: string
+        - in: query
+          name: status
+          schema:
+            type: string
+            enum: [AVAILABLE, DEPLOYED, INACTIVE]
+      responses:
+        "200":
+          description: Volunteer list
+
+    post:
+      tags: [Volunteers]
+      summary: Add volunteer to roster
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [districtId, name, phone]
+              properties:
+                districtId:
+                  type: string
+                name:
+                  type: string
+                phone:
+                  type: string
+                role:
+                  type: string
+                  enum: [TEAM_LEADER, VOLUNTEER]
+                  default: VOLUNTEER
+      responses:
+        "201":
+          description: Volunteer added
+
+  /api/volunteers/assign:
+    post:
+      tags: [Volunteers]
+      summary: Assign volunteer to zone and team
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [volunteerId, subWarehouseId, alertId, zone, teamNumber]
+              properties:
+                volunteerId:
+                  type: string
+                subWarehouseId:
+                  type: string
+                alertId:
+                  type: string
+                zone:
+                  type: string
+                teamNumber:
+                  type: integer
+      responses:
+        "201":
+          description: Volunteer assigned
+
+  /api/volunteers/{id}:
+    patch:
+      tags: [Volunteers]
+      summary: Update volunteer info or status
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                name:
+                  type: string
+                phone:
+                  type: string
+                status:
+                  type: string
+                  enum: [AVAILABLE, DEPLOYED, INACTIVE]
+                role:
+                  type: string
+                  enum: [TEAM_LEADER, VOLUNTEER]
+      responses:
+        "200":
+          description: Volunteer updated
+
+  /api/volunteers/{districtId}/roster:
+    get:
+      tags: [Volunteers]
+      summary: Full roster for a district
+      parameters:
+        - in: path
+          name: districtId
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: District volunteer roster
+
+  # ── INCIDENTS ───────────────────────────────────────────────────────────────
+  /api/incidents:
+    post:
+      tags: [Incidents]
+      summary: Report an incident
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [districtId, type, description]
+              properties:
+                districtId:
+                  type: string
+                type:
+                  type: string
+                  enum: [ROUTE_BLOCKED, VOLUNTEER_SAFETY, STOCK_SCARCITY, BUILDING_FLOODED, OTHER]
+                description:
+                  type: string
+      responses:
+        "201":
+          description: Incident reported
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Incident'
+
+    get:
+      tags: [Incidents]
+      summary: List incidents (filter by district, type, status)
+      parameters:
+        - in: query
+          name: districtId
+          schema:
+            type: string
+        - in: query
+          name: type
+          schema:
+            type: string
+            enum: [ROUTE_BLOCKED, VOLUNTEER_SAFETY, STOCK_SCARCITY, BUILDING_FLOODED, OTHER]
+        - in: query
+          name: status
+          schema:
+            type: string
+            enum: [OPEN, ESCALATED, RESOLVED]
+      responses:
+        "200":
+          description: Incident list
+
+  /api/incidents/{id}/resolve:
+    patch:
+      tags: [Incidents]
+      summary: Mark incident resolved
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Incident resolved
+
+  # ── RADIO CHECK-INS ─────────────────────────────────────────────────────────
+  /api/radio/checkin:
+    post:
+      tags: [Radio]
+      summary: Submit scheduled radio check-in
+      description: |
+        Fixed schedule: T0800, T1200, T1600, T2000 (Section D.9).
+        If internet fails, check-ins are submitted retroactively when contact is restored.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [districtId, scheduledTime, status]
+              properties:
+                districtId:
+                  type: string
+                scheduledTime:
+                  type: string
+                  enum: [T0800, T1200, T1600, T2000]
+                status:
+                  type: string
+                  enum: [OK, ISSUE_REPORTED]
+                notes:
+                  type: string
+      responses:
+        "201":
+          description: Check-in recorded
+
+  /api/radio/checkins:
+    get:
+      tags: [Radio]
+      summary: List check-ins (filter by district and date)
+      parameters:
+        - in: query
+          name: districtId
+          schema:
+            type: string
+        - in: query
+          name: date
+          schema:
+            type: string
+            format: date
+      responses:
+        "200":
+          description: Check-in list
+
+  # ── NOTIFICATIONS ───────────────────────────────────────────────────────────
+  /api/notifications:
+    get:
+      tags: [Notifications]
+      summary: Get notifications for current user
+      responses:
+        "200":
+          description: Notification list
+
+  /api/notifications/{id}/read:
+    patch:
+      tags: [Notifications]
+      summary: Mark notification as read
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Notification marked read
+
+  # ── DASHBOARD ────────────────────────────────────────────────────────────────
+  /api/dashboard/summary:
+    get:
+      tags: [Dashboard]
+      summary: Aggregated view — phase + stock + households + alerts
+      responses:
+        "200":
+          description: Dashboard summary
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DashboardSummary'
+
+  /api/dashboard/district/{id}:
+    get:
+      tags: [Dashboard]
+      summary: Per-district summary card data
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: District summary card
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DistrictCard'
