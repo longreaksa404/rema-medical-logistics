@@ -1,0 +1,7 @@
+{
+  "name": "rema-medical-logistics",
+  "version": "1.0.0",
+  "private": true,
+  "description": "REMA — Rapid Emergency Medical Access. Monorepo root.",
+  "workspaces": ["backend"]
+}

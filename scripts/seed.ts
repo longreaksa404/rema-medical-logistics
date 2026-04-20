@@ -3,59 +3,30 @@ import bcrypt from 'bcrypt';
 
 const prisma = new PrismaClient();
 
-// ─── SEED DATA ────────────────────────────────────────────────────────────────
-// Creates one user per role for local testing.
-// All passwords are "rema1234" — change before any real deployment.
-//
-// Roles (from PROJECT_SCOPE.md Section 7):
-// SUPER_ADMIN          — full access, user management
-// EMERGENCY_COORDINATOR — activate REMA, approve resupply, cross-district reallocation
-// HUB_MANAGER          — manage own district (stock, volunteers, deliveries, incidents)
-// VOLUNTEER            — submit assessments, log deliveries, report incidents
-// VIEWER               — read-only, dashboards only
-
 async function main() {
   const password = 'rema1234';
   const hash = await bcrypt.hash(password, 10);
 
-  // We need at least one district to assign district-scoped users.
-  // Upsert 3 districts first (safe to run multiple times).
   const d1 = await prisma.district.upsert({
     where: { name: 'District 1' },
     update: {},
-    create: {
-      name: 'District 1',
-      population: 8000,
-      latitude: 10.762,
-      longitude: 106.660,
-    },
+    create: { name: 'District 1', population: 8000, latitude: 10.762, longitude: 106.660 },
   });
 
   const d2 = await prisma.district.upsert({
     where: { name: 'District 2' },
     update: {},
-    create: {
-      name: 'District 2',
-      population: 6000,
-      latitude: 10.770,
-      longitude: 106.670,
-    },
+    create: { name: 'District 2', population: 6000, latitude: 10.770, longitude: 106.670 },
   });
 
   const d3 = await prisma.district.upsert({
     where: { name: 'District 3' },
     update: {},
-    create: {
-      name: 'District 3',
-      population: 7000,
-      latitude: 10.755,
-      longitude: 106.650,
-    },
+    create: { name: 'District 3', population: 7000, latitude: 10.755, longitude: 106.650 },
   });
 
   console.log('Districts seeded:', d1.name, d2.name, d3.name);
 
-  // Upsert sub-warehouses for each district
   await prisma.subWarehouse.upsert({
     where: { districtId: d1.id },
     update: {},
@@ -97,69 +68,31 @@ async function main() {
 
   console.log('Sub-warehouses seeded');
 
-  // Seed one user per role
   const users: Array<{
     email: string;
     name: string;
     role: Role;
     districtId: string | null;
   }> = [
-    {
-      email: 'admin@rema.vn',
-      name: 'REMA Super Admin',
-      role: Role.SUPER_ADMIN,
-      districtId: null, // HQ — no district scope
-    },
-    {
-      email: 'coordinator@rema.vn',
-      name: 'Emergency Coordinator',
-      role: Role.EMERGENCY_COORDINATOR,
-      districtId: null, // Operations Center — cross-district
-    },
-    {
-      email: 'hub1@rema.vn',
-      name: 'Hub Manager District 1',
-      role: Role.HUB_MANAGER,
-      districtId: d1.id,
-    },
-    {
-      email: 'volunteer1@rema.vn',
-      name: 'Volunteer District 1',
-      role: Role.VOLUNTEER,
-      districtId: d1.id,
-    },
-    {
-      email: 'viewer@rema.vn',
-      name: 'Read-Only Viewer',
-      role: Role.VIEWER,
-      districtId: null,
-    },
+    { email: 'admin@rema.vn',       name: 'REMA Super Admin',           role: Role.SUPER_ADMIN,           districtId: null   },
+    { email: 'coordinator@rema.vn', name: 'Emergency Coordinator',      role: Role.EMERGENCY_COORDINATOR, districtId: null   },
+    { email: 'hub1@rema.vn',        name: 'Hub Manager District 1',     role: Role.HUB_MANAGER,           districtId: d1.id  },
+    { email: 'volunteer1@rema.vn',  name: 'Volunteer District 1',       role: Role.VOLUNTEER,             districtId: d1.id  },
+    { email: 'viewer@rema.vn',      name: 'Read-Only Viewer',           role: Role.VIEWER,                districtId: null   },
   ];
 
   for (const u of users) {
     const created = await prisma.user.upsert({
       where: { email: u.email },
-      update: { passwordHash: hash }, // refresh password on re-seed
-      create: {
-        email: u.email,
-        name: u.name,
-        role: u.role,
-        passwordHash: hash,
-        districtId: u.districtId,
-      },
+      update: { passwordHash: hash },
+      create: { email: u.email, name: u.name, role: u.role, passwordHash: hash, districtId: u.districtId },
     });
     console.log(`  ✓ ${created.role.padEnd(24)} ${created.email}`);
   }
 
   console.log('\nSeed complete. All passwords: rema1234');
-  console.log('Change JWT_SECRET in .env before any real deployment.');
 }
 
 main()
-  .catch((e) => {
-    console.error('Seed failed:', e);
-    process.exit(1);
-  })
-  .finally(async () => {
-    await prisma.$disconnect();
-  });
+  .catch((e) => { console.error('Seed failed:', e); process.exit(1); })
+  .finally(async () => { await prisma.$disconnect(); });

@@ -8,7 +8,7 @@
     "start": "node dist/index.js",
     "migrate": "prisma migrate dev",
     "generate": "prisma generate",
-    "seed": "ts-node-dev --transpile-only --project tsconfig.json ../scripts/seed.ts"
+    "seed": "npx ts-node --project tsconfig.json ../scripts/seed.ts"
   },
   "dependencies": {
     "@prisma/client": "^5.10.0",
@@ -29,6 +29,7 @@
     "@types/swagger-ui-express": "^4.1.6",
     "@types/yamljs": "^0.2.34",
     "prisma": "^5.22.0",
+    "ts-node": "^10.9.2",
     "ts-node-dev": "^2.0.0",
     "typescript": "^5.3.3"
   }
