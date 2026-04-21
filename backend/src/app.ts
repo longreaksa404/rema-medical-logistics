@@ -6,6 +6,8 @@ import path from 'path';
 
 import authRoutes from './routes/auth.routes';
 import testRoutes from './routes/test.routes';
+import alertRoutes from './routes/alert.routes';
+import { scoreRouter, householdRouter } from './routes/household.routes';
 
 const app = express();
 
@@ -29,9 +31,13 @@ app.get('/api/health', (_req, res) => {
 
 // ─── ROUTES ───────────────────────────────────────────────────────────────────
 app.use('/api/auth', authRoutes);
-app.use('/api/test', testRoutes); // remove after Chat 3 testing is done
+app.use('/api/test', testRoutes); // remove before final deployment
 
-// Chat 4: /api/alert, /api/score, /api/households
+// Chat 4
+app.use('/api/alert', alertRoutes);
+app.use('/api/score', scoreRouter);
+app.use('/api/households', householdRouter);
+
 // Chat 5: /api/stock
 // Chat 6: /api/delivery, /api/route
 // Chat 7: /api/volunteers, /api/incidents, /api/radio, /api/notifications, /api/dashboard
