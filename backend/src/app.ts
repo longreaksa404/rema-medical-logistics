@@ -8,6 +8,8 @@ import authRoutes from './routes/auth.routes';
 import testRoutes from './routes/test.routes';
 import alertRoutes from './routes/alert.routes';
 import { scoreRouter, householdRouter } from './routes/household.routes';
+import stockRoutes from './routes/stock.routes';
+import districtRoutes from './routes/district.routes';
 
 const app = express();
 
@@ -38,7 +40,10 @@ app.use('/api/alert', alertRoutes);
 app.use('/api/score', scoreRouter);
 app.use('/api/households', householdRouter);
 
-// Chat 5: /api/stock
+// Chat 5
+app.use('/api/stock', stockRoutes);
+app.use('/api/districts', districtRoutes);
+
 // Chat 6: /api/delivery, /api/route
 // Chat 7: /api/volunteers, /api/incidents, /api/radio, /api/notifications, /api/dashboard
 
