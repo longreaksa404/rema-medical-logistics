@@ -22,7 +22,7 @@
 | Chat 2 | Project Setup | ✅ Complete |
 | Chat 3 | Auth + RBAC | ✅ Complete |
 | Chat 4 | Activation + Scoring Engine | ✅ Complete |
-| Chat 5 | Stock Management | ⬜ Not started |
+| Chat 5 | Stock Management | ✅ Complete |
 | Chat 6 | Delivery + Routing | ⬜ Not started |
 | Chat 7 | Volunteers + Incidents + Radio + Dashboard | ⬜ Not started |
 | Chat 8 | Frontend: Auth + Dashboard Setup | ⬜ Not started |
@@ -121,16 +121,16 @@
 **Goal:** Full stock lifecycle works with complete audit trail.
 
 **Steps:**
-- [ ] Step 1 — Seed districts + sub-warehouses + initial stock records
-- [ ] Step 2 — GET /api/stock/status (all sub-warehouses, all EMK types)
-- [ ] Step 3 — GET /api/stock/:districtId (single district stock)
-- [ ] Step 4 — POST /api/stock/dispatch (central warehouse → sub-warehouse, creates stock_movement)
-- [ ] Step 5 — POST /api/stock/reallocate (cross-district transfer, EC only, creates stock_movement)
-- [ ] Step 6 — POST /api/stock/adjust (manual adjustment with reason, Hub Manager, creates stock_movement)
-- [ ] Step 7 — GET /api/stock/movements (full audit log, all districts)
-- [ ] Step 8 — GET /api/stock/movements/:districtId (audit log for one district)
-- [ ] Step 9 — Scarcity mode check (flag when stock falls below 30% of original allocation)
-- [ ] Step 10 — Test full stock lifecycle in Swagger (dispatch → deliver → reallocate → check audit log)
+- [x] Step 1 — Seed districts + sub-warehouses + initial stock records
+- [x] Step 2 — GET /api/stock/status (all sub-warehouses, all EMK types)
+- [x] Step 3 — GET /api/stock/:districtId (single district stock)
+- [x] Step 4 — POST /api/stock/dispatch (central warehouse → sub-warehouse, creates stock_movement)
+- [x] Step 5 — POST /api/stock/reallocate (cross-district transfer, EC only, creates stock_movement)
+- [x] Step 6 — POST /api/stock/adjust (manual adjustment with reason, Hub Manager, creates stock_movement)
+- [x] Step 7 — GET /api/stock/movements (full audit log, all districts)
+- [x] Step 8 — GET /api/stock/movements/:districtId (audit log for one district)
+- [x] Step 9 — Scarcity mode check (flag when stock falls below 30% of original allocation)
+- [x] Step 10 — Test full stock lifecycle in Swagger (dispatch → deliver → reallocate → check audit log)
 
 **End state:** Every stock change creates a stock_movements record. Scarcity mode triggers correctly. Full audit trail verified.
 

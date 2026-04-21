@@ -1,32 +1,34 @@
 # REMA Handoff Document
-Last updated: Chat 4 complete
+Last updated: Chat 5 complete
 
 ## Current Chat Goal
-Chat 4 — Activation + Scoring Engine — COMPLETE
+Chat 5 — Stock Management — COMPLETE
 
 ## What Was Completed This Chat
-- [x] alert.service.ts — getOrCreateActiveAlert, submitTrigger (2-of-3 auto-activate), getAlertStatus, advancePhase
-- [x] alert.controller.ts — trigger, status, phase handlers
-- [x] alert.routes.ts — POST /trigger, GET /status, PATCH /phase (EC-only)
-- [x] scoring.ts (utils) — exact 20-point engine from Section C; all 6 scores+bands match
-- [x] household.service.ts — computeScore, createHousehold, listHouseholds, getHousehold, updateHousehold, getPriorityQueue
-- [x] household.controller.ts — scoreOnly, create, list, priorityQueue, getOne, update
-- [x] household.routes.ts — /api/score and /api/households routes
-- [x] district.routes.ts — GET /api/districts, GET /api/districts/:id (quick unblock)
-- [x] app.ts — all Chat 4 routes wired in
-- [x] swagger.yaml — full replacement with Chat 3 + Chat 4 endpoints
-- [x] TypeScript fix — Record type in alert.service.ts updated to include number
+- [x] seed.ts — updated with stock records for all 3 sub-warehouses (Section B.2 figures)
+- [x] seed.ts — added hub2@rema.vn and hub3@rema.vn (Hub Managers for Districts 2 and 3)
+- [x] stock.service.ts — getAllStock, getStockByDistrict, dispatchStock, reallocateStock, adjustStock, getAllMovements, getMovementsByDistrict, recordDelivery (for Chat 6)
+- [x] stock.controller.ts — all 8 handlers
+- [x] stock.routes.ts — route order fixed (status/movements before :districtId)
+- [x] district.service.ts — listDistricts, getDistrict, getDistrictSummary (for dashboard)
+- [x] district.controller.ts — list, getOne, summary handlers
+- [x] district.routes.ts — replaces Chat 4 stub; /summary before /:id
+- [x] app.ts — stock and district routes wired in
+- [x] swagger.yaml — StockLevel, StockMovement, DistrictCard schemas updated; all stock/district paths with full descriptions and examples
 
-## Swagger Tests Passed
-- [x] GET /api/alert/status → fresh alert, all false, phase 0
-- [x] POST /api/alert/trigger warningLevelTwo → 1 condition set
-- [x] POST /api/alert/trigger rainfallExceeds100mm → activated=true, phase=1
-- [x] POST /api/score/household Case F → score=10, HIGH, EMK3
-- [x] POST /api/score/household Case E → score=1, STANDARD, EMK1
+## Swagger Tests — What to Verify
+- [ ] GET /api/districts → returns 3 districts with sub-warehouse IDs
+- [ ] GET /api/stock/status → EMK1+EMK2 seeded, EMK3=0, no scarcity
+- [ ] GET /api/stock/:districtId → single district stock
+- [ ] POST /api/stock/dispatch (EMK1) → stock increases, DISPATCH movement created
+- [ ] POST /api/stock/dispatch (EMK3) → stock increases, movement auto-changed to MOH_TRANSFER
+- [ ] POST /api/stock/reallocate (EC only) → two movement records, from/to both updated
+- [ ] POST /api/stock/adjust (Hub Manager) → negative quantity works, ADJUSTMENT movement created
+- [ ] Scarcity test: adjust to <30% → anyScarce=true
+- [ ] GET /api/stock/movements → all operations in audit log, newest first
+- [ ] GET /api/stock/movements/:districtId → filtered correctly
 
 ## What Is NOT Done Yet
-- [ ] POST /api/households and GET /api/households/priority-queue not tested yet
-  (need district IDs — will happen naturally during Chat 5 seeding)
 - [ ] Add Assumption #49 to docs/Assumptions-log.md
 - [ ] Push to GitHub
 
@@ -35,29 +37,27 @@ Chat 4 — Activation + Scoring Engine — COMPLETE
 - [x] Chat 2 — Project Setup ✅
 - [x] Chat 3 — Auth + RBAC ✅
 - [x] Chat 4 — Activation + Scoring Engine ✅
+- [x] Chat 5 — Stock Management ✅
 
-## What Is Next — Chat 5: Stock Management
-1. Seed stock records for all 3 sub-warehouses (initial allocation per Section B.2)
-2. GET /api/stock/status — all sub-warehouses
-3. GET /api/stock/:districtId — single district
-4. POST /api/stock/dispatch — central warehouse → sub-warehouse, creates stock_movement
-5. POST /api/stock/reallocate — cross-district, EC only
-6. POST /api/stock/adjust — manual with reason, Hub Manager
-7. GET /api/stock/movements — full audit log
-8. GET /api/stock/movements/:districtId — per-district log
-9. Scarcity mode check (stock < 30% of original allocation)
-10. Full lifecycle test in Swagger
+## What Is Next — Chat 6: Delivery + Routing
+1. POST /api/delivery/runs — start a delivery run (subWarehouseId, teamNumber, zone, leadVolunteerId)
+2. GET /api/delivery/runs — list, filter by districtId/status
+3. GET /api/delivery/runs/:id — single run with all receipts
+4. POST /api/delivery/receipts — record per-household confirmation; calls recordDelivery() from stock.service
+5. PATCH /api/delivery/runs/:id/complete — mark run complete, set returnedAt
+6. GET /api/route/recommend?waterDepthCm=X — return delivery mode per Section A.4 tiers
+7. POST /api/route/update — update water depth for a zone, creates route_log entry
+8. GET /api/route/logs — route status history, filter by districtId
+9. SUSPENDED logic: mode = SUSPENDED above 80cm, include warning message
+10. Full lifecycle test: start run → add receipts (stock decrements) → complete run
 
 ## Critical Decisions to Remember
-- EMK-3 never pre-stored — MoH cold storage only, transferred at activation
-- Scoring: 6/6 scores+bands match Section C.8 exactly
-- EMK recommendation: cat1≥5→EMK3, cat2≥1→EMK2, else EMK1 (field-adjustable)
-- Assumption #49: EMK2 default for cat2≥1 is conservative; field volunteers can downgrade
-- Priority queue sort: BAND ORDER → totalScore DESC → cat1 DESC → createdAt ASC
-- /priority-queue route MUST be before /:id in Express route order
-- FloodAlert is a single accumulating record — conditions are additive
-- Phase auto-advances to 1 when 2-of-3 triggers met
-- alert.service.ts Record type: boolean | string | Date | number
+- recordDelivery() is already written in stock.service.ts — Chat 6 delivery receipt controller calls it
+- Route tiers are locked: 0–30 MOTORBIKE / 30–60 BICYCLE_OR_FOOT / 60–80 BOAT / >80 SUSPENDED
+- Delivery receipts must decrement sub-warehouse stock (call recordDelivery)
+- Stock scarcity check: remaining < 30% of total → anyScarce flag
+- EMK-3 dispatch auto-set to MOH_TRANSFER in service
+- Assumption #49: Total fields update on each DISPATCH (current activation baseline)
 
 ## Live URLs
 - Backend API: not yet deployed
