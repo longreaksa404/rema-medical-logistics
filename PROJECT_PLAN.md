@@ -21,7 +21,7 @@
 | Chat 1 | Strategy — Sections 0, A, B, C, D, E, F | ✅ Complete |
 | Chat 2 | Project Setup | ✅ Complete |
 | Chat 3 | Auth + RBAC | ✅ Complete |
-| Chat 4 | Activation + Scoring Engine | ⬜ Not started |
+| Chat 4 | Activation + Scoring Engine | ✅ Complete |
 | Chat 5 | Stock Management | ⬜ Not started |
 | Chat 6 | Delivery + Routing | ⬜ Not started |
 | Chat 7 | Volunteers + Incidents + Radio + Dashboard | ⬜ Not started |
@@ -99,18 +99,18 @@
 **Goal:** 2-of-3 activation logic works. 20-point scoring engine matches Section C exactly.
 
 **Steps:**
-- [ ] Step 1 — POST /api/alert/trigger (accept one condition, auto-activate when 2-of-3 met)
-- [ ] Step 2 — GET /api/alert/status (current phase + which conditions are met)
-- [ ] Step 3 — PATCH /api/alert/phase (advance phase 0→1→2, EC only)
-- [ ] Step 4 — POST /api/score/household (20-point engine: 5 categories, exact weights from Section C)
-- [ ] Step 5 — Score band assignment logic (CRITICAL/HIGH/MEDIUM/STANDARD)
-- [ ] Step 6 — EMK type recommendation logic from score
-- [ ] Step 7 — POST /api/households (create household with score)
-- [ ] Step 8 — GET /api/households (list, filter by district and band)
-- [ ] Step 9 — GET /api/households/:id (single household detail)
-- [ ] Step 10 — PATCH /api/households/:id (update + re-score)
-- [ ] Step 11 — GET /api/households/priority-queue (sorted by score band then score)
-- [ ] Step 12 — Test scoring against Section C worked example (must match exactly)
+- [x] Step 1 — POST /api/alert/trigger (accept one condition, auto-activate when 2-of-3 met)
+- [x] Step 2 — GET /api/alert/status (current phase + which conditions are met)
+- [x] Step 3 — PATCH /api/alert/phase (advance phase 0→1→2, EC only)
+- [x] Step 4 — POST /api/score/household (20-point engine: 5 categories, exact weights from Section C)
+- [x] Step 5 — Score band assignment logic (CRITICAL/HIGH/MEDIUM/STANDARD)
+- [x] Step 6 — EMK type recommendation logic from score
+- [x] Step 7 — POST /api/households (create household with score)
+- [x] Step 8 — GET /api/households (list, filter by district and band)
+- [x] Step 9 — GET /api/households/:id (single household detail)
+- [x] Step 10 — PATCH /api/households/:id (update + re-score)
+- [x] Step 11 — GET /api/households/priority-queue (sorted by score band then score)
+- [x] Step 12 — Test scoring against Section C worked example (must match exactly)
 
 **End state:** All endpoints tested in Swagger. Scoring output matches Section C worked example exactly.
 
