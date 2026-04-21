@@ -53,3 +53,4 @@ Judges reward honest assumptions over false precision.
 | 46 | Section F | Volunteer daily rates are benchmarked to Vietnamese Red Cross volunteer practice | Reflects food, transport, and modest compensation — not professional wages |
 | 47 | Section F | 21,000 total households across 3 districts; 70% coverage = ~51,450 beneficiaries per event | Based on GSO ward-level census data with 15% informal settlement buffer |
 | 48 | Section F | EMK restocking (~$63,000/year) requires MoH or national Red Cross co-funding | Cannot be covered by Red Cross provincial budget alone — primary fundraising dependency |
+| 49 | Section B / Chat 5 | Stock `*Total` fields are updated on each DISPATCH — they represent the current activation's allocation baseline, not a fixed historical figure. Scarcity % is always calculated against the current total. | Simplifies the scarcity check; prevents false positives after resupply. |

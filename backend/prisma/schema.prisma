@@ -8,7 +8,294 @@ datasource db {
   directUrl = env("DIRECT_URL")
 }
 
-// ─── ENUMS ────────────────────────────────────────────────────────────────────
+model User {
+  id                String                @id @default(cuid())
+  createdAt         DateTime              @default(now())
+  updatedAt         DateTime              @updatedAt
+  email             String                @unique
+  passwordHash      String
+  name              String
+  role              Role
+  active            Boolean               @default(true)
+  districtId        String?
+  deliveryRuns      DeliveryRun[]
+  assessmentsFiled  HouseholdAssessment[]
+  householdAssessed Household[]           @relation("AssessedBy")
+  incidentsReported Incident[]            @relation("ReportedBy")
+  incidentsResolved Incident[]            @relation("ResolvedBy")
+  notifications     Notification[]
+  radioCheckins     RadioCheckin[]
+  routeLogs         RouteLog[]
+  stockMovements    StockMovement[]
+  district          District?             @relation(fields: [districtId], references: [id])
+
+  @@map("users")
+}
+
+model District {
+  id            String         @id @default(cuid())
+  name          String         @unique
+  population    Int
+  latitude      Float
+  longitude     Float
+  createdAt     DateTime       @default(now())
+  households    Household[]
+  incidents     Incident[]
+  radioCheckins RadioCheckin[]
+  routes        Route[]
+  subWarehouse  SubWarehouse?
+  users         User[]
+
+  @@map("districts")
+}
+
+model SubWarehouse {
+  id                   String                @id @default(cuid())
+  createdAt            DateTime              @default(now())
+  updatedAt            DateTime              @updatedAt
+  districtId           String                @unique
+  name                 String
+  address              String
+  latitude             Float
+  longitude            Float
+  status               SubWarehouseStatus    @default(INACTIVE)
+  capacitySqm          Int
+  isBackup             Boolean               @default(false)
+  backupForId          String?
+  deliveryRuns         DeliveryRun[]
+  stock                Stock?
+  stockMovements       StockMovement[]
+  district             District              @relation(fields: [districtId], references: [id])
+  volunteerAssignments VolunteerAssignment[]
+
+  @@map("sub_warehouses")
+}
+
+model Stock {
+  id             String       @id @default(cuid())
+  updatedAt      DateTime     @updatedAt
+  emk1Total      Int          @default(0)
+  emk1Remaining  Int          @default(0)
+  emk2Total      Int          @default(0)
+  emk2Remaining  Int          @default(0)
+  emk3Total      Int          @default(0)
+  emk3Remaining  Int          @default(0)
+  subWarehouseId String       @unique
+  subWarehouse   SubWarehouse @relation(fields: [subWarehouseId], references: [id])
+
+  @@map("stock")
+}
+
+model StockMovement {
+  id             String       @id @default(cuid())
+  createdAt      DateTime     @default(now())
+  subWarehouseId String
+  emkType        EmkType
+  movementType   MovementType
+  quantity       Int
+  reason         String?
+  performedById  String
+  performedBy    User         @relation(fields: [performedById], references: [id])
+  subWarehouse   SubWarehouse @relation(fields: [subWarehouseId], references: [id])
+
+  @@map("stock_movements")
+}
+
+model FloodAlert {
+  id                   String                @id @default(cuid())
+  createdAt            DateTime              @default(now())
+  updatedAt            DateTime              @updatedAt
+  warningLevelTwo      Boolean               @default(false)
+  rainfallExceeds100mm Boolean               @default(false)
+  streetFloodingReport Boolean               @default(false)
+  activated            Boolean               @default(false)
+  activatedAt          DateTime?
+  phase                Int                   @default(0)
+  volunteerAssignments VolunteerAssignment[]
+
+  @@map("flood_alerts")
+}
+
+model Household {
+  id                   String                @id @default(cuid())
+  createdAt            DateTime              @default(now())
+  updatedAt            DateTime              @updatedAt
+  address              String
+  districtId           String
+  medicalUrgencyScore  Int                   @default(0)
+  vulnerabilityScore   Int                   @default(0)
+  floodExposureScore   Int                   @default(0)
+  selfSufficiencyScore Int                   @default(0)
+  isolationScore       Int                   @default(0)
+  totalScore           Int                   @default(0)
+  delivered            Boolean               @default(false)
+  deliveredAt          DateTime?
+  assessedById         String?
+  priorityBand         PriorityBand          @default(STANDARD)
+  recommendedEmk       EmkType               @default(EMK1)
+  deliveryReceipts     DeliveryReceipt[]
+  assessments          HouseholdAssessment[]
+  assessedBy           User?                 @relation("AssessedBy", fields: [assessedById], references: [id])
+  district             District              @relation(fields: [districtId], references: [id])
+
+  @@map("households")
+}
+
+model HouseholdAssessment {
+  id            String    @id @default(cuid())
+  createdAt     DateTime  @default(now())
+  householdId   String
+  submittedById String
+  cat1Score     Int
+  cat2Score     Int
+  cat3Score     Int
+  cat4Score     Int
+  cat5Score     Int
+  totalScore    Int
+  notes         String?
+  household     Household @relation(fields: [householdId], references: [id])
+  submittedBy   User      @relation(fields: [submittedById], references: [id])
+
+  @@map("household_assessments")
+}
+
+model Volunteer {
+  id           String                @id @default(cuid())
+  createdAt    DateTime              @default(now())
+  updatedAt    DateTime              @updatedAt
+  districtId   String
+  name         String
+  phone        String
+  role         VolunteerRole         @default(VOLUNTEER)
+  status       VolunteerStatus       @default(AVAILABLE)
+  deliveryRuns DeliveryRun[]
+  assignments  VolunteerAssignment[]
+
+  @@map("volunteers")
+}
+
+model VolunteerAssignment {
+  id             String       @id @default(cuid())
+  createdAt      DateTime     @default(now())
+  volunteerId    String
+  subWarehouseId String
+  alertId        String
+  zone           String
+  teamNumber     Int
+  alert          FloodAlert   @relation(fields: [alertId], references: [id])
+  subWarehouse   SubWarehouse @relation(fields: [subWarehouseId], references: [id])
+  volunteer      Volunteer    @relation(fields: [volunteerId], references: [id])
+
+  @@map("volunteer_assignments")
+}
+
+model DeliveryRun {
+  id              String            @id @default(cuid())
+  createdAt       DateTime          @default(now())
+  updatedAt       DateTime          @updatedAt
+  subWarehouseId  String
+  teamNumber      Int
+  zone            String
+  departedAt      DateTime
+  returnedAt      DateTime?
+  status          DeliveryRunStatus @default(IN_PROGRESS)
+  leadVolunteerId String
+  performedById   String
+  receipts        DeliveryReceipt[]
+  leadVolunteer   Volunteer         @relation(fields: [leadVolunteerId], references: [id])
+  performedBy     User              @relation(fields: [performedById], references: [id])
+  subWarehouse    SubWarehouse      @relation(fields: [subWarehouseId], references: [id])
+
+  @@map("delivery_runs")
+}
+
+model DeliveryReceipt {
+  id            String      @id @default(cuid())
+  createdAt     DateTime    @default(now())
+  deliveryRunId String
+  householdId   String
+  emkType       EmkType
+  quantity      Int         @default(1)
+  deliveredAt   DateTime
+  notes         String?
+  deliveryRun   DeliveryRun @relation(fields: [deliveryRunId], references: [id])
+  household     Household   @relation(fields: [householdId], references: [id])
+
+  @@map("delivery_receipts")
+}
+
+model Route {
+  id           String       @id @default(cuid())
+  updatedAt    DateTime     @updatedAt
+  districtId   String
+  waterDepthCm Int
+  active       Boolean      @default(true)
+  zone         String
+  deliveryMode DeliveryMode
+  logs         RouteLog[]
+  district     District     @relation(fields: [districtId], references: [id])
+
+  @@map("routes")
+}
+
+model RouteLog {
+  id            String       @id @default(cuid())
+  createdAt     DateTime     @default(now())
+  routeId       String
+  previousDepth Int
+  newDepth      Int
+  previousMode  DeliveryMode
+  newMode       DeliveryMode
+  reportedById  String
+  reportedBy    User         @relation(fields: [reportedById], references: [id])
+  route         Route        @relation(fields: [routeId], references: [id])
+
+  @@map("route_logs")
+}
+
+model Incident {
+  id           String         @id @default(cuid())
+  createdAt    DateTime       @default(now())
+  updatedAt    DateTime       @updatedAt
+  districtId   String
+  type         IncidentType
+  description  String
+  status       IncidentStatus @default(OPEN)
+  reportedById String
+  resolvedById String?
+  resolvedAt   DateTime?
+  district     District       @relation(fields: [districtId], references: [id])
+  reportedBy   User           @relation("ReportedBy", fields: [reportedById], references: [id])
+  resolvedBy   User?          @relation("ResolvedBy", fields: [resolvedById], references: [id])
+
+  @@map("incidents")
+}
+
+model RadioCheckin {
+  id            String         @id @default(cuid())
+  createdAt     DateTime       @default(now())
+  districtId    String
+  submittedById String
+  scheduledTime RadioCheckTime
+  status        RadioStatus    @default(OK)
+  notes         String?
+  district      District       @relation(fields: [districtId], references: [id])
+  submittedBy   User           @relation(fields: [submittedById], references: [id])
+
+  @@map("radio_checkins")
+}
+
+model Notification {
+  id        String   @id @default(cuid())
+  createdAt DateTime @default(now())
+  userId    String
+  type      String
+  message   String
+  read      Boolean  @default(false)
+  user      User     @relation(fields: [userId], references: [id])
+
+  @@map("notifications")
+}
 
 enum Role {
   SUPER_ADMIN
@@ -93,426 +380,4 @@ enum RadioCheckTime {
 enum RadioStatus {
   OK
   ISSUE_REPORTED
-}
-
-// ─── USERS ───────────────────────────────────────────────────────────────────
-// System accounts for all roles (Section 7 of PROJECT_SCOPE).
-
-model User {
-  id           String   @id @default(cuid())
-  createdAt    DateTime @default(now())
-  updatedAt    DateTime @updatedAt
-
-  email        String   @unique
-  passwordHash String
-  name         String
-  role         Role
-  active       Boolean  @default(true)
-
-  // HUB_MANAGER and VOLUNTEER are scoped to one district
-  districtId   String?
-  district     District? @relation(fields: [districtId], references: [id])
-
-  // Relations
-  stockMovements    StockMovement[]
-  householdAssessed Household[]     @relation("AssessedBy")
-  assessmentsFiled  HouseholdAssessment[]
-  deliveryRuns      DeliveryRun[]
-  routeLogs         RouteLog[]
-  incidentsReported Incident[]      @relation("ReportedBy")
-  incidentsResolved Incident[]      @relation("ResolvedBy")
-  radioCheckins     RadioCheckin[]
-  notifications     Notification[]
-
-  @@map("users")
-}
-
-// ─── DISTRICTS ───────────────────────────────────────────────────────────────
-// 3 districts total. One sub-warehouse per district (Section 0.5).
-
-model District {
-  id          String   @id @default(cuid())
-  createdAt   DateTime @default(now())
-
-  name        String   @unique  // e.g. "District 1"
-  population  Int               // estimated households
-  latitude    Float
-  longitude   Float
-
-  // Relations
-  users         User[]
-  subWarehouse  SubWarehouse?
-  households    Household[]
-  routes        Route[]
-  incidents     Incident[]
-  radioCheckins RadioCheckin[]
-
-  @@map("districts")
-}
-
-// ─── SUB_WAREHOUSES ──────────────────────────────────────────────────────────
-// One per district. Tracks setup status and backup location (Section B.3).
-
-model SubWarehouse {
-  id         String             @id @default(cuid())
-  createdAt  DateTime           @default(now())
-  updatedAt  DateTime           @updatedAt
-
-  districtId String             @unique
-  district   District           @relation(fields: [districtId], references: [id])
-
-  name        String
-  address     String
-  latitude    Float
-  longitude   Float
-  status      SubWarehouseStatus @default(INACTIVE)
-  capacitySqm Int               // 40–60 sqm per Section B.3
-
-  // Backup location tracking
-  isBackup    Boolean           @default(false)
-  backupForId String?           // references another SubWarehouse.id
-
-  // Relations
-  stock           Stock?
-  stockMovements  StockMovement[]
-  volunteerAssignments VolunteerAssignment[]
-  deliveryRuns    DeliveryRun[]
-
-  @@map("sub_warehouses")
-}
-
-// ─── STOCK ───────────────────────────────────────────────────────────────────
-// EMK levels per sub-warehouse. EMK-3 comes from MoH only (Section B.10).
-
-model Stock {
-  id           String       @id @default(cuid())
-  updatedAt    DateTime     @updatedAt
-
-  subWarehouseId String     @unique
-  subWarehouse   SubWarehouse @relation(fields: [subWarehouseId], references: [id])
-
-  emk1Total     Int @default(0)
-  emk1Remaining Int @default(0)
-
-  emk2Total     Int @default(0)
-  emk2Remaining Int @default(0)
-
-  // EMK-3 quantity reflects MoH transfer only — never pre-stored
-  emk3Total     Int @default(0)
-  emk3Remaining Int @default(0)
-
-  @@map("stock")
-}
-
-// ─── STOCK_MOVEMENTS ─────────────────────────────────────────────────────────
-// Immutable audit log of every stock change (Section B.5).
-
-model StockMovement {
-  id             String       @id @default(cuid())
-  createdAt      DateTime     @default(now())
-
-  subWarehouseId String
-  subWarehouse   SubWarehouse @relation(fields: [subWarehouseId], references: [id])
-
-  emkType        EmkType
-  movementType   MovementType
-  quantity       Int          // positive = in, negative = out
-  reason         String?
-
-  performedById  String
-  performedBy    User         @relation(fields: [performedById], references: [id])
-
-  @@map("stock_movements")
-}
-
-// ─── FLOOD_ALERTS ────────────────────────────────────────────────────────────
-// Global activation state. One active record at a time (Section A.3).
-
-model FloodAlert {
-  id                   String   @id @default(cuid())
-  createdAt            DateTime @default(now())
-  updatedAt            DateTime @updatedAt
-
-  // Trigger conditions — 2 of 3 must be true to activate
-  warningLevelTwo      Boolean  @default(false) // City flood warning Level 2+
-  rainfallExceeds100mm Boolean  @default(false) // Forecast >100mm in 24h
-  streetFloodingReport Boolean  @default(false) // Any target district reports flooding
-
-  activated            Boolean  @default(false)
-  activatedAt          DateTime?
-  phase                Int      @default(0)     // 0 = standby, 1 = active, 2 = last-mile
-
-  // Relations
-  volunteerAssignments VolunteerAssignment[]
-
-  @@map("flood_alerts")
-}
-
-// ─── HOUSEHOLDS ──────────────────────────────────────────────────────────────
-// Assessed during Hours 8–16 (Section A.3). Scores from Section C.
-
-model Household {
-  id         String   @id @default(cuid())
-  createdAt  DateTime @default(now())
-  updatedAt  DateTime @updatedAt
-
-  address    String
-  districtId String
-  district   District @relation(fields: [districtId], references: [id])
-
-  // Category 1 — Medical urgency (max 8 pts)
-  medicalUrgencyScore  Int @default(0)
-
-  // Category 2 — Household vulnerability (max 5 pts)
-  vulnerabilityScore   Int @default(0)
-
-  // Category 3 — Flood exposure (max 4 pts)
-  floodExposureScore   Int @default(0)
-
-  // Category 4 — Self-sufficiency (max 2 pts)
-  selfSufficiencyScore Int @default(0)
-
-  // Category 5 — Isolation (max 1 pt)
-  isolationScore       Int @default(0)
-
-  // Computed total (0–20)
-  totalScore           Int          @default(0)
-  priorityBand         PriorityBand @default(STANDARD)
-  recommendedEmk       EmkType      @default(EMK1)
-
-  // Delivery status
-  delivered    Boolean  @default(false)
-  deliveredAt  DateTime?
-
-  // Who assessed this household
-  assessedById String?
-  assessedBy   User?    @relation("AssessedBy", fields: [assessedById], references: [id])
-
-  // Relations
-  assessments      HouseholdAssessment[]
-  deliveryReceipts DeliveryReceipt[]
-
-  @@map("households")
-}
-
-// ─── HOUSEHOLD_ASSESSMENTS ───────────────────────────────────────────────────
-// Raw assessment form submission (supports re-assessment).
-
-model HouseholdAssessment {
-  id          String   @id @default(cuid())
-  createdAt   DateTime @default(now())
-
-  householdId  String
-  household    Household @relation(fields: [householdId], references: [id])
-
-  submittedById String
-  submittedBy   User      @relation(fields: [submittedById], references: [id])
-
-  cat1Score    Int  // Medical urgency (0–8)
-  cat2Score    Int  // Vulnerability (0–5)
-  cat3Score    Int  // Flood exposure (0–4)
-  cat4Score    Int  // Self-sufficiency (0–2)
-  cat5Score    Int  // Isolation (0–1)
-  totalScore   Int
-
-  notes        String?
-
-  @@map("household_assessments")
-}
-
-// ─── VOLUNTEERS ──────────────────────────────────────────────────────────────
-// Volunteer roster per district. 12 per sub-warehouse = 36 total (Section D.6).
-
-model Volunteer {
-  id         String          @id @default(cuid())
-  createdAt  DateTime        @default(now())
-  updatedAt  DateTime        @updatedAt
-
-  districtId String
-  name       String
-  phone      String
-  role       VolunteerRole   @default(VOLUNTEER)
-  status     VolunteerStatus @default(AVAILABLE)
-
-  // Relations
-  assignments  VolunteerAssignment[]
-  deliveryRuns DeliveryRun[]
-
-  @@map("volunteers")
-}
-
-// ─── VOLUNTEER_ASSIGNMENTS ───────────────────────────────────────────────────
-// Assigns volunteers to zones and teams per activation.
-
-model VolunteerAssignment {
-  id             String   @id @default(cuid())
-  createdAt      DateTime @default(now())
-
-  volunteerId    String
-  volunteer      Volunteer    @relation(fields: [volunteerId], references: [id])
-
-  subWarehouseId String
-  subWarehouse   SubWarehouse @relation(fields: [subWarehouseId], references: [id])
-
-  alertId        String
-  alert          FloodAlert   @relation(fields: [alertId], references: [id])
-
-  zone           String   // ward/zone identifier
-  teamNumber     Int      // 1, 2, or 3
-
-  @@map("volunteer_assignments")
-}
-
-// ─── DELIVERY_RUNS ───────────────────────────────────────────────────────────
-// Each delivery trip from a sub-warehouse (Section B.5).
-
-model DeliveryRun {
-  id             String            @id @default(cuid())
-  createdAt      DateTime          @default(now())
-  updatedAt      DateTime          @updatedAt
-
-  subWarehouseId String
-  subWarehouse   SubWarehouse      @relation(fields: [subWarehouseId], references: [id])
-
-  teamNumber     Int
-  zone           String
-  departedAt     DateTime
-  returnedAt     DateTime?
-  status         DeliveryRunStatus @default(IN_PROGRESS)
-
-  leadVolunteerId String
-  leadVolunteer   Volunteer        @relation(fields: [leadVolunteerId], references: [id])
-
-  performedById  String
-  performedBy    User             @relation(fields: [performedById], references: [id])
-
-  // Relations
-  receipts DeliveryReceipt[]
-
-  @@map("delivery_runs")
-}
-
-// ─── DELIVERY_RECEIPTS ───────────────────────────────────────────────────────
-// Per-household delivery confirmation with signed receipt tracking.
-
-model DeliveryReceipt {
-  id            String   @id @default(cuid())
-  createdAt     DateTime @default(now())
-
-  deliveryRunId String
-  deliveryRun   DeliveryRun @relation(fields: [deliveryRunId], references: [id])
-
-  householdId   String
-  household     Household   @relation(fields: [householdId], references: [id])
-
-  emkType       EmkType
-  quantity      Int      @default(1)
-  deliveredAt   DateTime
-  notes         String?  // e.g. "thumbprint obtained", "household not home"
-
-  @@map("delivery_receipts")
-}
-
-// ─── ROUTES ──────────────────────────────────────────────────────────────────
-// Current delivery mode per district zone by water depth (Section A.4).
-
-model Route {
-  id           String       @id @default(cuid())
-  updatedAt    DateTime     @updatedAt
-
-  districtId   String
-  district     District     @relation(fields: [districtId], references: [id])
-
-  zone         String
-  waterDepthCm Int
-  deliveryMode DeliveryMode
-  active       Boolean      @default(true)
-
-  // Relations
-  logs RouteLog[]
-
-  @@map("routes")
-}
-
-// ─── ROUTE_LOGS ──────────────────────────────────────────────────────────────
-// History of all route status changes.
-
-model RouteLog {
-  id           String       @id @default(cuid())
-  createdAt    DateTime     @default(now())
-
-  routeId      String
-  route        Route        @relation(fields: [routeId], references: [id])
-
-  previousDepth Int
-  newDepth      Int
-  previousMode  DeliveryMode
-  newMode       DeliveryMode
-
-  reportedById  String
-  reportedBy    User         @relation(fields: [reportedById], references: [id])
-
-  @@map("route_logs")
-}
-
-// ─── INCIDENTS ───────────────────────────────────────────────────────────────
-// Reported incidents: safety issues, blockages, scarcity triggers (Section B.6).
-
-model Incident {
-  id          String         @id @default(cuid())
-  createdAt   DateTime       @default(now())
-  updatedAt   DateTime       @updatedAt
-
-  districtId  String
-  district    District       @relation(fields: [districtId], references: [id])
-
-  type        IncidentType
-  description String
-  status      IncidentStatus @default(OPEN)
-
-  reportedById  String
-  reportedBy    User          @relation("ReportedBy", fields: [reportedById], references: [id])
-
-  resolvedById  String?
-  resolvedBy    User?         @relation("ResolvedBy", fields: [resolvedById], references: [id])
-  resolvedAt    DateTime?
-
-  @@map("incidents")
-}
-
-// ─── RADIO_CHECKINS ──────────────────────────────────────────────────────────
-// Scheduled 4x daily radio check-ins: 08:00, 12:00, 16:00, 20:00 (Section D.9).
-
-model RadioCheckin {
-  id            String         @id @default(cuid())
-  createdAt     DateTime       @default(now())
-
-  districtId    String
-  district      District       @relation(fields: [districtId], references: [id])
-
-  submittedById String
-  submittedBy   User           @relation(fields: [submittedById], references: [id])
-
-  scheduledTime RadioCheckTime
-  status        RadioStatus    @default(OK)
-  notes         String?
-
-  @@map("radio_checkins")
-}
-
-// ─── NOTIFICATIONS ───────────────────────────────────────────────────────────
-// System notifications pushed to users.
-
-model Notification {
-  id        String   @id @default(cuid())
-  createdAt DateTime @default(now())
-
-  userId    String
-  user      User     @relation(fields: [userId], references: [id])
-
-  type      String   // e.g. "STOCK_LOW", "INCIDENT_REPORTED", "PHASE_CHANGED"
-  message   String
-  read      Boolean  @default(false)
-
-  @@map("notifications")
 }
