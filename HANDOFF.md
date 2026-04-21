@@ -1,63 +1,63 @@
 # REMA Handoff Document
-Last updated: Chat 3 complete
+Last updated: Chat 4 complete
 
 ## Current Chat Goal
-Chat 3 — Auth + RBAC — COMPLETE
+Chat 4 — Activation + Scoring Engine — COMPLETE
 
 ## What Was Completed This Chat
-- [x] src/types/auth.ts — JwtPayload interface + Express Request extension
-- [x] src/middleware/auth.ts — requireAuth + requireRole (role hierarchy)
-- [x] src/services/auth.service.ts — loginUser, getCurrentUser, hashPassword
-- [x] src/controllers/auth.controller.ts — login, logout, me handlers
-- [x] src/routes/auth.routes.ts — POST /login, POST /logout, GET /me
-- [x] src/routes/test.routes.ts — 4 role-gated test routes
-- [x] src/seed.ts — seeds 3 districts + 3 sub-warehouses + 5 users (one per role)
-- [x] src/app.ts — auth + test routes wired in
-- [x] backend/package.json — bcrypt, jsonwebtoken, ts-node added
-- [x] backend/tsconfig.json — types: ["node"] added
-- [x] root package.json — fixed (was empty/invalid JSON)
-- [x] swagger.yaml — Auth Tests tag added
-- [x] All 7 Swagger tests passed (login, me, viewer, hub-manager, coordinator 403, admin 403, 401 without token)
+- [x] alert.service.ts — getOrCreateActiveAlert, submitTrigger (2-of-3 auto-activate), getAlertStatus, advancePhase
+- [x] alert.controller.ts — trigger, status, phase handlers
+- [x] alert.routes.ts — POST /trigger, GET /status, PATCH /phase (EC-only)
+- [x] scoring.ts (utils) — exact 20-point engine from Section C; all 6 scores+bands match
+- [x] household.service.ts — computeScore, createHousehold, listHouseholds, getHousehold, updateHousehold, getPriorityQueue
+- [x] household.controller.ts — scoreOnly, create, list, priorityQueue, getOne, update
+- [x] household.routes.ts — /api/score and /api/households routes
+- [x] district.routes.ts — GET /api/districts, GET /api/districts/:id (quick unblock)
+- [x] app.ts — all Chat 4 routes wired in
+- [x] swagger.yaml — full replacement with Chat 3 + Chat 4 endpoints
+- [x] TypeScript fix — Record type in alert.service.ts updated to include number
+
+## Swagger Tests Passed
+- [x] GET /api/alert/status → fresh alert, all false, phase 0
+- [x] POST /api/alert/trigger warningLevelTwo → 1 condition set
+- [x] POST /api/alert/trigger rainfallExceeds100mm → activated=true, phase=1
+- [x] POST /api/score/household Case F → score=10, HIGH, EMK3
+- [x] POST /api/score/household Case E → score=1, STANDARD, EMK1
 
 ## What Is NOT Done Yet
-- [ ] Push to GitHub (do this manually)
-- [ ] Chat 4: Activation + Scoring Engine
+- [ ] POST /api/households and GET /api/households/priority-queue not tested yet
+  (need district IDs — will happen naturally during Chat 5 seeding)
+- [ ] Add Assumption #49 to docs/Assumptions-log.md
+- [ ] Push to GitHub
 
 ## What Is Done
-- [x] Chat 1 — All strategy sections complete (0, A, B, C, D, E, F)
-- [x] Assumptions Log — 48 assumptions documented
-- [x] Tech stack locked
+- [x] Chat 1 — All strategy sections complete
 - [x] Chat 2 — Project Setup ✅
 - [x] Chat 3 — Auth + RBAC ✅
+- [x] Chat 4 — Activation + Scoring Engine ✅
 
-## What Is Next — Chat 4: Activation + Scoring Engine
-1. POST /api/alert/trigger (2-of-3 logic, auto-activate)
-2. GET /api/alert/status
-3. PATCH /api/alert/phase (EC only)
-4. POST /api/score/household (20-point engine — must match Section C exactly)
-5. Score band assignment (CRITICAL/HIGH/MEDIUM/STANDARD)
-6. EMK type recommendation from score
-7. POST /api/households (create + score)
-8. GET /api/households (list + filter)
-9. GET /api/households/:id
-10. PATCH /api/households/:id (update + re-score)
-11. GET /api/households/priority-queue (sorted by band then score)
-12. Test scoring against Section C worked example
+## What Is Next — Chat 5: Stock Management
+1. Seed stock records for all 3 sub-warehouses (initial allocation per Section B.2)
+2. GET /api/stock/status — all sub-warehouses
+3. GET /api/stock/:districtId — single district
+4. POST /api/stock/dispatch — central warehouse → sub-warehouse, creates stock_movement
+5. POST /api/stock/reallocate — cross-district, EC only
+6. POST /api/stock/adjust — manual with reason, Hub Manager
+7. GET /api/stock/movements — full audit log
+8. GET /api/stock/movements/:districtId — per-district log
+9. Scarcity mode check (stock < 30% of original allocation)
+10. Full lifecycle test in Swagger
 
 ## Critical Decisions to Remember
 - EMK-3 never pre-stored — MoH cold storage only, transferred at activation
-- Scoring: exactly 5 categories, 20 points max, must match Section C precisely
-- Volunteer safety hard limit: suspend all delivery above 80cm water depth
-- Last-mile tiers: motorbike (0–30cm) / bicycle or foot (30–60cm) / boat (60–80cm) / suspended (>80cm)
-- 3 sub-warehouses, 1 per district, 12 volunteers each = 36 total
-- Activation trigger: 2 of 3 conditions must be met simultaneously
-- Central warehouse holds 30% reserve after dispatching to sub-warehouses
-- Scarcity mode triggers when total stock falls below 30% of original allocation
-- JWT_SECRET must be in .env — default dev value is placeholder only
-- Role hierarchy (low → high): VIEWER → VOLUNTEER → HUB_MANAGER → EMERGENCY_COORDINATOR → SUPER_ADMIN
-- seed.ts lives in backend/src/seed.ts — run with npm run seed from backend/
-- Test routes (/api/test/*) should be removed before final deployment
-- root package.json must not be empty — ts-node walks up and chokes on invalid JSON
+- Scoring: 6/6 scores+bands match Section C.8 exactly
+- EMK recommendation: cat1≥5→EMK3, cat2≥1→EMK2, else EMK1 (field-adjustable)
+- Assumption #49: EMK2 default for cat2≥1 is conservative; field volunteers can downgrade
+- Priority queue sort: BAND ORDER → totalScore DESC → cat1 DESC → createdAt ASC
+- /priority-queue route MUST be before /:id in Express route order
+- FloodAlert is a single accumulating record — conditions are additive
+- Phase auto-advances to 1 when 2-of-3 triggers met
+- alert.service.ts Record type: boolean | string | Date | number
 
 ## Live URLs
 - Backend API: not yet deployed
