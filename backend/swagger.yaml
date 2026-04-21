@@ -332,7 +332,335 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
-
+  # ── FLOOD ALERT (replacing stub with full implementation) ───────────────────
+  /api/alert/trigger:
+    post:
+      tags: [Flood Alert]
+      summary: Submit a trigger condition (auto-activates at 2 of 3)
+      description: |
+        Submit one of the 3 trigger conditions. REMA auto-activates when 2 of 3 are true.
+        Conditions are additive — once set true they stay true for the alert lifetime.
+ 
+        **Trigger conditions (Section A.3):**
+        - `warningLevelTwo` — City/provincial flood warning Level 2+
+        - `rainfallExceeds100mm` — Rainfall forecast exceeds 100mm in 24 hours
+        - `streetFloodingReport` — Any target district reports street-level flooding
+ 
+        **Auto-activation:** When 2 conditions are met, `activated` becomes `true`
+        and `phase` advances to `1` automatically.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/TriggerRequest'
+            examples:
+              warningLevel:
+                summary: Submit flood warning Level 2
+                value: { condition: "warningLevelTwo" }
+              rainfall:
+                summary: Submit rainfall threshold exceeded
+                value: { condition: "rainfallExceeds100mm" }
+              streetFlooding:
+                summary: Submit street flooding report
+                value: { condition: "streetFloodingReport" }
+      responses:
+        "200":
+          description: Trigger recorded; returns updated alert state
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/FloodAlertStatus'
+        "400":
+          description: Invalid condition
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        "401":
+          description: Unauthorized
+ 
+  /api/alert/status:
+    get:
+      tags: [Flood Alert]
+      summary: Get current activation state and phase
+      description: Returns the current FloodAlert record including which conditions are set and current phase.
+      responses:
+        "200":
+          description: Current alert status
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/FloodAlertStatus'
+        "401":
+          description: Unauthorized
+ 
+  /api/alert/phase:
+    patch:
+      tags: [Flood Alert]
+      summary: Advance phase (Emergency Coordinator only)
+      description: |
+        Advance phase 0→1→2. Requires EMERGENCY_COORDINATOR role or above.
+ 
+        - Phase 1 = Hours 0–24 (protocol-driven pre-positioning)
+        - Phase 2 = Hours 24–48 (adaptive last-mile delivery)
+ 
+        Phase can only advance forward, never backward.
+        REMA must be activated before phase can be advanced.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [phase]
+              properties:
+                phase:
+                  type: integer
+                  enum: [1, 2]
+                  description: Target phase (must be current phase + 1)
+      responses:
+        "200":
+          description: Phase updated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/FloodAlertStatus'
+        "400":
+          description: Invalid phase transition or REMA not activated
+        "401":
+          description: Unauthorized
+        "403":
+          description: Requires EMERGENCY_COORDINATOR or above
+ 
+  # ── SCORING ENGINE ───────────────────────────────────────────────────────────
+  /api/score/household:
+    post:
+      tags: [Scoring]
+      summary: Score a household — 20-point engine (no DB write)
+      description: |
+        Applies the exact 5-category scoring system from Section C of the REMA strategy.
+        This endpoint scores only — it does NOT create a household record.
+        Use POST /api/households to create and score simultaneously.
+ 
+        **Category breakdown:**
+        | Cat | Description | Valid values |
+        |-----|-------------|-------------|
+        | cat1 | Medical urgency | 0, 2, 5, or 8 |
+        | cat2 | Household vulnerability | 0–5 (sum of flags, capped) |
+        | cat3 | Flood exposure | 0, 1, 3, or 4 |
+        | cat4 | Self-sufficiency | 0, 1, or 2 |
+        | cat5 | Isolation | 0 or 1 |
+ 
+        **Score bands:**
+        - 15–20 = CRITICAL (deliver in current run)
+        - 10–14 = HIGH (deliver same day)
+        - 5–9 = MEDIUM (deliver within 48h)
+        - 0–4 = STANDARD (community collection point)
+ 
+        **EMK recommendation logic:**
+        - cat1 ≥ 5 → EMK3 (life-sustaining medication priority)
+        - cat2 ≥ 1 → EMK2 (vulnerable household)
+        - otherwise → EMK1
+ 
+        **Worked example from Section C.8:**
+        Household F (elderly, hypertension, medication low): cat1=5, cat2=2, cat3=1, cat4=1, cat5=1 → score=10, HIGH, EMK3
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/HouseholdScore'
+            examples:
+              householdC:
+                summary: "Section C.8 Case C — diabetic, insulin run out"
+                value: { cat1: 8, cat2: 0, cat3: 1, cat4: 0, cat5: 0 }
+              householdF:
+                summary: "Section C.8 Case F — elderly, hypertension, medication low (HIGH)"
+                value: { cat1: 5, cat2: 2, cat3: 1, cat4: 1, cat5: 1 }
+              householdE:
+                summary: "Section C.8 Case E — family, no illness, dry street (STANDARD)"
+                value: { cat1: 0, cat2: 0, cat3: 0, cat4: 1, cat5: 0 }
+              critical:
+                summary: "Critical case — medication run out + water inside"
+                value: { cat1: 8, cat2: 2, cat3: 4, cat4: 0, cat5: 1 }
+      responses:
+        "200":
+          description: Score result with band and EMK recommendation
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ScoreResult'
+        "400":
+          description: Invalid score input
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        "401":
+          description: Unauthorized
+ 
+  # ── HOUSEHOLDS ───────────────────────────────────────────────────────────────
+  /api/households/priority-queue:
+    get:
+      tags: [Households]
+      summary: Sorted delivery priority list for a district
+      description: |
+        Returns undelivered households sorted by:
+        1. Band (CRITICAL first)
+        2. Total score descending
+        3. Cat1 (medical urgency) score descending — Section C tiebreaker rule 1
+        4. Assessment submission time ascending — Section C tiebreaker rule 3
+      parameters:
+        - in: query
+          name: districtId
+          required: true
+          schema:
+            type: string
+          description: District ID to get queue for
+      responses:
+        "200":
+          description: Prioritized household list
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/HouseholdDetail'
+        "400":
+          description: districtId is required
+        "401":
+          description: Unauthorized
+ 
+  /api/households:
+    get:
+      tags: [Households]
+      summary: List households with optional filters
+      parameters:
+        - in: query
+          name: districtId
+          schema:
+            type: string
+        - in: query
+          name: band
+          schema:
+            type: string
+            enum: [CRITICAL, HIGH, MEDIUM, STANDARD]
+        - in: query
+          name: delivered
+          schema:
+            type: boolean
+      responses:
+        "200":
+          description: List of households
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/HouseholdDetail'
+        "401":
+          description: Unauthorized
+ 
+    post:
+      tags: [Households]
+      summary: Create household record (scores automatically)
+      description: Creates a household, runs the scoring engine, and stores the result. Also creates an assessment record in the audit trail.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [address, districtId, cat1, cat2, cat3, cat4, cat5]
+              properties:
+                address:
+                  type: string
+                  example: "123 Nguyen Trai St, Ward 5"
+                districtId:
+                  type: string
+                cat1:
+                  type: integer
+                cat2:
+                  type: integer
+                cat3:
+                  type: integer
+                cat4:
+                  type: integer
+                cat5:
+                  type: integer
+                notes:
+                  type: string
+      responses:
+        "201":
+          description: Household created with score
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HouseholdDetail'
+        "400":
+          description: Validation error
+        "401":
+          description: Unauthorized
+ 
+  /api/households/{id}:
+    get:
+      tags: [Households]
+      summary: Get single household with full assessment history
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Household detail with assessments and delivery receipts
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HouseholdDetail'
+        "404":
+          description: Household not found
+        "401":
+          description: Unauthorized
+ 
+    patch:
+      tags: [Households]
+      summary: Update household scores (triggers re-score)
+      description: Provide only the categories you want to update. Omitted categories keep their existing values. A new assessment record is created in the audit trail.
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                cat1:
+                  type: integer
+                cat2:
+                  type: integer
+                cat3:
+                  type: integer
+                cat4:
+                  type: integer
+                cat5:
+                  type: integer
+                notes:
+                  type: string
+      responses:
+        "200":
+          description: Household updated and re-scored
+        "400":
+          description: Validation error
+        "401":
+          description: Unauthorized
   /api/auth/logout:
     post:
       tags: [Auth]
@@ -1182,3 +1510,4 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/DistrictCard'
+
