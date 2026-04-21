@@ -3,20 +3,17 @@ import { PrismaClient } from '@prisma/client';
 const prisma = new PrismaClient();
 
 // ─── VALID TRIGGER CONDITIONS ─────────────────────────────────────────────────
-//union type
-export type TriggerCondition = 
+export type TriggerCondition =
   | 'warningLevelTwo'
   | 'rainfallExceeds100mm'
   | 'streetFloodingReport';
 
-//runtime
 const VALID_CONDITIONS: TriggerCondition[] = [
   'warningLevelTwo',
   'rainfallExceeds100mm',
   'streetFloodingReport',
 ];
 
-//Type Guard
 export function isValidCondition(val: string): val is TriggerCondition {
   return VALID_CONDITIONS.includes(val as TriggerCondition);
 }
@@ -54,7 +51,7 @@ export async function submitTrigger(condition: TriggerCondition) {
   const alert = await getOrCreateActiveAlert();
 
   // Build the update — set the condition to true
-  const update: Record<string, boolean | string | Date> = {
+  const update: Record<string, boolean | string | Date | number> = {
     [condition]: true,
   };
 
