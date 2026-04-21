@@ -7,9 +7,10 @@ import path from 'path';
 import authRoutes from './routes/auth.routes';
 import testRoutes from './routes/test.routes';
 import alertRoutes from './routes/alert.routes';
-import { scoreRouter, householdRouter } from './routes/household.routes';
-import stockRoutes from './routes/stock.routes';
 import districtRoutes from './routes/district.routes';
+import stockRoutes from './routes/stock.routes';
+import { scoreRouter, householdRouter } from './routes/household.routes';
+
 
 const app = express();
 

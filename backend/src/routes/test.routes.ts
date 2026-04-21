@@ -1,4 +1,4 @@
-    import { Router, Request, Response } from 'express';
+import { Router, Request, Response } from 'express';
 import { requireAuth } from '../middleware/auth';
 import { requireRole } from '../middleware/auth';
 

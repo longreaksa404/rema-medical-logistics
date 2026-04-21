@@ -1,38 +1,41 @@
-import { Request, Response } from 'express';
-import { listDistricts, getDistrict, getDistrictSummary } from '../services/district.service';
+import { Router } from 'express';
+import { requireAuth, requireRole } from '../middleware/auth';
+import {
+  getStatus,
+  getByDistrict,
+  dispatch,
+  reallocate,
+  adjust,
+  getMovements,
+  getMovementsByDistrictHandler,
+} from '../controllers/stock.controller';
 
-// ─── GET /api/districts ───────────────────────────────────────────────────────
+const router = Router();
 
-export async function list(_req: Request, res: Response): Promise<void> {
-  try {
-    const districts = await listDistricts();
-    res.json(districts);
-  } catch (err) {
-    const message = err instanceof Error ? err.message : 'Error fetching districts';
-    res.status(500).json({ error: message });
-  }
-}
+// ─── IMPORTANT: Fixed paths must come BEFORE :districtId ─────────────────────
+// Express matches top-to-bottom. If :districtId came first, "status" and
+// "movements" would be treated as district IDs.
 
-// ─── GET /api/districts/:id ───────────────────────────────────────────────────
+// GET /api/stock/status — all sub-warehouses
+router.get('/status', requireAuth, getStatus);
 
-export async function getOne(req: Request, res: Response): Promise<void> {
-  try {
-    const district = await getDistrict(req.params.id);
-    res.json(district);
-  } catch (err) {
-    const message = err instanceof Error ? err.message : 'District not found';
-    res.status(404).json({ error: message });
-  }
-}
+// GET /api/stock/movements — full audit log
+// Must be before /movements/:districtId and before /:districtId
+router.get('/movements', requireAuth, getMovements);
 
-// ─── GET /api/districts/:id/summary ──────────────────────────────────────────
+// GET /api/stock/movements/:districtId — per-district audit log
+router.get('/movements/:districtId', requireAuth, getMovementsByDistrictHandler);
 
-export async function summary(req: Request, res: Response): Promise<void> {
-  try {
-    const data = await getDistrictSummary(req.params.id);
-    res.json(data);
-  } catch (err) {
-    const message = err instanceof Error ? err.message : 'District not found';
-    res.status(404).json({ error: message });
-  }
-}
+// POST /api/stock/dispatch — central → sub-warehouse (any authenticated user can record)
+router.post('/dispatch', requireAuth, dispatch);
+
+// POST /api/stock/reallocate — Emergency Coordinator only
+router.post('/reallocate', requireAuth, requireRole('EMERGENCY_COORDINATOR'), reallocate);
+
+// POST /api/stock/adjust — Hub Manager or above
+router.post('/adjust', requireAuth, requireRole('HUB_MANAGER'), adjust);
+
+// GET /api/stock/:districtId — LAST, after all fixed paths
+router.get('/:districtId', requireAuth, getByDistrict);
+
+export default router;
