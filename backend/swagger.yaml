@@ -10,6 +10,15 @@ info:
     **Response window:** 24–48 hours during flood events
 
     **Authentication:** JWT Bearer token (add via Authorize button above)
+
+    **Test accounts (all passwords: rema1234):**
+    - admin@rema.vn — SUPER_ADMIN
+    - coordinator@rema.vn — EMERGENCY_COORDINATOR
+    - hub1@rema.vn — HUB_MANAGER (District 1)
+    - hub2@rema.vn — HUB_MANAGER (District 2)
+    - hub3@rema.vn — HUB_MANAGER (District 3)
+    - volunteer1@rema.vn — VOLUNTEER (District 1)
+    - viewer@rema.vn — VIEWER
   version: "1.0.0"
   contact:
     name: REMA Project
@@ -233,22 +242,139 @@ components:
           type: string
         districtId:
           type: string
+        districtName:
+          type: string
         emk1Total:
           type: integer
         emk1Remaining:
           type: integer
+        emk1Pct:
+          type: integer
+          description: "% remaining (0–100)"
+        emk1Scarce:
+          type: boolean
+          description: "True when EMK1 remaining < 30% of total (Section C.9)"
         emk2Total:
           type: integer
         emk2Remaining:
           type: integer
+        emk2Pct:
+          type: integer
+        emk2Scarce:
+          type: boolean
         emk3Total:
           type: integer
-          description: "EMK-3 only populated after MoH transfer at activation"
+          description: "0 until MoH transfer at flood activation (Section B.10)"
         emk3Remaining:
           type: integer
+        emk3Pct:
+          type: integer
+        emk3Scarce:
+          type: boolean
+        anyScarce:
+          type: boolean
+          description: "True if ANY EMK type is below 30% scarcity threshold"
         updatedAt:
           type: string
           format: date-time
+
+    StockMovement:
+      type: object
+      properties:
+        id:
+          type: string
+        createdAt:
+          type: string
+          format: date-time
+        subWarehouseId:
+          type: string
+        subWarehouse:
+          type: object
+          properties:
+            districtId:
+              type: string
+            district:
+              type: object
+              properties:
+                name:
+                  type: string
+        emkType:
+          type: string
+          enum: [EMK1, EMK2, EMK3]
+        movementType:
+          type: string
+          enum: [DISPATCH, DELIVERY, REALLOCATION, ADJUSTMENT, MOH_TRANSFER]
+        quantity:
+          type: integer
+          description: "Positive = stock in, negative = stock out"
+        reason:
+          type: string
+          nullable: true
+        performedBy:
+          type: object
+          properties:
+            name:
+              type: string
+            email:
+              type: string
+            role:
+              type: string
+
+    # ── Districts ─────────────────────────────────────────────────────────────
+    DistrictCard:
+      type: object
+      properties:
+        districtId:
+          type: string
+        name:
+          type: string
+        population:
+          type: integer
+        subWarehouseId:
+          type: string
+          nullable: true
+        subWarehouseStatus:
+          type: string
+          nullable: true
+          enum: [INACTIVE, ACTIVE, BACKUP_ACTIVATED]
+        stockPct:
+          type: number
+          description: "Average remaining stock % across EMK types"
+        stock:
+          type: object
+          nullable: true
+          properties:
+            emk1Total:
+              type: integer
+            emk1Remaining:
+              type: integer
+            emk2Total:
+              type: integer
+            emk2Remaining:
+              type: integer
+            emk3Total:
+              type: integer
+            emk3Remaining:
+              type: integer
+        householdsAssessed:
+          type: integer
+        deliveredCount:
+          type: integer
+        openIncidents:
+          type: integer
+
+    # ── Dashboard ─────────────────────────────────────────────────────────────
+    DashboardSummary:
+      type: object
+      properties:
+        phase:
+          type: integer
+        activated:
+          type: boolean
+        districts:
+          type: array
+          items:
+            $ref: '#/components/schemas/DistrictCard'
 
     # ── Incidents ─────────────────────────────────────────────────────────────
     Incident:
@@ -269,36 +395,6 @@ components:
         createdAt:
           type: string
           format: date-time
-
-    # ── Dashboard ─────────────────────────────────────────────────────────────
-    DashboardSummary:
-      type: object
-      properties:
-        phase:
-          type: integer
-        activated:
-          type: boolean
-        districts:
-          type: array
-          items:
-            $ref: '#/components/schemas/DistrictCard'
-
-    DistrictCard:
-      type: object
-      properties:
-        districtId:
-          type: string
-        name:
-          type: string
-        stockPct:
-          type: number
-          description: "Average remaining stock % across EMK types"
-        householdsAssessed:
-          type: integer
-        deliveredCount:
-          type: integer
-        openIncidents:
-          type: integer
 
 security:
   - bearerAuth: []
@@ -383,6 +479,8 @@ paths:
         - admin@rema.vn — SUPER_ADMIN
         - coordinator@rema.vn — EMERGENCY_COORDINATOR
         - hub1@rema.vn — HUB_MANAGER (District 1)
+        - hub2@rema.vn — HUB_MANAGER (District 2)
+        - hub3@rema.vn — HUB_MANAGER (District 3)
         - volunteer1@rema.vn — VOLUNTEER (District 1)
         - viewer@rema.vn — VIEWER
       security: []
@@ -397,11 +495,14 @@ paths:
                 summary: Login as Emergency Coordinator
                 value: { email: "coordinator@rema.vn", password: "rema1234" }
               hubManager:
-                summary: Login as Hub Manager
+                summary: Login as Hub Manager District 1
                 value: { email: "hub1@rema.vn", password: "rema1234" }
               volunteer:
                 summary: Login as Volunteer
                 value: { email: "volunteer1@rema.vn", password: "rema1234" }
+              viewer:
+                summary: Login as Viewer (read-only)
+                value: { email: "viewer@rema.vn", password: "rema1234" }
       responses:
         "200":
           description: Login successful
@@ -646,9 +747,6 @@ paths:
         2. Total score descending within each band
         3. cat1 (medical urgency) descending — tiebreaker rule 1
         4. createdAt ascending — first assessment submitted wins (tiebreaker rule 3)
-
-        Note: tiebreaker rule 2 (infant under 6 months) requires sub-flag data
-        not stored in the schema; it is handled by field volunteer judgment.
       parameters:
         - in: query
           name: districtId
@@ -708,7 +806,7 @@ paths:
       summary: Create household record (scores automatically)
       description: |
         Creates a household, runs the scoring engine, and stores the result.
-        Also creates an assessment record in the audit trail if the user is authenticated.
+        Also creates an assessment record in the audit trail.
       requestBody:
         required: true
         content:
@@ -762,7 +860,7 @@ paths:
               schema:
                 $ref: '#/components/schemas/HouseholdDetail'
         "400":
-          description: Validation error (missing fields or invalid scores)
+          description: Validation error
           content:
             application/json:
               schema:
@@ -774,7 +872,6 @@ paths:
     get:
       tags: [Households]
       summary: Get single household with full history
-      description: Returns the household with its full assessment history and delivery receipts.
       parameters:
         - in: path
           name: id
@@ -800,7 +897,6 @@ paths:
         Provide only the category scores you want to update.
         Omitted categories keep their existing values.
         A new assessment record is created in the audit trail.
-        The household is automatically re-scored and the band/EMK recommendation updated.
       parameters:
         - in: path
           name: id
@@ -861,33 +957,23 @@ paths:
   /api/districts:
     get:
       tags: [Districts]
-      summary: List all 3 districts
+      summary: List all 3 districts with sub-warehouse info
+      description: |
+        Returns all districts with their sub-warehouse details.
+        Use the district `id` values for stock, household, and summary calls.
       responses:
         "200":
-          description: List of districts
-        "401":
-          description: Unauthorized
-
-  /api/districts/{id}:
-    get:
-      tags: [Districts]
-      summary: Single district with sub-warehouse info
-      parameters:
-        - in: path
-          name: id
-          required: true
-          schema:
-            type: string
-      responses:
-        "200":
-          description: District detail
+          description: List of districts with sub-warehouse info
         "401":
           description: Unauthorized
 
   /api/districts/{id}/summary:
     get:
       tags: [Districts]
-      summary: District overview — stock + households + volunteers
+      summary: District overview — stock + households + incidents
+      description: |
+        Returns a summary card for one district used by the V1 dashboard.
+        Includes stock percentages, household counts, and open incident count.
       parameters:
         - in: path
           name: id
@@ -896,11 +982,31 @@ paths:
             type: string
       responses:
         "200":
-          description: District summary card data
+          description: District summary card
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/DistrictCard'
+        "404":
+          description: District not found
+        "401":
+          description: Unauthorized
+
+  /api/districts/{id}:
+    get:
+      tags: [Districts]
+      summary: Single district with sub-warehouse and stock info
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: District detail with sub-warehouse and stock
+        "404":
+          description: District not found
         "401":
           description: Unauthorized
 
@@ -909,9 +1015,17 @@ paths:
     get:
       tags: [Stock]
       summary: Stock levels across all sub-warehouses
+      description: |
+        Returns current EMK levels for all 3 sub-warehouses with scarcity flags.
+
+        **Scarcity rule (Section C.9):** `anyScarce = true` when any EMK type
+        remaining falls below 30% of its total allocation.
+
+        **EMK-3 note:** `emk3Total` and `emk3Remaining` will be 0 until the
+        Emergency Coordinator triggers a MoH transfer at flood activation (Section B.10).
       responses:
         "200":
-          description: All stock levels
+          description: All stock levels with scarcity indicators
           content:
             application/json:
               schema:
@@ -921,10 +1035,35 @@ paths:
         "401":
           description: Unauthorized
 
-  /api/stock/{districtId}:
+  /api/stock/movements:
     get:
       tags: [Stock]
-      summary: Stock for one district
+      summary: Full audit log of all stock changes
+      description: |
+        Returns every stock change across all sub-warehouses, newest first.
+
+        **Movement types:**
+        - `DISPATCH` — central warehouse → sub-warehouse
+        - `MOH_TRANSFER` — MoH cold storage → sub-warehouse (EMK-3 only, auto-set)
+        - `REALLOCATION` — cross-district transfer (two records per event: one negative, one positive)
+        - `DELIVERY` — sub-warehouse → household (negative quantity, set in Chat 6)
+        - `ADJUSTMENT` — manual correction with reason (positive or negative)
+      responses:
+        "200":
+          description: Full stock movement audit log
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/StockMovement'
+        "401":
+          description: Unauthorized
+
+  /api/stock/movements/{districtId}:
+    get:
+      tags: [Stock]
+      summary: Audit log for one district
       parameters:
         - in: path
           name: districtId
@@ -933,11 +1072,15 @@ paths:
             type: string
       responses:
         "200":
-          description: District stock level
+          description: District stock movement audit log
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/StockLevel'
+                type: array
+                items:
+                  $ref: '#/components/schemas/StockMovement'
+        "404":
+          description: District not found
         "401":
           description: Unauthorized
 
@@ -945,6 +1088,19 @@ paths:
     post:
       tags: [Stock]
       summary: Record dispatch from central warehouse to sub-warehouse
+      description: |
+        Records EMK stock arriving at a sub-warehouse from the central warehouse.
+        Increases both `*Total` and `*Remaining` — sets new baseline for scarcity calculation.
+
+        **EMK-3 special rule (Section B.10):** When `emkType` is `EMK3`, the movement
+        type is automatically recorded as `MOH_TRANSFER` — EMK-3 only ever comes from
+        MoH cold storage. Only Emergency Coordinator or above should dispatch EMK-3.
+
+        **Test sequence:**
+        1. `GET /api/districts` — copy a sub-warehouse ID
+        2. `GET /api/stock/status` — note current EMK1 levels
+        3. `POST /api/stock/dispatch` with EMK1 → emk1Remaining increases
+        4. `GET /api/stock/movements` → verify DISPATCH record created
       requestBody:
         required: true
         content:
@@ -955,16 +1111,48 @@ paths:
               properties:
                 subWarehouseId:
                   type: string
+                  description: "Get from GET /api/districts response"
                 emkType:
                   type: string
                   enum: [EMK1, EMK2, EMK3]
                 quantity:
                   type: integer
+                  minimum: 1
                 reason:
                   type: string
+            examples:
+              dispatchEMK1:
+                summary: Dispatch 200 EMK-1 kits to sub-warehouse 1
+                value:
+                  subWarehouseId: "REPLACE_WITH_SUBWAREHOUSE_ID"
+                  emkType: "EMK1"
+                  quantity: 200
+                  reason: "Phase 1 resupply — central warehouse dispatch"
+              mohTransferEMK3:
+                summary: MoH transfers 100 EMK-3 cold kits (flood activation)
+                value:
+                  subWarehouseId: "REPLACE_WITH_SUBWAREHOUSE_ID"
+                  emkType: "EMK3"
+                  quantity: 100
+                  reason: "MoH cold storage transfer — flood activation Phase 1"
       responses:
         "200":
-          description: Dispatch recorded
+          description: Dispatch recorded — returns updated stock + movement record
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  stock:
+                    $ref: '#/components/schemas/StockLevel'
+                  movement:
+                    $ref: '#/components/schemas/StockMovement'
+        "400":
+          description: Validation error or negative quantity
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
         "401":
           description: Unauthorized
 
@@ -972,6 +1160,14 @@ paths:
     post:
       tags: [Stock]
       summary: Cross-district reallocation — Emergency Coordinator only
+      description: |
+        Moves stock between sub-warehouses. Creates two movement records:
+        one with negative quantity at the source, one with positive at the destination.
+
+        **Section A.3:** The Emergency Coordinator makes reallocation decisions
+        based on the first demand report at Hours 16–24.
+
+        Will fail if source sub-warehouse has insufficient remaining stock.
       requestBody:
         required: true
         content:
@@ -989,11 +1185,36 @@ paths:
                   enum: [EMK1, EMK2, EMK3]
                 quantity:
                   type: integer
+                  minimum: 1
                 reason:
                   type: string
+            examples:
+              reallocateEMK1:
+                summary: Move 300 EMK-1 from District 1 to District 2
+                value:
+                  fromSubWarehouseId: "REPLACE_WITH_SW1_ID"
+                  toSubWarehouseId: "REPLACE_WITH_SW2_ID"
+                  emkType: "EMK1"
+                  quantity: 300
+                  reason: "District 2 demand higher than forecast — Hour 20 reallocation"
       responses:
         "200":
-          description: Reallocation recorded
+          description: Reallocation recorded — returns updated from and to stock levels
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  from:
+                    $ref: '#/components/schemas/StockLevel'
+                  to:
+                    $ref: '#/components/schemas/StockLevel'
+        "400":
+          description: Insufficient stock, same warehouse, or invalid input
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
         "401":
           description: Unauthorized
         "403":
@@ -1002,7 +1223,15 @@ paths:
   /api/stock/adjust:
     post:
       tags: [Stock]
-      summary: Manual stock adjustment with reason — Hub Manager
+      summary: Manual stock adjustment with reason — Hub Manager or above
+      description: |
+        Positive quantity = add stock. Negative quantity = remove stock.
+        `reason` field is mandatory — this is an audit trail requirement.
+
+        Use cases: damaged items removed, expired items disposed of,
+        counting error corrected, items found in back storage.
+
+        Will fail if adjustment would result in negative remaining stock.
       requestBody:
         required: true
         content:
@@ -1021,26 +1250,56 @@ paths:
                   description: "Positive = add stock, negative = remove stock"
                 reason:
                   type: string
+                  description: "Mandatory — logged in audit trail"
+            examples:
+              removeExpired:
+                summary: Remove 5 water-damaged EMK-2 kits
+                value:
+                  subWarehouseId: "REPLACE_WITH_SUBWAREHOUSE_ID"
+                  emkType: "EMK2"
+                  quantity: -5
+                  reason: "5 kits water-damaged on arrival — rejected per B.7 integrity check"
+              addFoundStock:
+                summary: Add 10 EMK-1 kits found in storage
+                value:
+                  subWarehouseId: "REPLACE_WITH_SUBWAREHOUSE_ID"
+                  emkType: "EMK1"
+                  quantity: 10
+                  reason: "10 kits found in back storage during count — added to manifest"
+              testScarcity:
+                summary: "Test scarcity trigger — reduce EMK1 below 30% threshold"
+                value:
+                  subWarehouseId: "REPLACE_WITH_SUBWAREHOUSE_ID"
+                  emkType: "EMK1"
+                  quantity: -5000
+                  reason: "Testing scarcity mode trigger (dev only)"
       responses:
         "200":
-          description: Adjustment recorded
+          description: Adjustment recorded — returns updated stock + movement record
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  stock:
+                    $ref: '#/components/schemas/StockLevel'
+                  movement:
+                    $ref: '#/components/schemas/StockMovement'
+        "400":
+          description: Negative stock result, zero quantity, or missing reason
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
         "401":
           description: Unauthorized
+        "403":
+          description: Requires HUB_MANAGER or above
 
-  /api/stock/movements:
+  /api/stock/{districtId}:
     get:
       tags: [Stock]
-      summary: Full audit log of all stock changes
-      responses:
-        "200":
-          description: Stock movement audit log
-        "401":
-          description: Unauthorized
-
-  /api/stock/movements/{districtId}:
-    get:
-      tags: [Stock]
-      summary: Audit log for one district
+      summary: Stock for one district
       parameters:
         - in: path
           name: districtId
@@ -1049,7 +1308,13 @@ paths:
             type: string
       responses:
         "200":
-          description: District stock movement log
+          description: District stock level with scarcity flags
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/StockLevel'
+        "404":
+          description: District or sub-warehouse not found
         "401":
           description: Unauthorized
 
