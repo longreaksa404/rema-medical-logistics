@@ -362,6 +362,65 @@ components:
           type: integer
         openIncidents:
           type: integer
+        
+    DeliveryRun:
+      type: object
+      properties:
+        id: { type: string }
+        subWarehouseId: { type: string }
+        teamNumber: { type: integer }
+        zone: { type: string }
+        departedAt: { type: string, format: date-time }
+        returnedAt: { type: string, format: date-time, nullable: true }
+        status:
+          type: string
+          enum: [IN_PROGRESS, COMPLETE, ABORTED]
+        subWarehouse:
+          type: object
+          properties:
+            district: { type: object, properties: { name: { type: string } } }
+        leadVolunteer:
+          type: object
+          properties:
+            name: { type: string }
+            phone: { type: string }
+        receipts:
+          type: array
+          items: { $ref: '#/components/schemas/DeliveryReceipt' }
+
+    DeliveryReceipt:
+      type: object
+      properties:
+        id: { type: string }
+        deliveryRunId: { type: string }
+        householdId: { type: string }
+        emkType: { type: string, enum: [EMK1, EMK2, EMK3] }
+        quantity: { type: integer }
+        deliveredAt: { type: string, format: date-time }
+        notes: { type: string, nullable: true }
+        household:
+          type: object
+          nullable: true
+          properties:
+            address: { type: string }
+            totalScore: { type: integer }
+            priorityBand: { type: string }
+
+    RouteStatus:
+      type: object
+      properties:
+        id: { type: string }
+        districtId: { type: string }
+        zone: { type: string }
+        waterDepthCm: { type: integer }
+        deliveryMode:
+          type: string
+          enum: [MOTORBIKE, BICYCLE_OR_FOOT, BOAT, SUSPENDED]
+        active: { type: boolean }
+        district:
+          type: object
+          properties:
+            name: { type: string }
 
     # ── Dashboard ─────────────────────────────────────────────────────────────
     DashboardSummary:
@@ -1323,6 +1382,20 @@ paths:
     post:
       tags: [Delivery]
       summary: Start a delivery run
+      description: |
+        Creates a new delivery run for a team departing a sub-warehouse.
+        Records departure time automatically.
+
+        **Section B.5 delivery run structure:**
+        - 3 teams of 4 volunteers per sub-warehouse
+        - teamNumber: 1, 2, or 3
+        - zone: pre-mapped ward boundary (e.g. "Zone A", "Ward 3")
+        - leadVolunteerId: must exist in volunteers table
+
+        **Test sequence:**
+        1. `GET /api/volunteers?districtId=X` to find a volunteer ID
+        2. `GET /api/districts` to get subWarehouseId
+        3. Start run → copy run ID for receipt tests
       requestBody:
         required: true
         content:
@@ -1333,73 +1406,85 @@ paths:
               properties:
                 subWarehouseId:
                   type: string
+                  description: "Get from GET /api/districts"
                 teamNumber:
                   type: integer
+                  enum: [1, 2, 3]
+                  description: "Section B.4: 3 teams per sub-warehouse"
                 zone:
                   type: string
+                  example: "Zone A"
+                  description: "Pre-mapped ward boundary"
                 leadVolunteerId:
                   type: string
+                  description: "Must exist in volunteers table"
+            examples:
+              team1ZoneA:
+                summary: "Team 1 departing District 1 Sub-Warehouse for Zone A"
+                value:
+                  subWarehouseId: "REPLACE_WITH_SW_ID"
+                  teamNumber: 1
+                  zone: "Zone A"
+                  leadVolunteerId: "REPLACE_WITH_VOLUNTEER_ID"
       responses:
         "201":
           description: Delivery run started
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DeliveryRun'
+        "400":
+          description: Validation error or sub-warehouse/volunteer not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
         "401":
           description: Unauthorized
 
     get:
       tags: [Delivery]
-      summary: List all delivery runs
+      summary: List all delivery runs (filter by district or status)
       parameters:
         - in: query
           name: districtId
           schema:
             type: string
+          description: Filter runs by district
         - in: query
           name: status
           schema:
             type: string
             enum: [IN_PROGRESS, COMPLETE, ABORTED]
+          description: Filter by run status
       responses:
         "200":
-          description: List of delivery runs
-        "401":
-          description: Unauthorized
-
-  /api/delivery/runs/{id}:
-    get:
-      tags: [Delivery]
-      summary: Single run with all receipts
-      parameters:
-        - in: path
-          name: id
-          required: true
-          schema:
-            type: string
-      responses:
-        "200":
-          description: Delivery run detail with receipts
-        "401":
-          description: Unauthorized
-
-  /api/delivery/runs/{id}/complete:
-    patch:
-      tags: [Delivery]
-      summary: Mark run complete
-      parameters:
-        - in: path
-          name: id
-          required: true
-          schema:
-            type: string
-      responses:
-        "200":
-          description: Run marked complete
+          description: List of delivery runs newest first
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/DeliveryRun'
         "401":
           description: Unauthorized
 
   /api/delivery/receipts:
     post:
       tags: [Delivery]
-      summary: Record per-household delivery confirmation
+      summary: Record per-household delivery confirmation (decrements stock)
+      description: |
+        Records that a specific household received an EMK.
+
+        **Two things happen atomically:**
+        1. `DeliveryReceipt` record created
+        2. Sub-warehouse stock decremented via `recordDelivery()` in stock.service
+        3. Household marked as `delivered: true`
+
+        **Validation:**
+        - Run must be IN_PROGRESS
+        - Household must not already be marked delivered
+        - Sub-warehouse must have sufficient remaining stock
       requestBody:
         required: true
         content:
@@ -1410,65 +1495,169 @@ paths:
               properties:
                 deliveryRunId:
                   type: string
+                  description: "Must be an IN_PROGRESS run"
                 householdId:
                   type: string
+                  description: "Must not already be delivered"
                 emkType:
                   type: string
                   enum: [EMK1, EMK2, EMK3]
                 quantity:
                   type: integer
                   default: 1
+                  minimum: 1
                 deliveredAt:
                   type: string
                   format: date-time
+                  example: "2026-04-21T09:30:00Z"
                 notes:
                   type: string
+                  description: "Optional — volunteer field notes"
+            examples:
+              emk1Delivery:
+                summary: "Deliver EMK-1 to a general household"
+                value:
+                  deliveryRunId: "REPLACE_WITH_RUN_ID"
+                  householdId: "REPLACE_WITH_HOUSEHOLD_ID"
+                  emkType: "EMK1"
+                  quantity: 1
+                  deliveredAt: "2026-04-21T09:30:00Z"
+                  notes: "Household confirmed. Elderly resident answered door."
       responses:
         "201":
-          description: Delivery receipt recorded
+          description: Receipt recorded and stock decremented
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DeliveryReceipt'
+        "400":
+          description: Run not in progress, household already delivered, or insufficient stock
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
         "401":
           description: Unauthorized
+
+  /api/delivery/runs/{id}:
+    get:
+      tags: [Delivery]
+      summary: Single run with all receipts and household details
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Delivery run with full receipt list
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DeliveryRun'
+        "404":
+          description: Run not found
+        "401":
+          description: Unauthorized
+
+  /api/delivery/runs/{id}/complete:
+    patch:
+      tags: [Delivery]
+      summary: Mark run complete — team has returned to sub-warehouse
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Run completed with return time recorded
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DeliveryRun'
+        "400":
+          description: Run already complete or aborted
+        "401":
+          description: Unauthorized
+
+  /api/delivery/runs/{id}/abort:
+    patch:
+      tags: [Delivery]
+      summary: Abort run — volunteer safety (Hub Manager only)
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [reason]
+              properties:
+                reason: { type: string }
+      responses:
+        "200":
+          description: Run aborted
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DeliveryRun'
+        "400":
+          description: Run not in progress
+        "401":
+          description: Unauthorized
+        "403":
+          description: Requires HUB_MANAGER or above
 
   # ── ROUTING ─────────────────────────────────────────────────────────────────
   /api/route/recommend:
     get:
       tags: [Routing]
-      summary: Delivery mode recommendation by water depth
+      summary: Delivery mode recommendation by water depth (stateless)
       description: |
-        Returns delivery mode based on Section A.4 tiers:
-        - 0–30 cm → MOTORBIKE
-        - 30–60 cm → BICYCLE_OR_FOOT
-        - 60–80 cm → BOAT
-        - >80 cm → SUSPENDED (escalate to civil defense)
+        Returns delivery mode based on Section A.4 locked tiers.
+        | Depth | Mode |
+        |-------|------|
+        | 0–30 cm | MOTORBIKE |
+        | 30–60 cm | BICYCLE_OR_FOOT |
+        | 60–80 cm | BOAT |
+        | > 80 cm | SUSPENDED |
       parameters:
         - in: query
           name: waterDepthCm
           required: true
           schema:
             type: integer
+            minimum: 0
       responses:
         "200":
-          description: Recommended delivery mode
+          description: Delivery mode recommendation
           content:
             application/json:
               schema:
                 type: object
                 properties:
-                  waterDepthCm:
-                    type: integer
+                  waterDepthCm: { type: integer }
                   deliveryMode:
                     type: string
                     enum: [MOTORBIKE, BICYCLE_OR_FOOT, BOAT, SUSPENDED]
-                  warning:
-                    type: string
-                    description: "Present when SUSPENDED — escalate to civil defense"
+                  warning: { type: string, nullable: true }
+        "400":
+          description: Missing or invalid waterDepthCm
         "401":
           description: Unauthorized
 
   /api/route/update:
     post:
       tags: [Routing]
-      summary: Update water depth for a zone (creates route log)
+      summary: Update water depth for a zone (creates route log entry)
       requestBody:
         required: true
         content:
@@ -1477,15 +1666,20 @@ paths:
               type: object
               required: [districtId, zone, waterDepthCm]
               properties:
-                districtId:
-                  type: string
-                zone:
-                  type: string
-                waterDepthCm:
-                  type: integer
+                districtId: { type: string }
+                zone: { type: string }
+                waterDepthCm: { type: integer, minimum: 0 }
       responses:
         "200":
           description: Route updated
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  route: { $ref: '#/components/schemas/RouteStatus' }
+                  deliveryMode: { type: string }
+                  warning: { type: string, nullable: true }
         "401":
           description: Unauthorized
 
@@ -1496,11 +1690,42 @@ paths:
       parameters:
         - in: query
           name: districtId
-          schema:
-            type: string
+          schema: { type: string }
       responses:
         "200":
-          description: Route log history
+          description: Route change log history
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  type: object
+                  properties:
+                    id: { type: string }
+                    createdAt: { type: string, format: date-time }
+                    previousDepth: { type: integer }
+                    newDepth: { type: integer }
+                    newMode: { type: string }
+        "401":
+          description: Unauthorized
+
+  /api/route/district/{districtId}:
+    get:
+      tags: [Routing]
+      summary: Current active routes for a district
+      parameters:
+        - in: path
+          name: districtId
+          required: true
+          schema: { type: string }
+      responses:
+        "200":
+          description: Active routes for district
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: '#/components/schemas/RouteStatus' }
         "401":
           description: Unauthorized
 

@@ -9,6 +9,8 @@ import testRoutes from './routes/test.routes';
 import alertRoutes from './routes/alert.routes';
 import districtRoutes from './routes/district.routes';
 import stockRoutes from './routes/stock.routes';
+import deliveryRoutes from './routes/delivery.routes';
+import routeRoutes from './routes/route.routes';
 import { scoreRouter, householdRouter } from './routes/household.routes';
 
 
@@ -46,9 +48,6 @@ app.use('/api/stock', stockRoutes);
 app.use('/api/districts', districtRoutes);
 
 // Chat 6
-import deliveryRoutes from './routes/delivery.routes';
-import routeRoutes from './routes/route.routes';
-
 app.use('/api/delivery', deliveryRoutes);
 app.use('/api/route', routeRoutes);
 
