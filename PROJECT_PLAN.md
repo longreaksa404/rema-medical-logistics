@@ -23,7 +23,7 @@
 | Chat 3 | Auth + RBAC | ✅ Complete |
 | Chat 4 | Activation + Scoring Engine | ✅ Complete |
 | Chat 5 | Stock Management | ✅ Complete |
-| Chat 6 | Delivery + Routing | ⬜ Not started |
+| Chat 6 | Delivery + Routing | ✅ Complete |
 | Chat 7 | Volunteers + Incidents + Radio + Dashboard | ⬜ Not started |
 | Chat 8 | Frontend: Auth + Dashboard Setup | ⬜ Not started |
 | Chat 9 | Frontend: V1 Dashboard Data + Charts | ⬜ Not started |
@@ -141,16 +141,16 @@
 **Goal:** Delivery runs logged with receipts. Routing logic recommends correct mode by water depth.
 
 **Steps:**
-- [ ] Step 1 — POST /api/delivery/runs (start a run: assign team, zone, sub-warehouse)
-- [ ] Step 2 — GET /api/delivery/runs (list all runs, filter by district/status)
-- [ ] Step 3 — GET /api/delivery/runs/:id (single run with all receipts)
-- [ ] Step 4 — POST /api/delivery/receipts (record per-household delivery confirmation)
-- [ ] Step 5 — PATCH /api/delivery/runs/:id/complete (mark run complete, record return time)
-- [ ] Step 6 — GET /api/route/recommend (water depth → delivery mode, exact Section A.4 tiers)
-- [ ] Step 7 — POST /api/route/update (update water depth for a zone, creates route_log)
-- [ ] Step 8 — GET /api/route/logs (route status change history)
-- [ ] Step 9 — Suspend logic: delivery mode returns SUSPENDED above 80cm
-- [ ] Step 10 — Test full delivery lifecycle in Swagger (start run → add receipts → complete run)
+- [x] Step 1 — POST /api/delivery/runs (start a run: assign team, zone, sub-warehouse)
+- [x] Step 2 — GET /api/delivery/runs (list all runs, filter by district/status)
+- [x] Step 3 — GET /api/delivery/runs/:id (single run with all receipts)
+- [x] Step 4 — POST /api/delivery/receipts (record per-household delivery confirmation)
+- [x] Step 5 — PATCH /api/delivery/runs/:id/complete (mark run complete, record return time)
+- [x] Step 6 — GET /api/route/recommend (water depth → delivery mode, exact Section A.4 tiers)
+- [x] Step 7 — POST /api/route/update (update water depth for a zone, creates route_log)
+- [x] Step 8 — GET /api/route/logs (route status change history)
+- [x] Step 9 — Suspend logic: delivery mode returns SUSPENDED above 80cm
+- [x] Step 10 — Test full delivery lifecycle in Swagger (start run → add receipts → complete run)
 
 **End state:** Delivery lifecycle and routing logic tested. SUSPENDED returned correctly above 80cm.
 
