@@ -1,0 +1,20 @@
+services:
+  - type: web
+    name: rema-backend
+    runtime: node
+    rootDir: backend
+    buildCommand: npm install && npx prisma generate && npm run build
+    startCommand: node dist/index.js
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: DATABASE_URL
+        sync: false   # Set in Render dashboard — Supabase connection string
+      - key: DIRECT_URL
+        sync: false   # Set in Render dashboard — Supabase direct connection
+      - key: JWT_SECRET
+        generateValue: true   # Render generates a secure random value
+      - key: PORT
+        value: 3000
+    healthCheckPath: /api/health
+    autoDeploy: true
