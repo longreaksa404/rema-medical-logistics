@@ -13,6 +13,12 @@ import deliveryRoutes from './routes/delivery.routes';
 import routeRoutes from './routes/route.routes';
 import { scoreRouter, householdRouter } from './routes/household.routes';
 
+// Chat 7
+import volunteerRoutes from './routes/volunteer.routes';
+import incidentRoutes from './routes/incident.routes';
+import radioRoutes from './routes/radio.routes';
+import notificationRoutes from './routes/notification.routes';
+import dashboardRoutes from './routes/dashboard.routes';
 
 const app = express();
 
@@ -51,7 +57,12 @@ app.use('/api/districts', districtRoutes);
 app.use('/api/delivery', deliveryRoutes);
 app.use('/api/route', routeRoutes);
 
-// Chat 7: /api/volunteers, /api/incidents, /api/radio, /api/notifications, /api/dashboard
+// Chat 7
+app.use('/api/volunteers', volunteerRoutes);
+app.use('/api/incidents', incidentRoutes);
+app.use('/api/radio', radioRoutes);
+app.use('/api/notifications', notificationRoutes);
+app.use('/api/dashboard', dashboardRoutes);
 
 // ─── 404 FALLBACK ────────────────────────────────────────────────────────────
 app.use((_req, res) => {
