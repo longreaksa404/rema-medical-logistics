@@ -24,7 +24,7 @@
 | Chat 4 | Activation + Scoring Engine | ✅ Complete |
 | Chat 5 | Stock Management | ✅ Complete |
 | Chat 6 | Delivery + Routing | ✅ Complete |
-| Chat 7 | Volunteers + Incidents + Radio + Dashboard | ⬜ Not started |
+| Chat 7 | Volunteers + Incidents + Radio + Dashboard | ✅ Complete |
 | Chat 8 | Frontend: Auth + Dashboard Setup | ⬜ Not started |
 | Chat 9 | Frontend: V1 Dashboard Data + Charts | ⬜ Not started |
 | Chat 10 | Frontend: V2 Routing Map | ⬜ Not started |
@@ -161,22 +161,22 @@
 **Goal:** All remaining endpoints complete. Full API deployed on Render.
 
 **Steps:**
-- [ ] Step 1 — GET /api/volunteers (list, filter by district)
-- [ ] Step 2 — POST /api/volunteers (add to roster)
-- [ ] Step 3 — PATCH /api/volunteers/:id (update info or status)
-- [ ] Step 4 — POST /api/volunteers/assign (assign to zone + team)
-- [ ] Step 5 — GET /api/volunteers/:districtId/roster (full roster for one district)
-- [ ] Step 6 — POST /api/incidents (report incident)
-- [ ] Step 7 — GET /api/incidents (list, filter by district/type/status)
-- [ ] Step 8 — PATCH /api/incidents/:id/resolve (mark resolved)
-- [ ] Step 9 — POST /api/radio/checkin (submit scheduled check-in: 08:00/12:00/16:00/20:00)
-- [ ] Step 10 — GET /api/radio/checkins (list, filter by district + date)
-- [ ] Step 11 — GET /api/notifications (for current user)
-- [ ] Step 12 — PATCH /api/notifications/:id/read (mark as read)
-- [ ] Step 13 — GET /api/dashboard/summary (phase + stock + households + alerts aggregated)
-- [ ] Step 14 — GET /api/dashboard/district/:id (per-district summary card)
-- [ ] Step 15 — Deploy to Render
-- [ ] Step 16 — Verify all endpoints live at Render URL + Swagger accessible
+- [x] Step 1 — GET /api/volunteers (list, filter by district)
+- [x] Step 2 — POST /api/volunteers (add to roster)
+- [x] Step 3 — PATCH /api/volunteers/:id (update info or status)
+- [x] Step 4 — POST /api/volunteers/assign (assign to zone + team)
+- [x] Step 5 — GET /api/volunteers/:districtId/roster (full roster for one district)
+- [x] Step 6 — POST /api/incidents (report incident)
+- [x] Step 7 — GET /api/incidents (list, filter by district/type/status)
+- [x] Step 8 — PATCH /api/incidents/:id/resolve (mark resolved)
+- [x] Step 9 — POST /api/radio/checkin (submit scheduled check-in: 08:00/12:00/16:00/20:00)
+- [x] Step 10 — GET /api/radio/checkins (list, filter by district + date)
+- [x] Step 11 — GET /api/notifications (for current user)
+- [x] Step 12 — PATCH /api/notifications/:id/read (mark as read)
+- [x] Step 13 — GET /api/dashboard/summary (phase + stock + households + alerts aggregated)
+- [x] Step 14 — GET /api/dashboard/district/:id (per-district summary card)
+- [x] Step 15 — Deploy to Render
+- [x] Step 16 — Verify all endpoints live at Render URL + Swagger accessible
 
 **End state:** All 30+ endpoints live on Render. Swagger docs accessible at Render URL.
 
