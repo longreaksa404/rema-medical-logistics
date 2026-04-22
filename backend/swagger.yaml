@@ -422,18 +422,63 @@ components:
           properties:
             name: { type: string }
 
-    # ── Dashboard ─────────────────────────────────────────────────────────────
+    # ── Volunteers ────────────────────────────────────────────────────────────
+    Volunteer:
+      type: object
+      properties:
+        id: { type: string }
+        districtId: { type: string }
+        name: { type: string }
+        phone: { type: string }
+        role: { type: string, enum: [TEAM_LEADER, VOLUNTEER] }
+        status: { type: string, enum: [AVAILABLE, DEPLOYED, INACTIVE] }
+        createdAt: { type: string, format: date-time }
+
+    # ── Radio Check-ins ───────────────────────────────────────────────────────
+    RadioCheckin:
+      type: object
+      properties:
+        id: { type: string }
+        districtId: { type: string }
+        district: { type: object, properties: { name: { type: string } } }
+        submittedBy: { type: object, properties: { name: { type: string }, role: { type: string } } }
+        scheduledTime: { type: string, enum: [T0800, T1200, T1600, T2000] }
+        status: { type: string, enum: [OK, ISSUE_REPORTED] }
+        notes: { type: string, nullable: true }
+        createdAt: { type: string, format: date-time }
+
+    # ── Dashboard (Updated) ───────────────────────────────────────────────────
     DashboardSummary:
       type: object
       properties:
-        phase:
-          type: integer
-        activated:
-          type: boolean
+        phase: { type: integer }
+        activated: { type: boolean }
+        activatedAt: { type: string, nullable: true, format: date-time }
+        triggerConditions:
+          type: object
+          nullable: true
+          properties:
+            warningLevelTwo: { type: boolean }
+            rainfallExceeds100mm: { type: boolean }
+            streetFloodingReport: { type: boolean }
+        households:
+          type: object
+          properties:
+            critical: { type: integer }
+            high: { type: integer }
+            medium: { type: integer }
+            standard: { type: integer }
+            delivered: { type: integer }
+            total: { type: integer }
+            pendingDelivery: { type: integer }
+        activeDeliveryRuns: { type: integer }
+        todayRadioCheckins: { type: integer }
         districts:
           type: array
-          items:
-            $ref: '#/components/schemas/DistrictCard'
+          items: { $ref: '#/components/schemas/DistrictCard' }
+        openIncidents:
+          type: array
+          items: { $ref: '#/components/schemas/Incident' }
 
     # ── Incidents ─────────────────────────────────────────────────────────────
     Incident:
@@ -1730,29 +1775,35 @@ paths:
           description: Unauthorized
 
   # ── VOLUNTEERS ──────────────────────────────────────────────────────────────
-  /api/volunteers:
+    /api/volunteers:
     get:
       tags: [Volunteers]
-      summary: List all volunteers (filter by district)
+      summary: List all volunteers (filter by district or status)
+      description: |
+        Returns all volunteers. Filter by district for Hub Manager views.
+        Section D.6: 12 volunteers per sub-warehouse = 36 minimum across 3 districts.
       parameters:
         - in: query
           name: districtId
-          schema:
-            type: string
+          schema: { type: string }
+          description: Filter by district ID
         - in: query
           name: status
-          schema:
-            type: string
-            enum: [AVAILABLE, DEPLOYED, INACTIVE]
+          schema: { type: string, enum: [AVAILABLE, DEPLOYED, INACTIVE] }
+          description: Filter by deployment status
       responses:
         "200":
           description: Volunteer list
         "401":
           description: Unauthorized
-
+ 
     post:
       tags: [Volunteers]
-      summary: Add volunteer to roster
+      summary: Add volunteer to roster — Hub Manager or above
+      description: |
+        Adds a new volunteer to a district roster.
+        Section D.6: Red Cross maintains active roster with 20% buffer (45 names total)
+        to account for unavailability during flood events.
       requestBody:
         required: true
         content:
@@ -1761,26 +1812,39 @@ paths:
               type: object
               required: [districtId, name, phone]
               properties:
-                districtId:
-                  type: string
-                name:
-                  type: string
-                phone:
-                  type: string
+                districtId: { type: string }
+                name: { type: string, example: "Nguyen Van A" }
+                phone: { type: string, example: "+84901234567" }
                 role:
                   type: string
                   enum: [TEAM_LEADER, VOLUNTEER]
                   default: VOLUNTEER
+            examples:
+              teamLeader:
+                summary: Add a new Team Leader
+                value: { districtId: "REPLACE_WITH_DISTRICT_ID", name: "Nguyen Van A", phone: "+84901234567", role: "TEAM_LEADER" }
+              volunteer:
+                summary: Add a general volunteer
+                value: { districtId: "REPLACE_WITH_DISTRICT_ID", name: "Tran Thi B", phone: "+84907654321", role: "VOLUNTEER" }
       responses:
         "201":
-          description: Volunteer added
+          description: Volunteer added to roster
+        "400":
+          description: Validation error or district not found
         "401":
           description: Unauthorized
-
+        "403":
+          description: Requires HUB_MANAGER or above
+ 
   /api/volunteers/assign:
     post:
       tags: [Volunteers]
-      summary: Assign volunteer to zone and team
+      summary: Assign volunteer to zone and team — Hub Manager or above
+      description: |
+        Assigns a volunteer to a specific zone and team for an active flood alert.
+        Also marks the volunteer as DEPLOYED.
+        Section B.4: 3 teams of 4 volunteers per sub-warehouse.
+        Section C.7 fairness: cross-ward assignment (volunteers assess wards they are NOT from).
       requestBody:
         required: true
         content:
@@ -1789,32 +1853,79 @@ paths:
               type: object
               required: [volunteerId, subWarehouseId, alertId, zone, teamNumber]
               properties:
-                volunteerId:
-                  type: string
-                subWarehouseId:
-                  type: string
+                volunteerId: { type: string }
+                subWarehouseId: { type: string }
                 alertId:
                   type: string
+                  description: "Get from GET /api/alert/status — the active alert ID"
                 zone:
                   type: string
+                  example: "Zone A"
                 teamNumber:
                   type: integer
+                  enum: [1, 2, 3]
+            examples:
+              assignTeamLeader:
+                summary: Assign Team Leader to Zone A, Team 1
+                value:
+                  volunteerId: "REPLACE_WITH_VOLUNTEER_ID"
+                  subWarehouseId: "REPLACE_WITH_SW_ID"
+                  alertId: "REPLACE_WITH_ALERT_ID"
+                  zone: "Zone A"
+                  teamNumber: 1
       responses:
         "201":
-          description: Volunteer assigned
+          description: Volunteer assigned and marked DEPLOYED
+        "400":
+          description: Invalid teamNumber, volunteer/sub-warehouse/alert not found
         "401":
           description: Unauthorized
-
+        "403":
+          description: Requires HUB_MANAGER or above
+ 
+  /api/volunteers/{districtId}/roster:
+    get:
+      tags: [Volunteers]
+      summary: Full roster for a district with minimum check
+      description: |
+        Returns all volunteers in a district, grouped with minimum threshold check.
+        Section D.6: 12 volunteers per district is the minimum viable number.
+        Warning returned if below threshold.
+      parameters:
+        - in: path
+          name: districtId
+          required: true
+          schema: { type: string }
+      responses:
+        "200":
+          description: District roster with summary
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  districtId: { type: string }
+                  districtName: { type: string }
+                  total: { type: integer }
+                  teamLeaders: { type: integer }
+                  generalVolunteers: { type: integer }
+                  belowMinimum: { type: boolean }
+                  minimumWarning: { type: string, nullable: true }
+                  volunteers: { type: array, items: { type: object } }
+        "404":
+          description: District not found
+        "401":
+          description: Unauthorized
+ 
   /api/volunteers/{id}:
     patch:
       tags: [Volunteers]
-      summary: Update volunteer info or status
+      summary: Update volunteer info or status — Hub Manager or above
       parameters:
         - in: path
           name: id
           required: true
-          schema:
-            type: string
+          schema: { type: string }
       requestBody:
         required: true
         content:
@@ -1822,43 +1933,37 @@ paths:
             schema:
               type: object
               properties:
-                name:
-                  type: string
-                phone:
-                  type: string
-                status:
-                  type: string
-                  enum: [AVAILABLE, DEPLOYED, INACTIVE]
-                role:
-                  type: string
-                  enum: [TEAM_LEADER, VOLUNTEER]
+                name: { type: string }
+                phone: { type: string }
+                status: { type: string, enum: [AVAILABLE, DEPLOYED, INACTIVE] }
+                role: { type: string, enum: [TEAM_LEADER, VOLUNTEER] }
+            examples:
+              markAvailable:
+                summary: Mark volunteer as available after flood ends
+                value: { status: "AVAILABLE" }
+              markInactive:
+                summary: Remove volunteer from active rotation
+                value: { status: "INACTIVE" }
       responses:
         "200":
           description: Volunteer updated
+        "400":
+          description: Volunteer not found
         "401":
           description: Unauthorized
+        "403":
+          description: Requires HUB_MANAGER or above
 
-  /api/volunteers/{districtId}/roster:
-    get:
-      tags: [Volunteers]
-      summary: Full roster for a district
-      parameters:
-        - in: path
-          name: districtId
-          required: true
-          schema:
-            type: string
-      responses:
-        "200":
-          description: District volunteer roster
-        "401":
-          description: Unauthorized
 
   # ── INCIDENTS ───────────────────────────────────────────────────────────────
-  /api/incidents:
+    /api/incidents:
     post:
       tags: [Incidents]
       summary: Report an incident
+      description: |
+        Report any operational incident during flood response.
+        VOLUNTEER_SAFETY incidents are automatically escalated (Section A.4 hard constraint).
+        Types map directly to Section B.6 contingency levels and Section A.4 safety rules.
       requestBody:
         required: true
         content:
@@ -1867,47 +1972,66 @@ paths:
               type: object
               required: [districtId, type, description]
               properties:
-                districtId:
-                  type: string
+                districtId: { type: string }
                 type:
                   type: string
                   enum: [ROUTE_BLOCKED, VOLUNTEER_SAFETY, STOCK_SCARCITY, BUILDING_FLOODED, OTHER]
-                description:
-                  type: string
+                description: { type: string }
+            examples:
+              routeBlocked:
+                summary: "Section B.6 Level 1 — single route blocked"
+                value:
+                  districtId: "REPLACE_WITH_DISTRICT_ID"
+                  type: "ROUTE_BLOCKED"
+                  description: "Nguyen Hue Street flooded — cannot reach Zone B households by motorbike. Switching to bicycle."
+              volunteerSafety:
+                summary: "Section A.4 — volunteer safety (auto-escalated)"
+                value:
+                  districtId: "REPLACE_WITH_DISTRICT_ID"
+                  type: "VOLUNTEER_SAFETY"
+                  description: "Water depth now 85cm in Zone C — Team 2 returning to sub-warehouse. Escalating to civil defense."
+              buildingFlooded:
+                summary: "Section B.6 Level 3 — sub-warehouse at risk"
+                value:
+                  districtId: "REPLACE_WITH_DISTRICT_ID"
+                  type: "BUILDING_FLOODED"
+                  description: "Ward office floor showing water ingress. Activating backup location at District 1 School."
       responses:
         "201":
-          description: Incident reported
+          description: Incident reported (VOLUNTEER_SAFETY auto-escalated to ESCALATED status)
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/Incident'
+        "400":
+          description: Invalid type or district not found
         "401":
           description: Unauthorized
-
+ 
     get:
       tags: [Incidents]
-      summary: List incidents (filter by district, type, status)
+      summary: List incidents with optional filters
       parameters:
         - in: query
           name: districtId
-          schema:
-            type: string
+          schema: { type: string }
         - in: query
           name: type
-          schema:
-            type: string
-            enum: [ROUTE_BLOCKED, VOLUNTEER_SAFETY, STOCK_SCARCITY, BUILDING_FLOODED, OTHER]
+          schema: { type: string, enum: [ROUTE_BLOCKED, VOLUNTEER_SAFETY, STOCK_SCARCITY, BUILDING_FLOODED, OTHER] }
         - in: query
           name: status
-          schema:
-            type: string
-            enum: [OPEN, ESCALATED, RESOLVED]
+          schema: { type: string, enum: [OPEN, ESCALATED, RESOLVED] }
       responses:
         "200":
-          description: Incident list
+          description: Incident list (ESCALATED sorted first)
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: '#/components/schemas/Incident' }
         "401":
           description: Unauthorized
-
+ 
   /api/incidents/{id}/resolve:
     patch:
       tags: [Incidents]
@@ -1916,13 +2040,19 @@ paths:
         - in: path
           name: id
           required: true
-          schema:
-            type: string
+          schema: { type: string }
       responses:
         "200":
-          description: Incident resolved
+          description: Incident resolved with resolver and timestamp recorded
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Incident'
+        "400":
+          description: Incident already resolved or not found
         "401":
           description: Unauthorized
+
 
   # ── RADIO CHECK-INS ─────────────────────────────────────────────────────────
   /api/radio/checkin:
@@ -1931,7 +2061,14 @@ paths:
       summary: Submit scheduled radio check-in
       description: |
         Fixed schedule: T0800, T1200, T1600, T2000 (Section D.9).
-        If internet fails, check-ins are submitted retroactively when contact is restored.
+        Hub Managers report to Operations Center at each scheduled time:
+        - T0800: stock levels, overnight incidents, morning plan
+        - T1200: delivery progress, new critical cases, route issues
+        - T1600: afternoon delivery summary, resupply needs
+        - T2000: end-of-day stock count, next-day plan
+ 
+        If internet/phone fails, check-ins are submitted retroactively when contact restored.
+        Section D.9: If digital fails, paper forms physically transported.
       requestBody:
         required: true
         content:
@@ -1940,22 +2077,33 @@ paths:
               type: object
               required: [districtId, scheduledTime, status]
               properties:
-                districtId:
-                  type: string
-                scheduledTime:
-                  type: string
-                  enum: [T0800, T1200, T1600, T2000]
-                status:
-                  type: string
-                  enum: [OK, ISSUE_REPORTED]
-                notes:
-                  type: string
+                districtId: { type: string }
+                scheduledTime: { type: string, enum: [T0800, T1200, T1600, T2000] }
+                status: { type: string, enum: [OK, ISSUE_REPORTED] }
+                notes: { type: string, description: "Required if status is ISSUE_REPORTED" }
+            examples:
+              morning_ok:
+                summary: "08:00 check-in — all OK"
+                value:
+                  districtId: "REPLACE_WITH_DISTRICT_ID"
+                  scheduledTime: "T0800"
+                  status: "OK"
+                  notes: "EMK1: 4,800 remaining. 3 delivery teams deployed. No overnight incidents."
+              noon_issue:
+                summary: "12:00 check-in — issue reported"
+                value:
+                  districtId: "REPLACE_WITH_DISTRICT_ID"
+                  scheduledTime: "T1200"
+                  status: "ISSUE_REPORTED"
+                  notes: "Zone B route blocked by debris. EMK2 supply at 35%. Requesting boat reallocation."
       responses:
         "201":
           description: Check-in recorded
+        "400":
+          description: Invalid scheduledTime, status, or district not found
         "401":
           description: Unauthorized
-
+ 
   /api/radio/checkins:
     get:
       tags: [Radio]
@@ -1963,77 +2111,155 @@ paths:
       parameters:
         - in: query
           name: districtId
-          schema:
-            type: string
+          schema: { type: string }
         - in: query
           name: date
-          schema:
-            type: string
-            format: date
+          schema: { type: string, format: date }
+          description: "ISO date e.g. 2026-04-21 — returns all check-ins for that calendar day"
       responses:
         "200":
-          description: Check-in list
+          description: Check-in list newest first
         "401":
           description: Unauthorized
+ 
+  /api/radio/compliance:
+    get:
+      tags: [Radio]
+      summary: Today's check-in compliance summary across all districts
+      description: |
+        Shows which districts have submitted each of the 4 scheduled check-ins today.
+        Highlights missing check-ins — critical for Operations Center situational awareness.
+      responses:
+        "200":
+          description: Compliance summary per district
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  type: object
+                  properties:
+                    districtId: { type: string }
+                    districtName: { type: string }
+                    completedSlots: { type: array, items: { type: string } }
+                    missingSlots: { type: array, items: { type: string } }
+                    issuesReported: { type: boolean }
+                    compliance: { type: string, example: "3/4" }
+        "401":
+          description: Unauthorized
+
 
   # ── NOTIFICATIONS ───────────────────────────────────────────────────────────
-  /api/notifications:
+    /api/notifications:
     get:
       tags: [Notifications]
-      summary: Get notifications for current user
+      summary: Get all notifications for current user
       responses:
         "200":
-          description: Notification list
+          description: Notification list newest first
         "401":
           description: Unauthorized
-
+ 
+  /api/notifications/read-all:
+    patch:
+      tags: [Notifications]
+      summary: Mark all notifications as read
+      responses:
+        "200":
+          description: Number of notifications updated
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  updated: { type: integer }
+        "401":
+          description: Unauthorized
+ 
   /api/notifications/{id}/read:
     patch:
       tags: [Notifications]
-      summary: Mark notification as read
+      summary: Mark one notification as read
       parameters:
         - in: path
           name: id
           required: true
-          schema:
-            type: string
+          schema: { type: string }
       responses:
         "200":
-          description: Notification marked read
+          description: Notification marked as read
+        "400":
+          description: Notification not found or belongs to another user
         "401":
           description: Unauthorized
 
+
   # ── DASHBOARD ────────────────────────────────────────────────────────────────
-  /api/dashboard/summary:
+    /api/dashboard/summary:
     get:
       tags: [Dashboard]
-      summary: Aggregated view — phase + stock + households + alerts
+      summary: Full operations dashboard — phase + households + stock + incidents + radio
+      description: |
+        Aggregated data for the V1 Operations Dashboard.
+        Returns everything needed in a single call:
+        - Current phase and activation state
+        - Household band counts (undelivered)
+        - Per-district stock levels with scarcity flags
+        - Open/escalated incidents (top 10)
+        - Active delivery run count
+        - Today's radio check-in count
       responses:
         "200":
-          description: Dashboard summary
+          description: Full dashboard summary
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/DashboardSummary'
+                type: object
+                properties:
+                  phase: { type: integer }
+                  activated: { type: boolean }
+                  activatedAt: { type: string, nullable: true, format: date-time }
+                  triggerConditions:
+                    type: object
+                    nullable: true
+                    properties:
+                      warningLevelTwo: { type: boolean }
+                      rainfallExceeds100mm: { type: boolean }
+                      streetFloodingReport: { type: boolean }
+                  households:
+                    type: object
+                    properties:
+                      critical: { type: integer }
+                      high: { type: integer }
+                      medium: { type: integer }
+                      standard: { type: integer }
+                      delivered: { type: integer }
+                      total: { type: integer }
+                      pendingDelivery: { type: integer }
+                  activeDeliveryRuns: { type: integer }
+                  todayRadioCheckins: { type: integer }
+                  districts:
+                    type: array
+                    items: { $ref: '#/components/schemas/DistrictCard' }
+                  openIncidents:
+                    type: array
+                    items: { $ref: '#/components/schemas/Incident' }
         "401":
           description: Unauthorized
-
+ 
   /api/dashboard/district/{id}:
     get:
       tags: [Dashboard]
-      summary: Per-district summary card data
+      summary: Per-district summary card with radio check-ins
       parameters:
         - in: path
           name: id
           required: true
-          schema:
-            type: string
+          schema: { type: string }
       responses:
         "200":
-          description: District summary card
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/DistrictCard'
+          description: District dashboard card with recent radio check-ins
+        "404":
+          description: District not found
         "401":
           description: Unauthorized
