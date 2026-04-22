@@ -45,7 +45,13 @@ app.use('/api/households', householdRouter);
 app.use('/api/stock', stockRoutes);
 app.use('/api/districts', districtRoutes);
 
-// Chat 6: /api/delivery, /api/route
+// Chat 6
+import deliveryRoutes from './routes/delivery.routes';
+import routeRoutes from './routes/route.routes';
+
+app.use('/api/delivery', deliveryRoutes);
+app.use('/api/route', routeRoutes);
+
 // Chat 7: /api/volunteers, /api/incidents, /api/radio, /api/notifications, /api/dashboard
 
 // ─── 404 FALLBACK ────────────────────────────────────────────────────────────
