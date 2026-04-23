@@ -25,6 +25,7 @@
 | Chat 5 | Stock Management | ✅ Complete |
 | Chat 6 | Delivery + Routing | ✅ Complete |
 | Chat 7 | Volunteers + Incidents + Radio + Dashboard | ✅ Complete |
+| Chat 7.5 | Cache + Polling Architecture (do before Chat 8) | ⬜ Not started |
 | Chat 8 | Frontend: Auth + Dashboard Setup | ⬜ Not started |
 | Chat 9 | Frontend: V1 Dashboard Data + Charts | ⬜ Not started |
 | Chat 10 | Frontend: V2 Routing Map | ⬜ Not started |
@@ -182,6 +183,24 @@
 
 ---
 
+## CHAT 7.5 — Cache + Polling Setup (do before starting Chat 8)
+
+**Goal:** Add in-memory cache to dashboard service. Confirm on Render.
+
+**Steps:**
+- [ ] Step 1 — Add cache utility (getCached, setCached, invalidateCache) to dashboard.service.ts
+- [ ] Step 2 — Wrap getDashboardSummary with 15s TTL cache
+- [ ] Step 3 — Wrap getDistrictDashboard with 10s TTL cache  
+- [ ] Step 4 — Call invalidateCache() in alert.service.ts when phase advances
+- [ ] Step 5 — Call invalidateCache() in stock.service.ts when dispatch/reallocate runs
+- [ ] Step 6 — Push to GitHub → Render auto-deploys → verify /api/dashboard/summary still works
+- [ ] Step 7 — Add cache note to README: "15s in-memory cache, Redis-ready architecture"
+
+**End state:** Dashboard queries hit cache on repeated calls. Phase changes and stock 
+dispatches invalidate cache automatically. Zero new dependencies.
+
+---
+
 ## CHAT 8 — Frontend: Auth + Dashboard Setup ⬜ Not started
 
 **Goal:** Login works. Dashboard shell running on Vercel, connected to Render backend.
@@ -198,7 +217,10 @@
 - [ ] Step 9 — Dashboard shell layout (header + sidebar + content area)
 - [ ] Step 10 — Phase status banner component (Phase 0/1/2)
 - [ ] Step 11 — Deploy to Vercel
-- [ ] Step 12 — Test: login → redirect → see dashboard shell
+- [ ] Step 12 — Add 30-second polling interval to dashboard (useEffect + setInterval)
+- [ ] Step 13 — Add manual refresh button for Operations Center users
+- [ ] Step 14 — Show "last updated" timestamp on dashboard so users know data age
+- [ ] Step 15 — Test: login → redirect → see dashboard shell
 
 **End state:** Login works, dashboard shell live on Vercel, connected to Render backend.
 
@@ -295,9 +317,9 @@
 
 ---
 
-## CHAT 13 — Frontend: V8 Volunteer Mobile View ⬜ Not started
+## CHAT 13 — Frontend: V8 Volunteer Mobile View + WebSocket Critical Alerts
 
-**Goal:** V8 Volunteer mobile view complete and live. Usable on a phone browser.
+**Goal:** V8 Volunteer mobile view complete. WebSocket added for 2 critical events only.
 
 **Steps:**
 - [ ] Step 1 — Mobile layout setup (max-width 480px, large touch targets)
@@ -312,7 +334,16 @@
 - [ ] Step 10 — Incident screen: connect to POST /api/incidents
 - [ ] Step 11 — Deploy to Vercel + test on mobile browser
 
-**End state:** V8 live on Vercel. All 3 screens work on a phone browser.
+WebSocket (only if time allows — do after all other chats complete):
+- [ ] Step 12 — Install socket.io on backend, socket.io-client on frontend
+- [ ] Step 13 — Backend: emit rema:activated when phase changes (alert.service.ts)
+- [ ] Step 14 — Backend: emit alert:volunteer_safety on VOLUNTEER_SAFETY incident
+- [ ] Step 15 — Frontend: listen for both events, show full-screen alert banner
+- [ ] Step 16 — Test: advance phase in Swagger → banner appears in open browser tab instantly
+- [ ] Step 17 — Update README: document WebSocket events
+
+**End state:** V8 live on Vercel. If WebSocket steps completed: phase changes and 
+volunteer safety alerts appear instantly across all open dashboard tabs without polling.
 
 ---
 
