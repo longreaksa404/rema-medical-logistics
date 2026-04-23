@@ -63,8 +63,6 @@ Chat 7.5 — Cache + Polling Architecture — COMPLETE
 13. Manual refresh button for Operations Center users
 14. "Last updated" timestamp on dashboard
 
-**Before Chat 8:** Push to GitHub, verify Render auto-deploys, confirm the backend URL.
-
 ## Live URLs
 - Backend API: not yet deployed (Render deployment pending)
 - Frontend: not yet started
