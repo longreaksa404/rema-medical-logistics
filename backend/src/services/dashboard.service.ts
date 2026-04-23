@@ -1,9 +1,12 @@
 import { PrismaClient } from '@prisma/client';
-import { isInScarcity } from './stock.service';
+import { isInScarcity } from '../utils/stock.utils';
 
 const prisma = new PrismaClient();
 
 // ─── CACHE CONFIGURATION ─────────────────────────────────────────────────────
+// In-memory cache. Zero new dependencies.
+// Architecture is Redis-ready: replace getCached/setCached with Redis calls
+// and the rest of the code is unchanged.
 
 interface CacheEntry<T> {
   data: T;
@@ -28,7 +31,8 @@ function setCached<T>(key: string, data: T, ttlMs: number): void {
 }
 
 /**
- * Invalidate specific cache keys or clear everything (e.g., on phase change)
+ * Invalidate specific cache keys or clear everything.
+ * Called by alert.service on phase change and stock.service on dispatch/reallocate.
  */
 export function invalidateCache(key?: string): void {
   if (key) {
@@ -42,11 +46,12 @@ export function invalidateCache(key?: string): void {
 
 /**
  * GET /api/dashboard/summary
- * Cached for 15 seconds to reduce heavy aggregation load.
+ * Cached for 15 seconds — heavy aggregation across all 3 districts.
+ * Invalidated on phase change and stock dispatch/reallocate.
  */
 export async function getDashboardSummary() {
   const CACHE_KEY = 'dashboard:summary';
-  const cached = getCached<any>(CACHE_KEY);
+  const cached = getCached<ReturnType<typeof buildSummary>>(CACHE_KEY);
   if (cached) return cached;
 
   const result = await buildSummary();
@@ -56,8 +61,22 @@ export async function getDashboardSummary() {
 
 /**
  * GET /api/dashboard/district/:id
+ * Cached per district for 10 seconds.
+ * Key format: dashboard:district:{id} — allows targeted invalidation.
  */
 export async function getDistrictDashboard(districtId: string) {
+  const CACHE_KEY = `dashboard:district:${districtId}`;
+  const cached = getCached<Awaited<ReturnType<typeof buildDistrictDashboard>>>(CACHE_KEY);
+  if (cached) return cached;
+
+  const result = await buildDistrictDashboard(districtId);
+  setCached(CACHE_KEY, result, 10_000); // 10 second TTL
+  return result;
+}
+
+// ─── PRIVATE BUILDERS ─────────────────────────────────────────────────────────
+
+async function buildDistrictDashboard(districtId: string) {
   const district = await prisma.district.findUnique({
     where: { id: districtId },
     include: {
@@ -136,8 +155,6 @@ export async function getDistrictDashboard(districtId: string) {
     recentRadioCheckins: recentCheckins,
   };
 }
-
-// ─── PRIVATE BUILDER ─────────────────────────────────────────────────────────
 
 async function buildSummary() {
   // 1. Current flood alert state
