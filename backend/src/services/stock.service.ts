@@ -1,20 +1,14 @@
 import { PrismaClient, EmkType, MovementType } from '@prisma/client';
+import { invalidateCache } from './dashboard.service';
+import { isInScarcity } from '../utils/stock.utils';
 
 const prisma = new PrismaClient();
 
 // ─── SCARCITY THRESHOLD ───────────────────────────────────────────────────────
-// Section C.9: Scarcity mode triggers when TOTAL stock across ALL sub-warehouses
-// falls below 30% of the ORIGINAL allocation (emk1Total + emk2Total + emk3Total
-// at dispatch time — stored as *Total fields).
-// We compute per sub-warehouse and flag if ANY sub-warehouse is in scarcity.
-
-export function isInScarcity(
-  remaining: number,
-  total: number
-): boolean {
-  if (total === 0) return false;
-  return remaining / total < 0.3;
-}
+// Section C.9: Scarcity mode triggers when stock falls below 30% of original allocation.
+// Function lives in utils/stock.utils.ts to avoid circular imports.
+// Re-exported here so existing callers (stock.controller, dashboard.service) are unchanged.
+export { isInScarcity } from '../utils/stock.utils';
 
 export interface StockWithScarcity {
   subWarehouseId: string;
@@ -112,8 +106,7 @@ export async function getStockByDistrict(districtId: string): Promise<StockWithS
 
 // ─── DISPATCH — Central Warehouse → Sub-Warehouse ────────────────────────────
 // Records movement as DISPATCH. Increases stock at sub-warehouse.
-// Note: This adds to *Total AND *Remaining — initial dispatch sets baseline.
-// For resupply top-ups, total increases too (new baseline for scarcity calc).
+// Also invalidates dashboard cache — stock levels changed.
 
 export async function dispatchStock(data: {
   subWarehouseId: string;
@@ -129,7 +122,6 @@ export async function dispatchStock(data: {
   const stock = await prisma.stock.findUnique({ where: { subWarehouseId } });
   if (!stock) throw new Error(`No stock record found for sub-warehouse ${subWarehouseId}`);
 
-  // Build field update based on EMK type
   const totalField = emkType === 'EMK1' ? 'emk1Total'
     : emkType === 'EMK2' ? 'emk2Total' : 'emk3Total';
   const remainingField = emkType === 'EMK1' ? 'emk1Remaining'
@@ -154,21 +146,26 @@ export async function dispatchStock(data: {
         subWarehouseId,
         emkType,
         movementType: MovementType.DISPATCH,
-        quantity: quantity, // positive = stock coming in
+        quantity: quantity,
         reason: reason ?? 'Central warehouse dispatch',
         performedById,
       },
     }),
   ]);
 
-  // Special rule for EMK-3: activate sub-warehouse status if this is a MoH transfer
-  // (detected by emkType = EMK3 — only ever dispatched by MoH)
+  // EMK-3 dispatch is always a MoH transfer (cold chain — Section B.10)
   if (emkType === 'EMK3') {
     await prisma.stockMovement.update({
       where: { id: movement.id },
       data: { movementType: MovementType.MOH_TRANSFER },
     });
   }
+
+  // Invalidate dashboard cache — stock levels are now stale
+  // Target the specific district card + the full summary
+  const districtId = updatedStock.subWarehouse.districtId;
+  invalidateCache(`dashboard:district:${districtId}`);
+  invalidateCache('dashboard:summary');
 
   return {
     stock: enrichStock(updatedStock),
@@ -179,7 +176,7 @@ export async function dispatchStock(data: {
 // ─── REALLOCATE — Cross-District ─────────────────────────────────────────────
 // Emergency Coordinator only (enforced at route level).
 // Moves stock from one sub-warehouse to another.
-// Creates two movement records: negative (from) and positive (to).
+// Also invalidates dashboard cache for both affected districts.
 
 export async function reallocateStock(data: {
   fromSubWarehouseId: string;
@@ -214,19 +211,16 @@ export async function reallocateStock(data: {
   const reasonText = reason ?? `Cross-district reallocation`;
 
   const [updatedFrom, updatedTo] = await prisma.$transaction([
-    // Decrease source
     prisma.stock.update({
       where: { subWarehouseId: fromSubWarehouseId },
       data: { [remainingField]: fromRemaining - quantity },
       include: { subWarehouse: { include: { district: { select: { name: true } } } } },
     }),
-    // Increase destination
     prisma.stock.update({
       where: { subWarehouseId: toSubWarehouseId },
       data: { [remainingField]: toRemaining + quantity },
       include: { subWarehouse: { include: { district: { select: { name: true } } } } },
     }),
-    // Movement record: outbound from source (negative)
     prisma.stockMovement.create({
       data: {
         subWarehouseId: fromSubWarehouseId,
@@ -237,7 +231,6 @@ export async function reallocateStock(data: {
         performedById,
       },
     }),
-    // Movement record: inbound to destination (positive)
     prisma.stockMovement.create({
       data: {
         subWarehouseId: toSubWarehouseId,
@@ -250,6 +243,13 @@ export async function reallocateStock(data: {
     }),
   ]);
 
+  // Invalidate both affected district caches + summary
+  const fromDistrictId = updatedFrom.subWarehouse.districtId;
+  const toDistrictId = updatedTo.subWarehouse.districtId;
+  invalidateCache(`dashboard:district:${fromDistrictId}`);
+  invalidateCache(`dashboard:district:${toDistrictId}`);
+  invalidateCache('dashboard:summary');
+
   return {
     from: enrichStock(updatedFrom),
     to: enrichStock(updatedTo),
@@ -258,11 +258,13 @@ export async function reallocateStock(data: {
 
 // ─── ADJUST — Manual with reason ─────────────────────────────────────────────
 // Hub Manager. Positive = add, negative = remove. Always requires reason.
+// Does NOT invalidate cache — adjustments are small corrections;
+// the 15s TTL is acceptable here to avoid thrashing during active operations.
 
 export async function adjustStock(data: {
   subWarehouseId: string;
   emkType: EmkType;
-  quantity: number; // can be negative
+  quantity: number;
   reason: string;
   performedById: string;
 }) {
@@ -299,7 +301,7 @@ export async function adjustStock(data: {
         subWarehouseId,
         emkType,
         movementType: MovementType.ADJUSTMENT,
-        quantity, // positive or negative
+        quantity,
         reason,
         performedById,
       },
@@ -340,8 +342,10 @@ export async function getMovementsByDistrict(districtId: string) {
 }
 
 // ─── RECORD DELIVERY CONSUMPTION ─────────────────────────────────────────────
-// Called internally when a delivery receipt is recorded (Chat 6).
+// Called internally when a delivery receipt is recorded.
 // Decrements remaining stock at the source sub-warehouse.
+// Does NOT invalidate cache — delivery is a high-frequency operation;
+// the 15s TTL window is acceptable and prevents cache thrashing.
 
 export async function recordDelivery(data: {
   subWarehouseId: string;
@@ -378,7 +382,7 @@ export async function recordDelivery(data: {
         subWarehouseId,
         emkType,
         movementType: MovementType.DELIVERY,
-        quantity: -quantity, // negative = stock going out
+        quantity: -quantity,
         reason: reason ?? 'Household delivery',
         performedById,
       },
