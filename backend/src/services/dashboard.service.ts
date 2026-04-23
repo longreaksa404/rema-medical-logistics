@@ -1,6 +1,39 @@
 import { PrismaClient } from '@prisma/client';
 import { isInScarcity } from './stock.service';
 
+// Add near the top of dashboard.service.ts, after imports
+
+interface CacheEntry<T> {
+  data: T;
+  expiresAt: number;
+}
+
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+const cache = new Map<string, CacheEntry<any>>();
+
+function getCached<T>(key: string): T | null {
+  const entry = cache.get(key);
+  if (!entry) return null;
+  if (Date.now() > entry.expiresAt) {
+    cache.delete(key);
+    return null;
+  }
+  return entry.data as T;
+}
+
+function setCached<T>(key: string, data: T, ttlMs: number): void {
+  cache.set(key, { data, expiresAt: Date.now() + ttlMs });
+}
+
+// Cache invalidation — call this when data changes
+export function invalidateCache(key?: string): void {
+  if (key) {
+    cache.delete(key);
+  } else {
+    cache.clear(); // clear everything on phase change
+  }
+}
+
 const prisma = new PrismaClient();
 
 // ─── FULL DASHBOARD SUMMARY ───────────────────────────────────────────────────

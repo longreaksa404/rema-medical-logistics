@@ -1,2 +1,18 @@
+# backend/.gitignore
 node_modules/
+dist/
 .env
+.env.*
+!.env.example
+
+# Prisma generated client (regenerated on build)
+node_modules/.prisma/
+
+# TypeScript
+*.tsbuildinfo
+
+# Test coverage
+coverage/
+
+# Logs
+*.log
