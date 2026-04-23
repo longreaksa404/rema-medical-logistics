@@ -7,7 +7,7 @@
 
 | Service | URL | Status |
 |---|---|---|
-| Backend API | TBD (Render) | Not deployed yet |
+| Backend API | TBD (Render) | https://rema-medical-logistics.onrender.com |  ✅ Live |
 | Frontend | TBD (Vercel) | Not deployed yet |
 | Database | Supabase — rema-medical-logistics (Singapore) | ✅ Live |
 | API Docs (Swagger) | TBD/api/docs | Not deployed yet |

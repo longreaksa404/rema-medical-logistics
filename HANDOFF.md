@@ -64,7 +64,7 @@ Chat 7.5 — Cache + Polling Architecture — COMPLETE
 14. "Last updated" timestamp on dashboard
 
 ## Live URLs
-- Backend API: not yet deployed (Render deployment pending)
+- Backend API: https://rema-medical-logistics.onrender.com
 - Frontend: not yet started
-- Swagger docs: not yet deployed
+- Swagger docs: https://rema-medical-logistics.onrender.com/api/docs
 - Supabase DB: rema-medical-logistics (Singapore, ref: vkrtqhiymbbdgmtybjrm)
