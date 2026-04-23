@@ -1,8 +1,6 @@
 import { PrismaClient } from '@prisma/client';
 import { isInScarcity } from './stock.service';
 
-// Add near the top of dashboard.service.ts, after imports
-
 interface CacheEntry<T> {
   data: T;
   expiresAt: number;
