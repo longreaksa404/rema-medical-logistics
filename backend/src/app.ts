@@ -23,7 +23,10 @@ import dashboardRoutes from './routes/dashboard.routes';
 const app = express();
 
 // ─── MIDDLEWARE ───────────────────────────────────────────────────────────────
-app.use(cors());
+app.use(cors({
+  origin: true, // Allows Swagger from any browser to connect
+  credentials: true
+}));
 app.use(express.json());
 
 // ─── SWAGGER ──────────────────────────────────────────────────────────────────
