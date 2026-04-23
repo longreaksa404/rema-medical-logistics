@@ -1,4 +1,5 @@
 import { PrismaClient } from '@prisma/client';
+import { invalidateCache } from './dashboard.service';
 
 const prisma = new PrismaClient();
 
@@ -23,9 +24,6 @@ export function isValidCondition(val: string): val is TriggerCondition {
 // If none exists, create one in standby (phase 0, not activated).
 
 async function getOrCreateActiveAlert() {
-  // Find an existing non-resolved alert
-  // We treat "not activated + phase 0" as standby, and "activated" as live.
-  // Once a flood ends, a new alert would be created for the next event.
   const existing = await prisma.floodAlert.findFirst({
     orderBy: { createdAt: 'desc' },
   });
@@ -50,12 +48,10 @@ async function getOrCreateActiveAlert() {
 export async function submitTrigger(condition: TriggerCondition) {
   const alert = await getOrCreateActiveAlert();
 
-  // Build the update — set the condition to true
   const update: Record<string, boolean | string | Date | number> = {
     [condition]: true,
   };
 
-  // Count how many conditions will be true after this update
   const current = {
     warningLevelTwo: alert.warningLevelTwo,
     rainfallExceeds100mm: alert.rainfallExceeds100mm,
@@ -73,7 +69,10 @@ export async function submitTrigger(condition: TriggerCondition) {
   if (!alert.activated && trueCount >= 2) {
     update.activated = true;
     update.activatedAt = new Date();
-    update.phase = 1; // Automatically enter Phase 1
+    update.phase = 1;
+
+    // Invalidate dashboard cache — phase and activation state have changed
+    invalidateCache();
   }
 
   const updated = await prisma.floodAlert.update({
@@ -98,7 +97,6 @@ export async function getAlertStatus() {
 export async function advancePhase(targetPhase: number) {
   const alert = await getOrCreateActiveAlert();
 
-  // Validate progression
   if (!alert.activated) {
     throw new Error('Cannot advance phase — REMA is not yet activated');
   }
@@ -117,6 +115,9 @@ export async function advancePhase(targetPhase: number) {
     where: { id: alert.id },
     data: { phase: targetPhase },
   });
+
+  // Phase change invalidates the dashboard summary — phase banner must update
+  invalidateCache();
 
   return updated;
 }
