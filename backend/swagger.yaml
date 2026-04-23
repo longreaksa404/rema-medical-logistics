@@ -26,7 +26,7 @@ info:
 servers:
   - url: http://localhost:3000
     description: Local development
-  - url: https://rema-medical-logistics.onrender.com
+  - url: https://rema-medical-logistics.onrender.com/api/docs/
     description: Production (Render)
 
 components:
