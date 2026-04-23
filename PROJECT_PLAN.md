@@ -25,7 +25,7 @@
 | Chat 5 | Stock Management | ✅ Complete |
 | Chat 6 | Delivery + Routing | ✅ Complete |
 | Chat 7 | Volunteers + Incidents + Radio + Dashboard | ✅ Complete |
-| Chat 7.5 | Cache + Polling Architecture (do before Chat 8) | ⬜ Not started |
+| Chat 7.5 | Cache + Polling Architecture (do before Chat 8) | ✅ Complete |
 | Chat 8 | Frontend: Auth + Dashboard Setup | ⬜ Not started |
 | Chat 9 | Frontend: V1 Dashboard Data + Charts | ⬜ Not started |
 | Chat 10 | Frontend: V2 Routing Map | ⬜ Not started |
@@ -188,13 +188,13 @@
 **Goal:** Add in-memory cache to dashboard service. Confirm on Render.
 
 **Steps:**
-- [ ] Step 1 — Add cache utility (getCached, setCached, invalidateCache) to dashboard.service.ts
-- [ ] Step 2 — Wrap getDashboardSummary with 15s TTL cache
-- [ ] Step 3 — Wrap getDistrictDashboard with 10s TTL cache  
-- [ ] Step 4 — Call invalidateCache() in alert.service.ts when phase advances
-- [ ] Step 5 — Call invalidateCache() in stock.service.ts when dispatch/reallocate runs
-- [ ] Step 6 — Push to GitHub → Render auto-deploys → verify /api/dashboard/summary still works
-- [ ] Step 7 — Add cache note to README: "15s in-memory cache, Redis-ready architecture"
+- [x] Step 1 — Add cache utility (getCached, setCached, invalidateCache) to dashboard.service.ts
+- [x] Step 2 — Wrap getDashboardSummary with 15s TTL cache
+- [x] Step 3 — Wrap getDistrictDashboard with 10s TTL cache  
+- [x] Step 4 — Call invalidateCache() in alert.service.ts when phase advances
+- [x] Step 5 — Call invalidateCache() in stock.service.ts when dispatch/reallocate runs
+- [x] Step 6 — Push to GitHub → Render auto-deploys → verify /api/dashboard/summary still works
+- [x] Step 7 — Add cache note to README: "15s in-memory cache, Redis-ready architecture"
 
 **End state:** Dashboard queries hit cache on repeated calls. Phase changes and stock 
 dispatches invalidate cache automatically. Zero new dependencies.
