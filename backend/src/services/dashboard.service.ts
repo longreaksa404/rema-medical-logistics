@@ -1,6 +1,10 @@
 import { PrismaClient } from '@prisma/client';
 import { isInScarcity } from './stock.service';
 
+const prisma = new PrismaClient();
+
+// ─── CACHE CONFIGURATION ─────────────────────────────────────────────────────
+
 interface CacheEntry<T> {
   data: T;
   expiresAt: number;
@@ -23,29 +27,125 @@ function setCached<T>(key: string, data: T, ttlMs: number): void {
   cache.set(key, { data, expiresAt: Date.now() + ttlMs });
 }
 
-// Cache invalidation — call this when data changes
+/**
+ * Invalidate specific cache keys or clear everything (e.g., on phase change)
+ */
 export function invalidateCache(key?: string): void {
   if (key) {
     cache.delete(key);
   } else {
-    cache.clear(); // clear everything on phase change
+    cache.clear();
   }
 }
 
-const prisma = new PrismaClient();
+// ─── EXPORTED SERVICES ───────────────────────────────────────────────────────
 
-// ─── FULL DASHBOARD SUMMARY ───────────────────────────────────────────────────
-// Used by GET /api/dashboard/summary
-// Powers V1 Operations Dashboard: phase banner, district cards, stock chart,
-// priority queue, incidents, notifications aggregation.
-
+/**
+ * GET /api/dashboard/summary
+ * Cached for 15 seconds to reduce heavy aggregation load.
+ */
 export async function getDashboardSummary() {
+  const CACHE_KEY = 'dashboard:summary';
+  const cached = getCached<any>(CACHE_KEY);
+  if (cached) return cached;
+
+  const result = await buildSummary();
+  setCached(CACHE_KEY, result, 15_000); // 15 second TTL
+  return result;
+}
+
+/**
+ * GET /api/dashboard/district/:id
+ */
+export async function getDistrictDashboard(districtId: string) {
+  const district = await prisma.district.findUnique({
+    where: { id: districtId },
+    include: {
+      subWarehouse: { include: { stock: true } },
+    },
+  });
+
+  if (!district) throw new Error('District not found');
+
+  const sw = district.subWarehouse;
+  const stock = sw?.stock;
+
+  let stockPct = 0;
+  let anyScarce = false;
+
+  if (stock) {
+    const components = [
+      stock.emk1Total > 0 ? (stock.emk1Remaining / stock.emk1Total) * 100 : null,
+      stock.emk2Total > 0 ? (stock.emk2Remaining / stock.emk2Total) * 100 : null,
+      stock.emk3Total > 0 ? (stock.emk3Remaining / stock.emk3Total) * 100 : null,
+    ].filter((x): x is number => x !== null);
+
+    stockPct = components.length > 0
+      ? Math.round(components.reduce((a, b) => a + b, 0) / components.length)
+      : 0;
+
+    anyScarce =
+      isInScarcity(stock.emk1Remaining, stock.emk1Total) ||
+      isInScarcity(stock.emk2Remaining, stock.emk2Total) ||
+      isInScarcity(stock.emk3Remaining, stock.emk3Total);
+  }
+
+  const [householdsAssessed, deliveredCount, openIncidents, activeRuns] = await Promise.all([
+    prisma.household.count({ where: { districtId } }),
+    prisma.household.count({ where: { districtId, delivered: true } }),
+    prisma.incident.count({ where: { districtId, status: { in: ['OPEN', 'ESCALATED'] } } }),
+    prisma.deliveryRun.count({
+      where: {
+        subWarehouseId: sw?.id,
+        status: 'IN_PROGRESS',
+      },
+    }),
+  ]);
+
+  const recentCheckins = await prisma.radioCheckin.findMany({
+    where: { districtId },
+    orderBy: { createdAt: 'desc' },
+    take: 4,
+    include: {
+      submittedBy: { select: { name: true } },
+    },
+  });
+
+  return {
+    districtId,
+    name: district.name,
+    population: district.population,
+    subWarehouseId: sw?.id ?? null,
+    subWarehouseStatus: sw?.status ?? null,
+    stockPct,
+    anyScarce,
+    stock: stock
+      ? {
+          emk1Total: stock.emk1Total,
+          emk1Remaining: stock.emk1Remaining,
+          emk2Total: stock.emk2Total,
+          emk2Remaining: stock.emk2Remaining,
+          emk3Total: stock.emk3Total,
+          emk3Remaining: stock.emk3Remaining,
+        }
+      : null,
+    householdsAssessed,
+    deliveredCount,
+    openIncidents,
+    activeDeliveryRuns: activeRuns,
+    recentRadioCheckins: recentCheckins,
+  };
+}
+
+// ─── PRIVATE BUILDER ─────────────────────────────────────────────────────────
+
+async function buildSummary() {
   // 1. Current flood alert state
   const alert = await prisma.floodAlert.findFirst({
     orderBy: { createdAt: 'desc' },
   });
 
-  // 2. All districts with stock + households + incidents
+  // 2. All districts for grid calculation
   const districts = await prisma.district.findMany({
     orderBy: { name: 'asc' },
     include: {
@@ -55,7 +155,7 @@ export async function getDashboardSummary() {
     },
   });
 
-  // 3. Household band counts (global)
+  // 3. Global household priority counts
   const [critical, high, medium, standard, delivered] = await Promise.all([
     prisma.household.count({ where: { priorityBand: 'CRITICAL', delivered: false } }),
     prisma.household.count({ where: { priorityBand: 'HIGH', delivered: false } }),
@@ -75,7 +175,7 @@ export async function getDashboardSummary() {
     },
   });
 
-  // 5. Per-district summary cards
+  // 5. Build individual district cards
   const districtCards = await Promise.all(
     districts.map(async (d) => {
       const sw = d.subWarehouse;
@@ -134,12 +234,11 @@ export async function getDashboardSummary() {
     })
   );
 
-  // 6. Active delivery runs count
+  // 6. Operational metrics
   const activeRuns = await prisma.deliveryRun.count({
     where: { status: 'IN_PROGRESS' },
   });
 
-  // 7. Today's radio check-in compliance
   const today = new Date();
   today.setHours(0, 0, 0, 0);
   const tomorrow = new Date(today);
@@ -150,7 +249,6 @@ export async function getDashboardSummary() {
   });
 
   return {
-    // Alert/activation state
     phase: alert?.phase ?? 0,
     activated: alert?.activated ?? false,
     activatedAt: alert?.activatedAt ?? null,
@@ -161,8 +259,6 @@ export async function getDashboardSummary() {
           streetFloodingReport: alert.streetFloodingReport,
         }
       : null,
-
-    // Household summary
     households: {
       critical,
       high,
@@ -172,99 +268,9 @@ export async function getDashboardSummary() {
       total: critical + high + medium + standard + delivered,
       pendingDelivery: critical + high + medium + standard,
     },
-
-    // Operational
     activeDeliveryRuns: activeRuns,
     todayRadioCheckins: todayCheckins,
-
-    // District cards (for dashboard district grid)
     districts: districtCards,
-
-    // Open incidents (top 10, most urgent first)
     openIncidents,
-  };
-}
-
-// ─── PER-DISTRICT SUMMARY (same as district.service but with scarcity flag) ───
-// Used by GET /api/dashboard/district/:id and district cards
-
-export async function getDistrictDashboard(districtId: string) {
-  const district = await prisma.district.findUnique({
-    where: { id: districtId },
-    include: {
-      subWarehouse: { include: { stock: true } },
-    },
-  });
-
-  if (!district) throw new Error('District not found');
-
-  const sw = district.subWarehouse;
-  const stock = sw?.stock;
-
-  let stockPct = 0;
-  let anyScarce = false;
-
-  if (stock) {
-    const components = [
-      stock.emk1Total > 0 ? (stock.emk1Remaining / stock.emk1Total) * 100 : null,
-      stock.emk2Total > 0 ? (stock.emk2Remaining / stock.emk2Total) * 100 : null,
-      stock.emk3Total > 0 ? (stock.emk3Remaining / stock.emk3Total) * 100 : null,
-    ].filter((x): x is number => x !== null);
-
-    stockPct = components.length > 0
-      ? Math.round(components.reduce((a, b) => a + b, 0) / components.length)
-      : 0;
-
-    anyScarce =
-      isInScarcity(stock.emk1Remaining, stock.emk1Total) ||
-      isInScarcity(stock.emk2Remaining, stock.emk2Total) ||
-      isInScarcity(stock.emk3Remaining, stock.emk3Total);
-  }
-
-  const [householdsAssessed, deliveredCount, openIncidents, activeRuns] = await Promise.all([
-    prisma.household.count({ where: { districtId } }),
-    prisma.household.count({ where: { districtId, delivered: true } }),
-    prisma.incident.count({ where: { districtId, status: { in: ['OPEN', 'ESCALATED'] } } }),
-    prisma.deliveryRun.count({
-      where: {
-        subWarehouseId: sw?.id,
-        status: 'IN_PROGRESS',
-      },
-    }),
-  ]);
-
-  // Latest radio check-ins (last 4 scheduled slots)
-  const recentCheckins = await prisma.radioCheckin.findMany({
-    where: { districtId },
-    orderBy: { createdAt: 'desc' },
-    take: 4,
-    include: {
-      submittedBy: { select: { name: true } },
-    },
-  });
-
-  return {
-    districtId,
-    name: district.name,
-    population: district.population,
-    subWarehouseId: sw?.id ?? null,
-    subWarehouseStatus: sw?.status ?? null,
-    stockPct,
-    anyScarce,
-    stock: stock
-      ? {
-          emk1Total: stock.emk1Total,
-          emk1Remaining: stock.emk1Remaining,
-          emk2Total: stock.emk2Total,
-          emk2Remaining: stock.emk2Remaining,
-          emk3Total: stock.emk3Total,
-          emk3Remaining: stock.emk3Remaining,
-        }
-      : null,
-    householdsAssessed,
-    deliveredCount,
-    openIncidents,
-    activeDeliveryRuns: activeRuns,
-    recentRadioCheckins: recentCheckins,
   };
 }
