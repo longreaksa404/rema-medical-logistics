@@ -605,6 +605,133 @@ paths:
               schema:
                 $ref: '#/components/schemas/PublicStatus'
  
+  
+
+
+  # ── AUTH TESTS ───────────────────────────────────────────────────────────────
+  /api/test/viewer:
+    get:
+      tags: [Auth Tests]
+      summary: "Test: requires any valid token"
+      description: "Should return 401 without token. Any role passes."
+      responses:
+        "200":
+          description: Access granted
+        "401":
+          description: No token
+
+  /api/test/hub-manager:
+    get:
+      tags: [Auth Tests]
+      summary: "Test: requires HUB_MANAGER or above"
+      description: "VIEWER and VOLUNTEER get 403. HUB_MANAGER, EMERGENCY_COORDINATOR, SUPER_ADMIN pass."
+      responses:
+        "200":
+          description: Access granted
+        "401":
+          description: No token
+        "403":
+          description: Insufficient role
+
+  /api/test/coordinator:
+    get:
+      tags: [Auth Tests]
+      summary: "Test: requires EMERGENCY_COORDINATOR or above"
+      description: "Only EMERGENCY_COORDINATOR and SUPER_ADMIN pass."
+      responses:
+        "200":
+          description: Access granted
+        "401":
+          description: No token
+        "403":
+          description: Insufficient role
+
+  /api/test/admin:
+    get:
+      tags: [Auth Tests]
+      summary: "Test: requires SUPER_ADMIN only"
+      description: "Only SUPER_ADMIN passes."
+      responses:
+        "200":
+          description: Access granted
+        "401":
+          description: No token
+        "403":
+          description: Insufficient role
+
+  # ── AUTH ────────────────────────────────────────────────────────────────────
+  /api/auth/login:
+    post:
+      tags: [Auth]
+      summary: Login
+      description: |
+        Authenticate with email and password. Returns a JWT token valid for 12 hours.
+
+        **Test accounts (all passwords: rema1234):**
+        - admin@rema.vn — SUPER_ADMIN
+        - coordinator@rema.vn — EMERGENCY_COORDINATOR
+        - hub1@rema.vn — HUB_MANAGER (District 1)
+        - hub2@rema.vn — HUB_MANAGER (District 2)
+        - hub3@rema.vn — HUB_MANAGER (District 3)
+        - volunteer1@rema.vn — VOLUNTEER (District 1)
+        - viewer@rema.vn — VIEWER
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/LoginRequest'
+            examples:
+              coordinator:
+                summary: Login as Emergency Coordinator
+                value: { email: "coordinator@rema.vn", password: "rema1234" }
+              hubManager:
+                summary: Login as Hub Manager District 1
+                value: { email: "hub1@rema.vn", password: "rema1234" }
+              volunteer:
+                summary: Login as Volunteer
+                value: { email: "volunteer1@rema.vn", password: "rema1234" }
+              viewer:
+                summary: Login as Viewer (read-only)
+                value: { email: "viewer@rema.vn", password: "rema1234" }
+      responses:
+        "200":
+          description: Login successful
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/LoginResponse'
+        "401":
+          description: Invalid credentials
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /api/auth/logout:
+    post:
+      tags: [Auth]
+      summary: Logout
+      description: JWT is stateless — delete the token client-side. This endpoint confirms the action.
+      responses:
+        "200":
+          description: Logged out successfully
+
+  /api/auth/me:
+    get:
+      tags: [Auth]
+      summary: Get current user profile
+      responses:
+        "200":
+          description: Current user profile
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UserProfile'
+        "401":
+          description: Unauthorized
+
   # ── USER MANAGEMENT ─────────────────────────────────────────────────────────
   /api/users:
     get:
@@ -901,131 +1028,6 @@ paths:
           description: Unauthorized
         "403":
           description: Requires SUPER_ADMIN
-
-
-  # ── AUTH TESTS ───────────────────────────────────────────────────────────────
-  /api/test/viewer:
-    get:
-      tags: [Auth Tests]
-      summary: "Test: requires any valid token"
-      description: "Should return 401 without token. Any role passes."
-      responses:
-        "200":
-          description: Access granted
-        "401":
-          description: No token
-
-  /api/test/hub-manager:
-    get:
-      tags: [Auth Tests]
-      summary: "Test: requires HUB_MANAGER or above"
-      description: "VIEWER and VOLUNTEER get 403. HUB_MANAGER, EMERGENCY_COORDINATOR, SUPER_ADMIN pass."
-      responses:
-        "200":
-          description: Access granted
-        "401":
-          description: No token
-        "403":
-          description: Insufficient role
-
-  /api/test/coordinator:
-    get:
-      tags: [Auth Tests]
-      summary: "Test: requires EMERGENCY_COORDINATOR or above"
-      description: "Only EMERGENCY_COORDINATOR and SUPER_ADMIN pass."
-      responses:
-        "200":
-          description: Access granted
-        "401":
-          description: No token
-        "403":
-          description: Insufficient role
-
-  /api/test/admin:
-    get:
-      tags: [Auth Tests]
-      summary: "Test: requires SUPER_ADMIN only"
-      description: "Only SUPER_ADMIN passes."
-      responses:
-        "200":
-          description: Access granted
-        "401":
-          description: No token
-        "403":
-          description: Insufficient role
-
-  # ── AUTH ────────────────────────────────────────────────────────────────────
-  /api/auth/login:
-    post:
-      tags: [Auth]
-      summary: Login
-      description: |
-        Authenticate with email and password. Returns a JWT token valid for 12 hours.
-
-        **Test accounts (all passwords: rema1234):**
-        - admin@rema.vn — SUPER_ADMIN
-        - coordinator@rema.vn — EMERGENCY_COORDINATOR
-        - hub1@rema.vn — HUB_MANAGER (District 1)
-        - hub2@rema.vn — HUB_MANAGER (District 2)
-        - hub3@rema.vn — HUB_MANAGER (District 3)
-        - volunteer1@rema.vn — VOLUNTEER (District 1)
-        - viewer@rema.vn — VIEWER
-      security: []
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/LoginRequest'
-            examples:
-              coordinator:
-                summary: Login as Emergency Coordinator
-                value: { email: "coordinator@rema.vn", password: "rema1234" }
-              hubManager:
-                summary: Login as Hub Manager District 1
-                value: { email: "hub1@rema.vn", password: "rema1234" }
-              volunteer:
-                summary: Login as Volunteer
-                value: { email: "volunteer1@rema.vn", password: "rema1234" }
-              viewer:
-                summary: Login as Viewer (read-only)
-                value: { email: "viewer@rema.vn", password: "rema1234" }
-      responses:
-        "200":
-          description: Login successful
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/LoginResponse'
-        "401":
-          description: Invalid credentials
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ErrorResponse'
-
-  /api/auth/logout:
-    post:
-      tags: [Auth]
-      summary: Logout
-      description: JWT is stateless — delete the token client-side. This endpoint confirms the action.
-      responses:
-        "200":
-          description: Logged out successfully
-
-  /api/auth/me:
-    get:
-      tags: [Auth]
-      summary: Get current user profile
-      responses:
-        "200":
-          description: Current user profile
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/UserProfile'
-        "401":
-          description: Unauthorized
 
   # ── FLOOD ALERT ─────────────────────────────────────────────────────────────
   /api/alert/trigger:
