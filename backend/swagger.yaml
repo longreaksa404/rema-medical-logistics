@@ -98,6 +98,68 @@ components:
           type: string
           nullable: true
 
+    UserDetail:
+      type: object
+      properties:
+        id: { type: string }
+        email: { type: string, format: email }
+        name: { type: string }
+        role:
+          type: string
+          enum: [SUPER_ADMIN, EMERGENCY_COORDINATOR, HUB_MANAGER, VOLUNTEER, VIEWER]
+        districtId: { type: string, nullable: true }
+        active: { type: boolean }
+        createdAt: { type: string, format: date-time }
+        updatedAt: { type: string, format: date-time }
+        district:
+          type: object
+          nullable: true
+          properties:
+            name: { type: string }
+ 
+    CreateUserRequest:
+      type: object
+      required: [email, name, role, temporaryPassword]
+      properties:
+        email:
+          type: string
+          format: email
+          example: hub4@rema.vn
+        name:
+          type: string
+          example: Hub Manager District 4
+        role:
+          type: string
+          enum: [EMERGENCY_COORDINATOR, HUB_MANAGER, VOLUNTEER, VIEWER]
+          description: "SUPER_ADMIN cannot be created via API — seed script only"
+        districtId:
+          type: string
+          nullable: true
+          description: "Required for HUB_MANAGER and VOLUNTEER roles"
+        temporaryPassword:
+          type: string
+          minLength: 8
+          example: TempPass2026!
+          description: "User must change this on first login"
+ 
+    PublicStatus:
+      type: object
+      properties:
+        system: { type: string }
+        operatedBy: { type: string }
+        status:
+          type: string
+          enum: [ACTIVE, STANDBY]
+        phase: { type: integer, enum: [0, 1, 2] }
+        phaseDescription: { type: string }
+        activatedAt: { type: string, format: date-time, nullable: true }
+        activeDistricts: { type: integer }
+        totalDistricts: { type: integer }
+        activeDeliveryTeams: { type: integer }
+        householdsServed: { type: integer }
+        lastUpdated: { type: string, format: date-time }
+
+
     # ── Flood Alert ───────────────────────────────────────────────────────────
     FloodAlertStatus:
       type: object
@@ -519,6 +581,327 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/HealthResponse'
+
+  # ── PUBLIC STATUS (no auth) ─────────────────────────────────────────────────
+  /api/status:
+    get:
+      tags: [System]
+      summary: Public system status — no authentication required
+      description: |
+        Returns non-sensitive aggregate data about REMA's current operational state.
+        Safe to expose publicly: phase, activation state, district count, delivery counts.
+        
+        **Never exposes:** household addresses, medical information, vulnerability scores,
+        user accounts, or any personally identifiable information.
+        
+        Intended for: Ministry of Health liaison, district civil defense observer,
+        IFRC monitoring officer, or a public status page.
+      security: []
+      responses:
+        "200":
+          description: Current system status
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PublicStatus'
+ 
+  # ── USER MANAGEMENT ─────────────────────────────────────────────────────────
+  /api/users:
+    get:
+      tags: [User Management]
+      summary: List all system users — SUPER_ADMIN only
+      description: |
+        Returns all user accounts. Never returns passwordHash.
+        
+        Filter by role, district, or active status.
+        Use this to audit who has access to the system.
+      parameters:
+        - in: query
+          name: role
+          schema:
+            type: string
+            enum: [SUPER_ADMIN, EMERGENCY_COORDINATOR, HUB_MANAGER, VOLUNTEER, VIEWER]
+        - in: query
+          name: districtId
+          schema: { type: string }
+        - in: query
+          name: active
+          schema: { type: boolean }
+          description: "Filter by active status — use false to list deactivated accounts"
+      responses:
+        "200":
+          description: User list
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/UserDetail'
+        "401":
+          description: Unauthorized
+        "403":
+          description: Requires SUPER_ADMIN
+ 
+    post:
+      tags: [User Management]
+      summary: Create a new user account — SUPER_ADMIN only
+      description: |
+        Creates a new system user with a temporary password.
+        
+        **SUPER_ADMIN accounts cannot be created via API** — only via the seed script.
+        This is a deliberate security decision.
+        
+        **Role → district rules:**
+        - HUB_MANAGER: districtId required (one Hub Manager per district)
+        - VOLUNTEER: districtId required
+        - EMERGENCY_COORDINATOR: districtId optional (usually null — covers all districts)
+        - VIEWER: districtId optional
+        
+        After creation, share the temporary password with the user via a secure channel.
+        The user should change it on first login via PATCH /api/users/me/password.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateUserRequest'
+            examples:
+              hubManager:
+                summary: Create Hub Manager for District 2
+                value:
+                  email: hub2-new@rema.vn
+                  name: Nguyen Van Hub
+                  role: HUB_MANAGER
+                  districtId: "REPLACE_WITH_DISTRICT_ID"
+                  temporaryPassword: TempPass2026!
+              coordinator:
+                summary: Create Emergency Coordinator (no district)
+                value:
+                  email: coordinator2@rema.vn
+                  name: Tran Thi Coordinator
+                  role: EMERGENCY_COORDINATOR
+                  temporaryPassword: TempPass2026!
+              viewer:
+                summary: Create read-only observer (MoH liaison)
+                value:
+                  email: moh.liaison@health.gov.vn
+                  name: MoH Liaison Observer
+                  role: VIEWER
+                  temporaryPassword: TempPass2026!
+      responses:
+        "201":
+          description: User created with mustChangePassword flag
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/UserDetail'
+                  - type: object
+                    properties:
+                      mustChangePassword:
+                        type: boolean
+                        example: true
+        "400":
+          description: Validation error (email in use, invalid role, missing districtId)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        "401":
+          description: Unauthorized
+        "403":
+          description: Requires SUPER_ADMIN
+ 
+  /api/users/me/password:
+    patch:
+      tags: [User Management]
+      summary: Change own password — any authenticated user
+      description: |
+        Any logged-in user can change their own password.
+        Must provide current password to confirm identity.
+        New password must be at least 8 characters and different from current.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [currentPassword, newPassword]
+              properties:
+                currentPassword:
+                  type: string
+                  example: rema1234
+                newPassword:
+                  type: string
+                  minLength: 8
+                  example: NewSecurePass2026!
+            examples:
+              changePassword:
+                summary: Change password after receiving temporary one
+                value:
+                  currentPassword: TempPass2026!
+                  newPassword: MySecurePassword2026!
+      responses:
+        "200":
+          description: Password changed successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message: { type: string }
+        "400":
+          description: Wrong current password, too short, or same as current
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        "401":
+          description: Unauthorized
+ 
+  /api/users/{id}:
+    get:
+      tags: [User Management]
+      summary: Get single user — SUPER_ADMIN only
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema: { type: string }
+      responses:
+        "200":
+          description: User detail
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UserDetail'
+        "404":
+          description: User not found
+        "401":
+          description: Unauthorized
+        "403":
+          description: Requires SUPER_ADMIN
+ 
+    patch:
+      tags: [User Management]
+      summary: Update user info, role, or active status — SUPER_ADMIN only
+      description: |
+        Update any field on a user account.
+        
+        **Constraints:**
+        - Cannot change any field on a SUPER_ADMIN account
+        - Cannot assign SUPER_ADMIN role
+        - Cannot deactivate your own account
+        - Email must be unique if changed
+        
+        **Deactivating a user** (active: false) prevents login but preserves all their data
+        and audit trail records. This is the correct approach for staff who leave — 
+        never delete users.
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema: { type: string }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                name: { type: string }
+                email: { type: string, format: email }
+                role:
+                  type: string
+                  enum: [EMERGENCY_COORDINATOR, HUB_MANAGER, VOLUNTEER, VIEWER]
+                districtId: { type: string, nullable: true }
+                active: { type: boolean }
+            examples:
+              deactivate:
+                summary: Deactivate a user who has left the organisation
+                value: { active: false }
+              reactivate:
+                summary: Reactivate a returning volunteer
+                value: { active: true }
+              changeDistrict:
+                summary: Reassign Hub Manager to different district
+                value:
+                  districtId: "REPLACE_WITH_NEW_DISTRICT_ID"
+              changeRole:
+                summary: Promote Volunteer to Hub Manager
+                value:
+                  role: HUB_MANAGER
+                  districtId: "REPLACE_WITH_DISTRICT_ID"
+      responses:
+        "200":
+          description: User updated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UserDetail'
+        "400":
+          description: Validation error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        "401":
+          description: Unauthorized
+        "403":
+          description: Requires SUPER_ADMIN
+ 
+  /api/users/{id}/reset-password:
+    post:
+      tags: [User Management]
+      summary: Reset any user's password — SUPER_ADMIN only
+      description: |
+        Admin override — sets a new temporary password without needing to know
+        the current password. Use when a user is locked out or has forgotten their password.
+        
+        Cannot reset a SUPER_ADMIN password via API.
+        
+        After reset, share the temporary password securely and ask the user
+        to change it immediately via PATCH /api/users/me/password.
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema: { type: string }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [temporaryPassword]
+              properties:
+                temporaryPassword:
+                  type: string
+                  minLength: 8
+                  example: ResetPass2026!
+      responses:
+        "200":
+          description: Password reset — user must change on next login
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message: { type: string }
+                  userId: { type: string }
+                  email: { type: string }
+                  mustChangePassword: { type: boolean }
+        "400":
+          description: User not found, or attempting to reset SUPER_ADMIN
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        "401":
+          description: Unauthorized
+        "403":
+          description: Requires SUPER_ADMIN
+
 
   # ── AUTH TESTS ───────────────────────────────────────────────────────────────
   /api/test/viewer:
