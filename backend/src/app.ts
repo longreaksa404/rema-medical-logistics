@@ -12,6 +12,8 @@ import stockRoutes from './routes/stock.routes';
 import deliveryRoutes from './routes/delivery.routes';
 import routeRoutes from './routes/route.routes';
 import { scoreRouter, householdRouter } from './routes/household.routes';
+import userRoutes from './routes/user.routes';
+import { publicStatus } from './controllers/user.controller';
 
 // Chat 7
 import volunteerRoutes from './routes/volunteer.routes';
@@ -24,7 +26,7 @@ const app = express();
 
 // ─── MIDDLEWARE ───────────────────────────────────────────────────────────────
 app.use(cors({
-  origin: true, // Allows Swagger from any browser to connect
+  origin: true,
   credentials: true
 }));
 app.use(express.json());
@@ -43,9 +45,17 @@ app.get('/api/health', (_req, res) => {
   });
 });
 
+// ─── PUBLIC STATUS (no auth required) ────────────────────────────────────────
+// Returns only non-sensitive aggregate data: phase, activation state, counts.
+// Never exposes household addresses, medical info, or user data.
+app.get('/api/status', publicStatus);
+
 // ─── ROUTES ───────────────────────────────────────────────────────────────────
 app.use('/api/auth', authRoutes);
 app.use('/api/test', testRoutes); // remove before final deployment
+
+// User management (real deployment)
+app.use('/api/users', userRoutes);
 
 // Chat 4
 app.use('/api/alert', alertRoutes);
