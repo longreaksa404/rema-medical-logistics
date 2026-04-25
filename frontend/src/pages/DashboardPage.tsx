@@ -1,7 +1,8 @@
 import { useState, useEffect, useCallback } from 'react';
 import { DashboardLayout } from '../components/DashboardLayout';
 import { PhaseBanner } from '../components/PhaseBanner';
-import { dashboardApi, DashboardSummary } from '../api/dashboard';
+import { dashboardApi } from '../api/dashboard';
+import type { DashboardSummary } from '../api/dashboard';
 
 // ─── DISTRICT CARD ────────────────────────────────────────────────────────────
 
@@ -26,7 +27,7 @@ function DistrictCard({ d }: { d: DashboardSummary['districts'][number] }) {
       {/* Header */}
       <div className="flex items-start justify-between gap-2">
         <div>
-          <h3 className="font-sans font-700 text-text-primary">{d.name}</h3>
+          <h3 className="font-sans font-bold text-text-primary">{d.name}</h3>
           <p className="font-mono text-xs text-text-muted mt-0.5">
             {d.population.toLocaleString()} households
           </p>
@@ -74,19 +75,19 @@ function DistrictCard({ d }: { d: DashboardSummary['districts'][number] }) {
       {/* Metrics row */}
       <div className="grid grid-cols-3 gap-2 pt-2 border-t border-bg-border">
         <div className="text-center">
-          <p className="font-mono text-lg font-600 text-text-primary">
+          <p className="font-mono text-lg font-semibold text-text-primary">
             {d.householdsAssessed}
           </p>
           <p className="font-mono text-[9px] text-text-muted uppercase tracking-wide">Assessed</p>
         </div>
         <div className="text-center">
-          <p className="font-mono text-lg font-600 text-accent-green">
+          <p className="font-mono text-lg font-semibold text-accent-green">
             {d.deliveredCount}
           </p>
           <p className="font-mono text-[9px] text-text-muted uppercase tracking-wide">Delivered</p>
         </div>
         <div className="text-center">
-          <p className={`font-mono text-lg font-600 ${d.openIncidents > 0 ? 'text-accent-red' : 'text-text-muted'}`}>
+          <p className={`font-mono text-lg font-semibold ${d.openIncidents > 0 ? 'text-accent-red' : 'text-text-muted'}`}>
             {d.openIncidents}
           </p>
           <p className="font-mono text-[9px] text-text-muted uppercase tracking-wide">Incidents</p>
@@ -106,7 +107,7 @@ function StatCard({ label, value, color = 'text-text-primary' }: {
   return (
     <div className="card px-4 py-3">
       <p className="font-mono text-[10px] text-text-muted uppercase tracking-widest mb-1">{label}</p>
-      <p className={`font-mono text-2xl font-600 ${color}`}>{value}</p>
+      <p className={`font-mono text-2xl font-semibold ${color}`}>{value}</p>
     </div>
   );
 }
@@ -210,7 +211,7 @@ export function DashboardPage() {
                   <p className={`font-mono text-[10px] uppercase tracking-widest mb-1 ${color}`}>
                     {label}
                   </p>
-                  <p className={`font-mono text-2xl font-600 ${color}`}>
+                  <p className={`font-mono text-2xl font-semibold ${color}`}>
                     {data.households[key]}
                   </p>
                 </div>

@@ -1,4 +1,5 @@
-import { useState, FormEvent } from 'react';
+import { useState } from 'react';
+import type { FormEvent } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 
@@ -56,7 +57,7 @@ export function LoginPage() {
               System Online
             </span>
           </div>
-          <h1 className="text-3xl font-sans font-800 text-text-primary tracking-tight mb-1">
+          <h1 className="text-3xl font-sans font-extrabold text-text-primary tracking-tight mb-1">
             REMA
           </h1>
           <p className="font-mono text-xs text-text-muted">

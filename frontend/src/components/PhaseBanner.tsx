@@ -66,7 +66,7 @@ export function PhaseBanner({ phase, activated, activatedAt, triggerConditions }
           }`}
         />
         <div className="min-w-0">
-          <p className={`font-mono text-xs font-600 tracking-widest ${config.color}`}>
+          <p className={`font-mono text-xs font-semibold tracking-widest ${config.color}`}>
             {config.label}
           </p>
           <p className="font-sans text-xs text-text-muted truncate">

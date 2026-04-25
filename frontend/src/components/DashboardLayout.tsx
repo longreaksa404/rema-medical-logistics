@@ -1,4 +1,5 @@
-import { useState, useEffect, useCallback, ReactNode } from 'react';
+import { useState, useEffect, useCallback } from 'react';
+import type { ReactNode } from 'react';
 
 interface DashboardLayoutProps {
   title: string;
@@ -54,7 +55,7 @@ export function DashboardLayout({
     <div className="flex-1 flex flex-col min-h-screen min-w-0">
       {/* Top bar */}
       <header className="sticky top-0 z-10 bg-bg-primary/90 backdrop-blur-sm border-b border-bg-border px-6 py-3 flex items-center justify-between gap-4">
-        <h1 className="font-sans font-700 text-text-primary text-lg tracking-tight">
+        <h1 className="font-sans font-bold text-text-primary text-lg tracking-tight">
           {title}
         </h1>
 

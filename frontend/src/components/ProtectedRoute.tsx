@@ -1,6 +1,6 @@
 import { Navigate, Outlet } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
-import { UserProfile } from '../api/auth';
+import type { UserProfile } from '../api/auth';
 
 interface ProtectedRouteProps {
   // If provided, user must have one of these roles to access

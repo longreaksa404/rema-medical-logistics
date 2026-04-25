@@ -63,7 +63,7 @@ export function Sidebar() {
       <div className="px-5 py-5 border-b border-bg-border">
         <div className="flex items-center gap-2 mb-0.5">
           <span className="w-1.5 h-1.5 rounded-full bg-accent-green animate-pulse-slow" />
-          <span className="font-sans font-800 text-text-primary text-lg tracking-tight">
+          <span className="font-sans font-extrabold text-text-primary text-lg tracking-tight">
             REMA
           </span>
         </div>

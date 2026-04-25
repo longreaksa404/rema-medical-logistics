@@ -1,5 +1,6 @@
-import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
-import { authApi, UserProfile } from '../api/auth';
+import { createContext, useContext, useState, useEffect, useCallback } from 'react';
+import { authApi } from '../api/auth';
+import type { UserProfile } from '../api/auth';
 
 interface AuthContextValue {
   user: UserProfile | null;
