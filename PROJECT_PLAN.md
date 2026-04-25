@@ -182,27 +182,27 @@
 
 ---
 
-## CHAT 8 — Frontend: Auth + Dashboard Setup ⬜ Not started
+## CHAT 8 — Frontend: Auth + Dashboard Setup ✅ Complete
 
 **Goal:** Login works. Single unified React app (Option A) running on Vercel, connected to Render backend.
 
 **Architecture decision (locked):** Single app, role-based rendering. One Vercel deployment. React Router v6. Auth state in React Context.
 
-- [ ] React project setup (Vite + TypeScript + Tailwind CSS) inside `frontend/`
-- [ ] Environment config (.env with Render backend URL)
-- [ ] API service layer (axios instance + JWT interceptor)
-- [ ] Auth context (JWT, current user, role, logout)
-- [ ] Login page (V0) — form + error handling
-- [ ] Role-based redirect after login
-- [ ] Protected route wrapper component
-- [ ] Role-based navigation sidebar
-- [ ] Dashboard shell layout (header + sidebar + content area)
-- [ ] Phase status banner component (Phase 0/1/2 with color)
-- [ ] Change password page (any auth user — needed for first login)
-- [ ] Deploy to Vercel
-- [ ] 30-second polling interval (useEffect + setInterval)
-- [ ] Manual refresh button for Operations Center users
-- [ ] "Last updated" timestamp on dashboard
+- [x] React project setup (Vite + TypeScript + Tailwind CSS) inside `frontend/`
+- [x] Environment config (.env with Render backend URL)
+- [x] API service layer (axios instance + JWT interceptor)
+- [x] Auth context (JWT, current user, role, logout)
+- [x] Login page (V0) — form + error handling
+- [x] Role-based redirect after login
+- [x] Protected route wrapper component
+- [x] Role-based navigation sidebar
+- [x] Dashboard shell layout (header + sidebar + content area)
+- [x] Phase status banner component (Phase 0/1/2 with color)
+- [x] Change password page (any auth user — needed for first login)
+- [x] Deploy to Vercel
+- [x] 30-second polling interval (useEffect + setInterval)
+- [x] Manual refresh button for Operations Center users
+- [x] "Last updated" timestamp on dashboard
 
 ---
 
