@@ -1,0 +1,97 @@
+@import url('https://fonts.googleapis.com/css2?family=Syne:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap');
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  * {
+    box-sizing: border-box;
+  }
+
+  html {
+    background-color: #0a0c0f;
+    color: #e6edf3;
+  }
+
+  body {
+    margin: 0;
+    font-family: 'Syne', system-ui, sans-serif;
+    background-color: #0a0c0f;
+    color: #e6edf3;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+
+  /* Scrollbar styling */
+  ::-webkit-scrollbar {
+    width: 6px;
+    height: 6px;
+  }
+  ::-webkit-scrollbar-track {
+    background: #111418;
+  }
+  ::-webkit-scrollbar-thumb {
+    background: #21262d;
+    border-radius: 3px;
+  }
+  ::-webkit-scrollbar-thumb:hover {
+    background: #30363d;
+  }
+}
+
+@layer components {
+  /* Card */
+  .card {
+    @apply bg-bg-secondary border border-bg-border rounded-lg;
+  }
+
+  /* Input */
+  .input {
+    @apply w-full bg-bg-elevated border border-bg-border rounded px-3 py-2
+           text-text-primary font-mono text-sm
+           placeholder:text-text-muted
+           focus:outline-none focus:border-accent-blue
+           transition-colors duration-150;
+  }
+
+  /* Button variants */
+  .btn-primary {
+    @apply bg-accent-blue text-bg-primary font-sans font-600 text-sm
+           px-4 py-2 rounded
+           hover:opacity-90 active:opacity-80
+           disabled:opacity-40 disabled:cursor-not-allowed
+           transition-opacity duration-150;
+  }
+
+  .btn-ghost {
+    @apply bg-transparent border border-bg-border text-text-secondary font-sans text-sm
+           px-4 py-2 rounded
+           hover:border-text-muted hover:text-text-primary
+           disabled:opacity-40 disabled:cursor-not-allowed
+           transition-colors duration-150;
+  }
+
+  .btn-danger {
+    @apply bg-accent-red text-white font-sans font-600 text-sm
+           px-4 py-2 rounded
+           hover:opacity-90 active:opacity-80
+           disabled:opacity-40 disabled:cursor-not-allowed
+           transition-opacity duration-150;
+  }
+
+  /* Label */
+  .label {
+    @apply block text-xs font-mono text-text-secondary uppercase tracking-widest mb-1;
+  }
+
+  /* Phase badge */
+  .phase-badge {
+    @apply inline-flex items-center gap-1.5 px-2.5 py-1 rounded text-xs font-mono font-500;
+  }
+
+  /* Monospace data value */
+  .data-value {
+    @apply font-mono text-text-primary;
+  }
+}
