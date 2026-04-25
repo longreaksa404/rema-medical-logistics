@@ -111,24 +111,31 @@ Score bands:
 | `VOLUNTEER` | Field volunteers | Submit assessments, log deliveries, report incidents, radio check-ins |
 | `VIEWER` | Read-only observers | View dashboards only — no write access |
 
+**SUPER_ADMIN creation rule:** SUPER_ADMIN accounts are created via the seed script only — never via API. All other roles are created by SUPER_ADMIN via `POST /api/users`. This is a deliberate security decision for real deployment.
+
+**No public registration.** REMA is a closed user base — Red Cross staff and named observers only. All accounts are provisioned by SUPER_ADMIN.
+
+**User lifecycle:**
+- SUPER_ADMIN creates users with a temporary password via `POST /api/users`
+- User changes password on first login via `PATCH /api/users/me/password`
+- SUPER_ADMIN can reset any password via `POST /api/users/:id/reset-password`
+- Departing staff: `PATCH /api/users/:id` with `active: false` — data preserved, login blocked. Never delete users.
+
 ---
 
 ## 8. DATABASE SCHEMA (Complete — 15 Tables)
 
 ### users
-Stores system accounts for all roles.
 ```
 id, email, passwordHash, role, districtId (nullable), name, active, createdAt, updatedAt
 ```
 
 ### districts
-3 districts, each with one sub-warehouse.
 ```
-id, name, population (estimated households), latitude, longitude, createdAt
+id, name, population, latitude, longitude, createdAt
 ```
 
 ### sub_warehouses
-One per district. Tracks setup status and backup location.
 ```
 id, districtId, name, address, latitude, longitude,
 status (INACTIVE | ACTIVE | BACKUP_ACTIVATED),
@@ -136,7 +143,6 @@ isBackup, backupForId (nullable), capacitySqm, createdAt, updatedAt
 ```
 
 ### stock
-EMK levels per sub-warehouse. EMK-3 tracked separately (MoH transfer only).
 ```
 id, subWarehouseId,
 emk1Total, emk1Remaining,
@@ -146,7 +152,6 @@ updatedAt
 ```
 
 ### stock_movements
-Immutable audit log of every stock change.
 ```
 id, subWarehouseId, emkType (EMK1|EMK2|EMK3),
 movementType (DISPATCH|DELIVERY|REALLOCATION|ADJUSTMENT|MOH_TRANSFER),
@@ -154,15 +159,12 @@ quantity, reason, performedBy (userId), createdAt
 ```
 
 ### flood_alerts
-Global activation state. One active record at a time.
 ```
 id, warningLevelTwo (bool), rainfallExceeds100mm (bool), streetFloodingReport (bool),
-activated (bool), activatedAt (nullable),
-phase (0|1|2), createdAt, updatedAt
+activated (bool), activatedAt (nullable), phase (0|1|2), createdAt, updatedAt
 ```
 
 ### households
-Assessed households with vulnerability scores.
 ```
 id, districtId, address,
 medicalUrgencyScore, vulnerabilityScore, floodExposureScore,
@@ -174,7 +176,6 @@ assessedBy (volunteerId), createdAt, updatedAt
 ```
 
 ### household_assessments
-Raw assessment form submission per household (supports re-assessment).
 ```
 id, householdId, submittedBy (volunteerId),
 cat1Score, cat2Score, cat3Score, cat4Score, cat5Score,
@@ -182,21 +183,18 @@ totalScore, notes, createdAt
 ```
 
 ### volunteers
-Volunteer roster per district.
 ```
 id, districtId, name, phone, role (TEAM_LEADER|VOLUNTEER),
 status (AVAILABLE|DEPLOYED|INACTIVE), createdAt, updatedAt
 ```
 
 ### volunteer_assignments
-Assigns volunteers to zones and teams per activation.
 ```
 id, volunteerId, subWarehouseId, zone, teamNumber,
 alertId (flood_alerts.id), createdAt
 ```
 
 ### delivery_runs
-Each delivery trip from a sub-warehouse.
 ```
 id, subWarehouseId, teamNumber, zone,
 departedAt, returnedAt (nullable),
@@ -205,15 +203,12 @@ leadVolunteerId, createdAt, updatedAt
 ```
 
 ### delivery_receipts
-Per-household delivery confirmation.
 ```
 id, deliveryRunId, householdId, emkType, quantity,
-confirmedBy (volunteer signature/thumbprint noted),
 deliveredAt, notes, createdAt
 ```
 
 ### routes
-Current delivery mode recommendation per district zone.
 ```
 id, districtId, zone, waterDepthCm,
 deliveryMode (MOTORBIKE|BICYCLE_OR_FOOT|BOAT|SUSPENDED),
@@ -221,14 +216,12 @@ active (bool), updatedAt
 ```
 
 ### route_logs
-History of all route status changes.
 ```
 id, routeId, previousDepth, newDepth,
 previousMode, newMode, reportedBy (userId), createdAt
 ```
 
 ### incidents
-Reported incidents: safety issues, route blockages, scarcity triggers.
 ```
 id, districtId, reportedBy (userId),
 type (ROUTE_BLOCKED|VOLUNTEER_SAFETY|STOCK_SCARCITY|BUILDING_FLOODED|OTHER),
@@ -238,16 +231,14 @@ createdAt, updatedAt
 ```
 
 ### radio_checkins
-Scheduled 4x daily radio check-ins (08:00/12:00/16:00/20:00).
 ```
 id, districtId, submittedBy (userId),
-scheduledTime (08:00|12:00|16:00|20:00),
+scheduledTime (T0800|T1200|T1600|T2000),
 status (OK|ISSUE_REPORTED),
 notes, createdAt
 ```
 
 ### notifications
-System notifications pushed to users.
 ```
 id, userId, type, message, read (bool), createdAt
 ```
@@ -256,125 +247,148 @@ id, userId, type, message, read (bool), createdAt
 
 ## 9. COMPLETE API ENDPOINTS
 
+### System (no auth required)
+```
+GET    /api/health              Health check
+GET    /api/status              Public status — aggregate data only, zero PII
+```
+
 ### Auth
 ```
-POST   /api/auth/login              Login, returns JWT
-POST   /api/auth/logout             Invalidate token
-GET    /api/auth/me                 Current user profile
+POST   /api/auth/login
+POST   /api/auth/logout
+GET    /api/auth/me
+```
+
+### User Management
+```
+GET    /api/users                         List all users (SUPER_ADMIN only)
+POST   /api/users                         Create user with temporary password (SUPER_ADMIN only)
+GET    /api/users/:id                     Single user detail (SUPER_ADMIN only)
+PATCH  /api/users/:id                     Update name, email, role, district, active (SUPER_ADMIN only)
+PATCH  /api/users/me/password             Change own password (any authenticated user)
+POST   /api/users/:id/reset-password      Admin password reset (SUPER_ADMIN only)
 ```
 
 ### Flood Alert
 ```
-POST   /api/alert/trigger           Submit trigger condition (2-of-3 auto-activate)
-GET    /api/alert/status            Current activation state and phase
-PATCH  /api/alert/phase             Advance phase 0→1→2 (EC only)
+POST   /api/alert/trigger
+GET    /api/alert/status
+PATCH  /api/alert/phase                   EMERGENCY_COORDINATOR+
 ```
 
 ### Districts & Sub-Warehouses
 ```
-GET    /api/districts               List all 3 districts
-GET    /api/districts/:id           Single district with sub-warehouse info
-GET    /api/districts/:id/summary   District overview (stock + households + volunteers)
+GET    /api/districts
+GET    /api/districts/:id
+GET    /api/districts/:id/summary
 ```
 
 ### Stock Management
 ```
-GET    /api/stock/status            Stock levels across all sub-warehouses
-GET    /api/stock/:districtId       Stock for one district
-POST   /api/stock/dispatch          Record dispatch from central warehouse
-POST   /api/stock/reallocate        Cross-district reallocation (EC only)
-POST   /api/stock/adjust            Manual adjustment with reason (Hub Manager)
-GET    /api/stock/movements         Full audit log of all stock changes
-GET    /api/stock/movements/:districtId  Audit log for one district
+GET    /api/stock/status
+GET    /api/stock/:districtId
+POST   /api/stock/dispatch
+POST   /api/stock/reallocate              EMERGENCY_COORDINATOR+
+POST   /api/stock/adjust                  HUB_MANAGER+
+GET    /api/stock/movements
+GET    /api/stock/movements/:districtId
 ```
 
 ### Households & Scoring
 ```
-POST   /api/score/household         Score a household (20-point engine)
-GET    /api/households              List households (filter by district, band)
-GET    /api/households/:id          Single household detail
-POST   /api/households              Create household record
-PATCH  /api/households/:id          Update household (triggers re-score)
-GET    /api/households/priority-queue  Sorted delivery priority list by district
+POST   /api/score/household
+GET    /api/households
+POST   /api/households
+GET    /api/households/priority-queue
+GET    /api/households/:id
+PATCH  /api/households/:id
 ```
 
 ### Delivery
 ```
-POST   /api/delivery/runs           Start a delivery run
-GET    /api/delivery/runs           List all delivery runs
-GET    /api/delivery/runs/:id       Single run with all receipts
-POST   /api/delivery/receipts       Record per-household delivery confirmation
-PATCH  /api/delivery/runs/:id/complete  Mark run complete
+POST   /api/delivery/runs
+GET    /api/delivery/runs
+GET    /api/delivery/runs/:id
+POST   /api/delivery/receipts
+PATCH  /api/delivery/runs/:id/complete
+PATCH  /api/delivery/runs/:id/abort       HUB_MANAGER+
 ```
 
 ### Routing
 ```
-GET    /api/route/recommend         Delivery mode by water depth per zone
-POST   /api/route/update            Update water depth for a zone
-GET    /api/route/logs              Route status change history
+GET    /api/route/recommend
+POST   /api/route/update
+GET    /api/route/logs
+GET    /api/route/district/:districtId
 ```
 
 ### Volunteers
 ```
-GET    /api/volunteers              List all volunteers (filter by district)
-POST   /api/volunteers              Add volunteer to roster
-PATCH  /api/volunteers/:id          Update volunteer info or status
-POST   /api/volunteers/assign       Assign volunteer to zone/team
-GET    /api/volunteers/:districtId/roster  Full roster for a district
+GET    /api/volunteers
+POST   /api/volunteers                    HUB_MANAGER+
+PATCH  /api/volunteers/:id                HUB_MANAGER+
+POST   /api/volunteers/assign             HUB_MANAGER+
+GET    /api/volunteers/:districtId/roster
 ```
 
 ### Incidents
 ```
-POST   /api/incidents               Report an incident
-GET    /api/incidents               List incidents (filter by district, type, status)
-PATCH  /api/incidents/:id/resolve   Mark incident resolved
+POST   /api/incidents
+GET    /api/incidents
+PATCH  /api/incidents/:id/resolve
 ```
 
 ### Radio Check-ins
 ```
-POST   /api/radio/checkin           Submit scheduled radio check-in
-GET    /api/radio/checkins          List check-ins (filter by district, date)
+POST   /api/radio/checkin
+GET    /api/radio/checkins
+GET    /api/radio/compliance
 ```
 
 ### Notifications
 ```
-GET    /api/notifications           Get notifications for current user
-PATCH  /api/notifications/:id/read  Mark notification as read
+GET    /api/notifications
+PATCH  /api/notifications/read-all
+PATCH  /api/notifications/:id/read
 ```
 
 ### Dashboard
 ```
-GET    /api/dashboard/summary       Aggregated view: phase + stock + households + alerts
-GET    /api/dashboard/district/:id  Per-district summary card data
+GET    /api/dashboard/summary
+GET    /api/dashboard/district/:id
 ```
 
 ---
 
 ## 10. FRONTEND PAGES & VIEWS
 
-| View | Name | Description |
-|---|---|---|
-| V0 | Auth | Login page, role-based redirect after login |
-| V1 | Operations Dashboard | Phase banner, district cards, stock chart, priority queue, incidents, notifications |
-| V2 | Routing Map | Leaflet map, district overlays, water depth input, delivery mode per zone |
-| V3 | Warehouse Layout | Static draw.io diagram — central + sub-warehouse floor plans |
-| V4 | Prioritization Tool | Assessment form, live scoring, score band result, priority table |
-| V5 | Stakeholder Flowchart | Static draw.io swimlane diagram — actor decision flows |
-| V6 | Operating Protocol | PDF document — activation checklist, radio script, delivery runsheet, incident log |
-| V7 | Hub Manager Portal | Per-district: stock management, volunteer roster, delivery runs, incidents, radio check-ins |
-| V8 | Volunteer Mobile View | Mobile-optimized: assessment form, delivery receipt, incident report |
+**Architecture: Single unified React app (Option A). One Vercel deployment. UI adapts based on JWT role after login.**
+
+| View | Name | Visible To | Description |
+|---|---|---|---|
+| V0 | Auth | All | Login page, role-based redirect, change password on first login |
+| V1 | Operations Dashboard | EC, SUPER_ADMIN, VIEWER | Phase banner, district cards, stock chart, priority queue, incidents, notifications |
+| V2 | Routing Map | EC, HUB_MANAGER | Leaflet map, district overlays, water depth input, delivery mode per zone |
+| V3 | Warehouse Layout | All | Static draw.io diagram — central + sub-warehouse floor plans |
+| V4 | Prioritization Tool | EC, HUB_MANAGER, VOLUNTEER | Assessment form, live scoring, score band result, priority table |
+| V5 | Stakeholder Flowchart | All | Static draw.io swimlane diagram — actor decision flows |
+| V6 | Operating Protocol | All | PDF document — activation checklist, radio script, delivery runsheet |
+| V7 | Hub Manager Portal | HUB_MANAGER | Per-district: stock, volunteers, delivery runs, incidents, radio check-ins |
+| V8 | Volunteer Mobile View | VOLUNTEER | Mobile-optimized: assessment form, delivery receipt, incident report |
+| V9 | User Management | SUPER_ADMIN | Create users, deactivate users, reset passwords |
 
 ---
 
 ## 11. TECH STACK (LOCKED)
 
 ```
-Backend:        Node.js + TypeScript + Express + Prisma + PostgreSQL
-Auth:           JWT (jsonwebtoken) + bcrypt
-Frontend:       React (Vite) + TypeScript + Tailwind CSS + Recharts + Leaflet.js
-Infrastructure: Docker + docker-compose
-Hosting:        Render (backend) + Supabase (PostgreSQL) + Vercel (frontend)
-API Docs:       Swagger (swagger-ui-express)
+Backend:         Node.js + TypeScript + Express + Prisma + PostgreSQL
+Auth:            JWT (jsonwebtoken) + bcrypt (cost factor 12 in production)
+Frontend:        React (Vite) + TypeScript + Tailwind CSS + Recharts + Leaflet.js
+Infrastructure:  Docker + docker-compose
+Hosting:         Render (backend) + Supabase (PostgreSQL) + Vercel (frontend)
+API Docs:        Swagger (swagger-ui-express)
 Static Diagrams: draw.io
 ```
 
@@ -393,4 +407,4 @@ Do NOT use Railway — free tier is 30 days only.
 | section-D-coordination-model.md | Coordination structure, actor roles, communication protocols |
 | section-E-scalability-sustainability.md | Scale-up model, sustainability mechanisms |
 | section-F-financial-plan.md | Budget estimates, cost breakdown |
-| Assumptions-log.md | 48 assumptions — new assumptions continue from #49 |
+| Assumptions-log.md | 49 assumptions — new assumptions continue from #50 |

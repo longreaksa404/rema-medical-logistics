@@ -7,10 +7,10 @@
 
 | Service | URL | Status |
 |---|---|---|
-| Backend API | TBD (Render) | https://rema-medical-logistics.onrender.com |  ✅ Live |
-| Frontend | TBD (Vercel) | Not deployed yet |
+| Backend API | https://rema-medical-logistics.onrender.com | ✅ Live |
+| Swagger Docs | https://rema-medical-logistics.onrender.com/api/docs | ✅ Live |
+| Frontend | Not deployed yet | ⬜ |
 | Database | Supabase — rema-medical-logistics (Singapore) | ✅ Live |
-| API Docs (Swagger) | TBD/api/docs | Not deployed yet |
 
 ---
 
@@ -25,396 +25,312 @@
 | Chat 5 | Stock Management | ✅ Complete |
 | Chat 6 | Delivery + Routing | ✅ Complete |
 | Chat 7 | Volunteers + Incidents + Radio + Dashboard | ✅ Complete |
-| Chat 7.5 | Cache + Polling Architecture (do before Chat 8) | ✅ Complete |
+| Chat 7.5 | Cache + Polling Architecture | ✅ Complete |
+| Chat 7.6 | User Management + Public Status (real deployment prep) | ✅ Complete |
 | Chat 8 | Frontend: Auth + Dashboard Setup | ⬜ Not started |
 | Chat 9 | Frontend: V1 Dashboard Data + Charts | ⬜ Not started |
 | Chat 10 | Frontend: V2 Routing Map | ⬜ Not started |
 | Chat 11 | Frontend: V4 Prioritization Tool | ⬜ Not started |
 | Chat 12 | Frontend: V7 Hub Manager Portal | ⬜ Not started |
 | Chat 13 | Frontend: V8 Volunteer Mobile View | ⬜ Not started |
-| Chat 14 | V3 Warehouse Layout (draw.io) | ⬜ Not started |
-| Chat 15 | V5 Stakeholder Flowchart (draw.io) | ⬜ Not started |
-| Chat 16 | V6 Operating Protocol (PDF) | ⬜ Not started |
-| Chat 17 | Final Assembly + Submission Package | ⬜ Not started |
+| Chat 14 | Frontend: V9 User Management (SUPER_ADMIN) | ⬜ Not started |
+| Chat 15 | V3 Warehouse Layout (draw.io) | ⬜ Not started |
+| Chat 16 | V5 Stakeholder Flowchart (draw.io) | ⬜ Not started |
+| Chat 17 | V6 Operating Protocol (PDF) | ⬜ Not started |
+| Chat 18 | Final Assembly + Submission Package | ⬜ Not started |
 
 ---
 
 ## CHAT 1 — Strategy ✅ Complete
 
-**Goal:** All strategy sections written and pushed to GitHub.
-
-**Steps:**
-- [x] Step 1 — Section 0: Core System Concept
-- [x] Step 2 — Section A: Response Design (3 phases, activation trigger, decision authority)
-- [x] Step 3 — Section B: Logistics Model (EMK types, sourcing, transport, contingency, cold chain)
-- [x] Step 4 — Section C: Prioritization Framework (20-point scoring, score bands, fairness safeguards)
-- [x] Step 5 — Section D: Coordination Model
-- [x] Step 6 — Section E: Scalability & Sustainability
-- [x] Step 7 — Section F: Financial Plan
-- [x] Step 8 — Assumptions Log (48 assumptions documented)
-
-**End state:** All strategy sections complete and pushed to GitHub.
+- [x] Section 0: Core System Concept
+- [x] Section A: Response Design
+- [x] Section B: Logistics Model
+- [x] Section C: Prioritization Framework
+- [x] Section D: Coordination Model
+- [x] Section E: Scalability & Sustainability
+- [x] Section F: Financial Plan
+- [x] Assumptions Log (49 assumptions documented)
 
 ---
 
-## CHAT 2 — Project Setup 🔄 In Progress
+## CHAT 2 — Project Setup ✅ Complete
 
-**Goal:** Skeleton runs locally, connects to Supabase, schema migrated, Swagger at /api/docs.
-
-**Steps:**
-- [x] Step 1 — Monorepo folder structure (backend/, frontend/, docs/, scripts/)
-- [x] Step 2 — Docker + docker-compose files
-- [x] Step 3 — Supabase PostgreSQL connection + .env configured
-- [x] Step 4 — Prisma schema (5 tables) + first migration run
-- [x] Step 5 — Update Prisma schema to full 15-table design (PROJECT_SCOPE.md Section 8)
-- [x] Step 6 — Run new migration: npx prisma migrate dev --name full-schema
-- [x] Step 7 — Express boilerplate (src/index.ts + src/app.ts)
-- [x] Step 8 — GET /api/health endpoint
-- [x] Step 9 — Swagger setup at /api/docs
-- [x] Step 10 — Test: server starts, health check returns 200, Swagger UI loads
-
-**End state:** npm run dev starts server, GET /api/health returns 200, Swagger UI loads at localhost:3000/api/docs.
+- [x] Monorepo folder structure
+- [x] Docker + docker-compose
+- [x] Supabase PostgreSQL connection + .env
+- [x] Prisma schema + migrations
+- [x] Express boilerplate
+- [x] GET /api/health
+- [x] Swagger at /api/docs
 
 ---
 
-## CHAT 3 — Auth + RBAC ⬜ Not started
+## CHAT 3 — Auth + RBAC ✅ Complete
 
-**Goal:** Login works. Protected routes reject unauthorized requests.
-
-**Steps:**
-- [x] Step 1 — Seed users table (one test user per role: SUPER_ADMIN, EMERGENCY_COORDINATOR, HUB_MANAGER, VOLUNTEER, VIEWER)
-- [x] Step 2 — POST /api/auth/login (validate email + password, return JWT)
-- [x] Step 3 — POST /api/auth/logout (invalidate token)
-- [x] Step 4 — GET /api/auth/me (return current user from JWT)
-- [x] Step 5 — Auth middleware (verify JWT on protected routes)
-- [x] Step 6 — Role guard middleware (reject requests below required role)
-- [x] Step 7 — Apply auth middleware to a test protected route
-- [x] Step 8 — Test in Swagger: login → get token → call protected route → verify 401 without token → verify 403 with wrong role
-
-**End state:** Can login, receive JWT, call protected endpoint, get 401 without token, get 403 with wrong role.
+- [x] Seed users (one per role)
+- [x] POST /api/auth/login
+- [x] POST /api/auth/logout
+- [x] GET /api/auth/me
+- [x] Auth middleware (JWT verify)
+- [x] Role guard middleware
+- [x] Test routes verified
 
 ---
 
-## CHAT 4 — Activation + Scoring Engine ⬜ Not started
+## CHAT 4 — Activation + Scoring Engine ✅ Complete
 
-**Goal:** 2-of-3 activation logic works. 20-point scoring engine matches Section C exactly.
-
-**Steps:**
-- [x] Step 1 — POST /api/alert/trigger (accept one condition, auto-activate when 2-of-3 met)
-- [x] Step 2 — GET /api/alert/status (current phase + which conditions are met)
-- [x] Step 3 — PATCH /api/alert/phase (advance phase 0→1→2, EC only)
-- [x] Step 4 — POST /api/score/household (20-point engine: 5 categories, exact weights from Section C)
-- [x] Step 5 — Score band assignment logic (CRITICAL/HIGH/MEDIUM/STANDARD)
-- [x] Step 6 — EMK type recommendation logic from score
-- [x] Step 7 — POST /api/households (create household with score)
-- [x] Step 8 — GET /api/households (list, filter by district and band)
-- [x] Step 9 — GET /api/households/:id (single household detail)
-- [x] Step 10 — PATCH /api/households/:id (update + re-score)
-- [x] Step 11 — GET /api/households/priority-queue (sorted by score band then score)
-- [x] Step 12 — Test scoring against Section C worked example (must match exactly)
-
-**End state:** All endpoints tested in Swagger. Scoring output matches Section C worked example exactly.
+- [x] POST /api/alert/trigger (2-of-3 auto-activate)
+- [x] GET /api/alert/status
+- [x] PATCH /api/alert/phase
+- [x] POST /api/score/household (20-point engine)
+- [x] Score band assignment
+- [x] EMK recommendation logic
+- [x] POST /api/households
+- [x] GET /api/households
+- [x] GET /api/households/:id
+- [x] PATCH /api/households/:id
+- [x] GET /api/households/priority-queue
+- [x] Scoring verified against Section C worked example
 
 ---
 
-## CHAT 5 — Stock Management ⬜ Not started
+## CHAT 5 — Stock Management ✅ Complete
 
-**Goal:** Full stock lifecycle works with complete audit trail.
-
-**Steps:**
-- [x] Step 1 — Seed districts + sub-warehouses + initial stock records
-- [x] Step 2 — GET /api/stock/status (all sub-warehouses, all EMK types)
-- [x] Step 3 — GET /api/stock/:districtId (single district stock)
-- [x] Step 4 — POST /api/stock/dispatch (central warehouse → sub-warehouse, creates stock_movement)
-- [x] Step 5 — POST /api/stock/reallocate (cross-district transfer, EC only, creates stock_movement)
-- [x] Step 6 — POST /api/stock/adjust (manual adjustment with reason, Hub Manager, creates stock_movement)
-- [x] Step 7 — GET /api/stock/movements (full audit log, all districts)
-- [x] Step 8 — GET /api/stock/movements/:districtId (audit log for one district)
-- [x] Step 9 — Scarcity mode check (flag when stock falls below 30% of original allocation)
-- [x] Step 10 — Test full stock lifecycle in Swagger (dispatch → deliver → reallocate → check audit log)
-
-**End state:** Every stock change creates a stock_movements record. Scarcity mode triggers correctly. Full audit trail verified.
+- [x] Seed districts + sub-warehouses + stock records
+- [x] GET /api/stock/status
+- [x] GET /api/stock/:districtId
+- [x] POST /api/stock/dispatch
+- [x] POST /api/stock/reallocate (EC only)
+- [x] POST /api/stock/adjust (HUB_MANAGER+)
+- [x] GET /api/stock/movements
+- [x] GET /api/stock/movements/:districtId
+- [x] Scarcity mode check (below 30%)
+- [x] Full stock lifecycle tested in Swagger
 
 ---
 
-## CHAT 6 — Delivery + Routing ⬜ Not started
+## CHAT 6 — Delivery + Routing ✅ Complete
 
-**Goal:** Delivery runs logged with receipts. Routing logic recommends correct mode by water depth.
-
-**Steps:**
-- [x] Step 1 — POST /api/delivery/runs (start a run: assign team, zone, sub-warehouse)
-- [x] Step 2 — GET /api/delivery/runs (list all runs, filter by district/status)
-- [x] Step 3 — GET /api/delivery/runs/:id (single run with all receipts)
-- [x] Step 4 — POST /api/delivery/receipts (record per-household delivery confirmation)
-- [x] Step 5 — PATCH /api/delivery/runs/:id/complete (mark run complete, record return time)
-- [x] Step 6 — GET /api/route/recommend (water depth → delivery mode, exact Section A.4 tiers)
-- [x] Step 7 — POST /api/route/update (update water depth for a zone, creates route_log)
-- [x] Step 8 — GET /api/route/logs (route status change history)
-- [x] Step 9 — Suspend logic: delivery mode returns SUSPENDED above 80cm
-- [x] Step 10 — Test full delivery lifecycle in Swagger (start run → add receipts → complete run)
-
-**End state:** Delivery lifecycle and routing logic tested. SUSPENDED returned correctly above 80cm.
+- [x] POST /api/delivery/runs
+- [x] GET /api/delivery/runs
+- [x] GET /api/delivery/runs/:id
+- [x] POST /api/delivery/receipts
+- [x] PATCH /api/delivery/runs/:id/complete
+- [x] PATCH /api/delivery/runs/:id/abort
+- [x] GET /api/route/recommend
+- [x] POST /api/route/update
+- [x] GET /api/route/logs
+- [x] GET /api/route/district/:districtId
+- [x] SUSPENDED returned correctly above 80cm
 
 ---
 
-## CHAT 7 — Volunteers + Incidents + Radio + Dashboard ⬜ Not started
+## CHAT 7 — Volunteers + Incidents + Radio + Dashboard ✅ Complete
 
-**Goal:** All remaining endpoints complete. Full API deployed on Render.
-
-**Steps:**
-- [x] Step 1 — GET /api/volunteers (list, filter by district)
-- [x] Step 2 — POST /api/volunteers (add to roster)
-- [x] Step 3 — PATCH /api/volunteers/:id (update info or status)
-- [x] Step 4 — POST /api/volunteers/assign (assign to zone + team)
-- [x] Step 5 — GET /api/volunteers/:districtId/roster (full roster for one district)
-- [x] Step 6 — POST /api/incidents (report incident)
-- [x] Step 7 — GET /api/incidents (list, filter by district/type/status)
-- [x] Step 8 — PATCH /api/incidents/:id/resolve (mark resolved)
-- [x] Step 9 — POST /api/radio/checkin (submit scheduled check-in: 08:00/12:00/16:00/20:00)
-- [x] Step 10 — GET /api/radio/checkins (list, filter by district + date)
-- [x] Step 11 — GET /api/notifications (for current user)
-- [x] Step 12 — PATCH /api/notifications/:id/read (mark as read)
-- [x] Step 13 — GET /api/dashboard/summary (phase + stock + households + alerts aggregated)
-- [x] Step 14 — GET /api/dashboard/district/:id (per-district summary card)
-- [x] Step 15 — Deploy to Render
-- [x] Step 16 — Verify all endpoints live at Render URL + Swagger accessible
-
-**End state:** All 30+ endpoints live on Render. Swagger docs accessible at Render URL.
+- [x] GET /api/volunteers
+- [x] POST /api/volunteers
+- [x] PATCH /api/volunteers/:id
+- [x] POST /api/volunteers/assign
+- [x] GET /api/volunteers/:districtId/roster
+- [x] POST /api/incidents
+- [x] GET /api/incidents
+- [x] PATCH /api/incidents/:id/resolve
+- [x] POST /api/radio/checkin
+- [x] GET /api/radio/checkins
+- [x] GET /api/radio/compliance
+- [x] GET /api/notifications
+- [x] PATCH /api/notifications/read-all
+- [x] PATCH /api/notifications/:id/read
+- [x] GET /api/dashboard/summary
+- [x] GET /api/dashboard/district/:id
+- [x] Deployed to Render
+- [x] All endpoints verified live
 
 ---
 
-## CHAT 7.5 — Cache + Polling Setup (do before starting Chat 8)
+## CHAT 7.5 — Cache + Polling Architecture ✅ Complete
 
-**Goal:** Add in-memory cache to dashboard service. Confirm on Render.
+- [x] In-memory cache utility (getCached, setCached, invalidateCache)
+- [x] getDashboardSummary — 15s TTL cache
+- [x] getDistrictDashboard — 10s TTL cache
+- [x] invalidateCache() on phase advance (alert.service)
+- [x] Targeted cache invalidation on dispatch/reallocate (stock.service)
+- [x] isInScarcity moved to utils/stock.utils.ts (circular dep resolved)
+- [x] Deployed and verified
 
-**Steps:**
-- [x] Step 1 — Add cache utility (getCached, setCached, invalidateCache) to dashboard.service.ts
-- [x] Step 2 — Wrap getDashboardSummary with 15s TTL cache
-- [x] Step 3 — Wrap getDistrictDashboard with 10s TTL cache  
-- [x] Step 4 — Call invalidateCache() in alert.service.ts when phase advances
-- [x] Step 5 — Call invalidateCache() in stock.service.ts when dispatch/reallocate runs
-- [x] Step 6 — Push to GitHub → Render auto-deploys → verify /api/dashboard/summary still works
-- [x] Step 7 — Add cache note to README: "15s in-memory cache, Redis-ready architecture"
+---
 
-**End state:** Dashboard queries hit cache on repeated calls. Phase changes and stock 
-dispatches invalidate cache automatically. Zero new dependencies.
+## CHAT 7.6 — User Management + Public Status ✅ Complete
+
+- [x] GET /api/status (public, no auth — aggregate data only)
+- [x] POST /api/users (SUPER_ADMIN only — create user with temporary password)
+- [x] GET /api/users (SUPER_ADMIN only)
+- [x] GET /api/users/:id (SUPER_ADMIN only)
+- [x] PATCH /api/users/:id (SUPER_ADMIN only — update, deactivate)
+- [x] PATCH /api/users/me/password (any auth user — change own password)
+- [x] POST /api/users/:id/reset-password (SUPER_ADMIN only)
+- [x] app.ts updated with user routes + public status route
+- [x] Swagger updated with new schemas and paths
+- [x] Architecture decision locked: Option A (single unified frontend app)
+
+**Key decisions:**
+- SUPER_ADMIN created via seed only — never via API
+- No public registration — closed user base
+- Deactivate, never delete — audit trail preserved
+- VIEWER role keeps auth required — dashboard shows PII
 
 ---
 
 ## CHAT 8 — Frontend: Auth + Dashboard Setup ⬜ Not started
 
-**Goal:** Login works. Dashboard shell running on Vercel, connected to Render backend.
+**Goal:** Login works. Single unified React app (Option A) running on Vercel, connected to Render backend.
 
-**Steps:**
-- [ ] Step 1 — React project setup (Vite + TypeScript + Tailwind CSS)
-- [ ] Step 2 — Environment config (.env with Render backend URL)
-- [ ] Step 3 — API service layer (axios instance + JWT interceptor)
-- [ ] Step 4 — Auth context (store JWT, current user, logout)
-- [ ] Step 5 — Login page (V0) with form + error handling
-- [ ] Step 6 — Role-based redirect after login
-- [ ] Step 7 — Protected route wrapper component
-- [ ] Step 8 — Navigation sidebar (links by role)
-- [ ] Step 9 — Dashboard shell layout (header + sidebar + content area)
-- [ ] Step 10 — Phase status banner component (Phase 0/1/2)
-- [ ] Step 11 — Deploy to Vercel
-- [ ] Step 12 — Add 30-second polling interval to dashboard (useEffect + setInterval)
-- [ ] Step 13 — Add manual refresh button for Operations Center users
-- [ ] Step 14 — Show "last updated" timestamp on dashboard so users know data age
-- [ ] Step 15 — Test: login → redirect → see dashboard shell
+**Architecture decision (locked):** Single app, role-based rendering. One Vercel deployment. React Router v6. Auth state in React Context.
 
-**End state:** Login works, dashboard shell live on Vercel, connected to Render backend.
+- [ ] React project setup (Vite + TypeScript + Tailwind CSS) inside `frontend/`
+- [ ] Environment config (.env with Render backend URL)
+- [ ] API service layer (axios instance + JWT interceptor)
+- [ ] Auth context (JWT, current user, role, logout)
+- [ ] Login page (V0) — form + error handling
+- [ ] Role-based redirect after login
+- [ ] Protected route wrapper component
+- [ ] Role-based navigation sidebar
+- [ ] Dashboard shell layout (header + sidebar + content area)
+- [ ] Phase status banner component (Phase 0/1/2 with color)
+- [ ] Change password page (any auth user — needed for first login)
+- [ ] Deploy to Vercel
+- [ ] 30-second polling interval (useEffect + setInterval)
+- [ ] Manual refresh button for Operations Center users
+- [ ] "Last updated" timestamp on dashboard
 
 ---
 
 ## CHAT 9 — Frontend: V1 Dashboard Data + Charts ⬜ Not started
 
-**Goal:** V1 Operations Dashboard fully complete and live with real data.
-
-**Steps:**
-- [ ] Step 1 — Connect phase status banner to GET /api/alert/status
-- [ ] Step 2 — District summary cards (3 cards: stock %, households assessed, delivery progress)
-- [ ] Step 3 — Connect district cards to GET /api/dashboard/summary
-- [ ] Step 4 — Stock levels bar chart (EMK-1/2/3 per district, Recharts BarChart)
-- [ ] Step 5 — Priority queue table (4 bands, sortable, color coded)
-- [ ] Step 6 — Connect priority table to GET /api/households/priority-queue
-- [ ] Step 7 — Active incidents panel
-- [ ] Step 8 — Connect incidents to GET /api/incidents
-- [ ] Step 9 — Recent notifications feed
-- [ ] Step 10 — Connect notifications to GET /api/notifications
-- [ ] Step 11 — Auto-refresh every 60 seconds
-- [ ] Step 12 — Deploy to Vercel + verify live data
-
-**End state:** V1 fully live on Vercel with real data from Render backend.
+- [ ] Phase status banner connected to GET /api/alert/status
+- [ ] District summary cards (3 cards) connected to GET /api/dashboard/summary
+- [ ] Stock levels bar chart (EMK-1/2/3 per district, Recharts)
+- [ ] Priority queue table (4 bands, color coded)
+- [ ] Priority table connected to GET /api/households/priority-queue
+- [ ] Active incidents panel connected to GET /api/incidents
+- [ ] Notifications feed connected to GET /api/notifications
+- [ ] Auto-refresh every 60 seconds
+- [ ] Deploy and verify live data
 
 ---
 
 ## CHAT 10 — Frontend: V2 Routing Map ⬜ Not started
 
-**Goal:** V2 Routing Map complete and live.
-
-**Steps:**
-- [ ] Step 1 — Leaflet.js setup in React (react-leaflet)
-- [ ] Step 2 — OpenStreetMap base layer
-- [ ] Step 3 — 3 district zone polygon overlays
-- [ ] Step 4 — Water depth slider per zone (0–120cm)
-- [ ] Step 5 — Delivery mode display per zone (color coded: green/yellow/orange/red)
-- [ ] Step 6 — Connect to GET /api/route/recommend
-- [ ] Step 7 — Connect water depth update to POST /api/route/update
-- [ ] Step 8 — SUSPENDED zone warning display (above 80cm)
-- [ ] Step 9 — Route change history panel (GET /api/route/logs)
-- [ ] Step 10 — Deploy to Vercel + verify map loads and updates
-
-**End state:** V2 live on Vercel. Changing water depth updates delivery mode in real time.
+- [ ] Leaflet.js + react-leaflet setup
+- [ ] OpenStreetMap base layer
+- [ ] 3 district zone polygon overlays
+- [ ] Water depth slider per zone (0–120cm)
+- [ ] Delivery mode per zone (color coded)
+- [ ] Connect to GET /api/route/recommend
+- [ ] Connect depth update to POST /api/route/update
+- [ ] SUSPENDED zone warning above 80cm
+- [ ] Route change history panel
+- [ ] Deploy and verify
 
 ---
 
 ## CHAT 11 — Frontend: V4 Prioritization Tool ⬜ Not started
 
-**Goal:** V4 Prioritization Tool complete and live. Scoring matches Section C exactly.
-
-**Steps:**
-- [ ] Step 1 — Assessment form layout (5 category sections)
-- [ ] Step 2 — Category 1 input: Medical urgency (0/2/5/8 points)
-- [ ] Step 3 — Category 2 input: Vulnerability checkboxes (infant/pregnant/elderly/disabled, cap at 5)
-- [ ] Step 4 — Category 3 input: Flood exposure (0/1/3/4 points)
-- [ ] Step 5 — Category 4 input: Self-sufficiency (0/1/2 points)
-- [ ] Step 6 — Category 5 input: Isolation (0/1 points)
-- [ ] Step 7 — Live score calculation as form is filled
-- [ ] Step 8 — Score band result display (CRITICAL/HIGH/MEDIUM/STANDARD with color)
-- [ ] Step 9 — EMK type recommendation display
-- [ ] Step 10 — Connect form submit to POST /api/score/household
-- [ ] Step 11 — Sortable household priority table
-- [ ] Step 12 — Connect table to GET /api/households/priority-queue
-- [ ] Step 13 — Scarcity mode indicator (shows when stock below 30%)
-- [ ] Step 14 — Deploy to Vercel + test scoring against Section C worked example
-
-**End state:** V4 live on Vercel. Scoring matches Section C worked example exactly.
+- [ ] Assessment form (5 category sections)
+- [ ] Cat 1–5 inputs with correct valid values
+- [ ] Live score calculation as form fills
+- [ ] Score band result display with color
+- [ ] EMK type recommendation display
+- [ ] Connect to POST /api/score/household
+- [ ] Sortable household priority table
+- [ ] Connect to GET /api/households/priority-queue
+- [ ] Scarcity mode indicator
+- [ ] Deploy and verify scoring matches Section C
 
 ---
 
 ## CHAT 12 — Frontend: V7 Hub Manager Portal ⬜ Not started
 
-**Goal:** V7 Hub Manager Portal complete and live. Role-gated to HUB_MANAGER.
-
-**Steps:**
-- [ ] Step 1 — Portal layout (tabbed: Stock / Volunteers / Deliveries / Incidents / Radio)
-- [ ] Step 2 — Stock tab: view EMK levels for own district
-- [ ] Step 3 — Stock tab: request resupply form (POST /api/stock/dispatch)
-- [ ] Step 4 — Stock tab: manual adjustment form (POST /api/stock/adjust)
-- [ ] Step 5 — Stock tab: stock movements log (GET /api/stock/movements/:districtId)
-- [ ] Step 6 — Volunteers tab: roster list (GET /api/volunteers/:districtId/roster)
-- [ ] Step 7 — Volunteers tab: add volunteer form (POST /api/volunteers)
-- [ ] Step 8 — Volunteers tab: assign volunteer to zone/team (POST /api/volunteers/assign)
-- [ ] Step 9 — Deliveries tab: start delivery run form (POST /api/delivery/runs)
-- [ ] Step 10 — Deliveries tab: active runs list with mark complete button
-- [ ] Step 11 — Incidents tab: report incident form (POST /api/incidents)
-- [ ] Step 12 — Incidents tab: open incidents list with resolve button
-- [ ] Step 13 — Radio tab: check-in form (POST /api/radio/checkin, 4 time slots)
-- [ ] Step 14 — Radio tab: check-in history (GET /api/radio/checkins)
-- [ ] Step 15 — Deploy to Vercel + test all tabs with HUB_MANAGER role
-
-**End state:** V7 live on Vercel. Hub Manager can manage full district operations.
+- [ ] Tabbed layout (Stock / Volunteers / Deliveries / Incidents / Radio)
+- [ ] Stock tab: EMK levels, resupply form, adjustment form, movements log
+- [ ] Volunteers tab: roster, add volunteer, assign to zone/team
+- [ ] Deliveries tab: start run, active runs list, mark complete
+- [ ] Incidents tab: report form, open incidents list, resolve button
+- [ ] Radio tab: check-in form (4 time slots), check-in history
+- [ ] Role-gated to HUB_MANAGER
+- [ ] Deploy and test all tabs
 
 ---
 
-## CHAT 13 — Frontend: V8 Volunteer Mobile View + WebSocket Critical Alerts
+## CHAT 13 — Frontend: V8 Volunteer Mobile View ⬜ Not started
 
-**Goal:** V8 Volunteer mobile view complete. WebSocket added for 2 critical events only.
-
-**Steps:**
-- [ ] Step 1 — Mobile layout setup (max-width 480px, large touch targets)
-- [ ] Step 2 — Bottom navigation bar (Assessment / Delivery / Incident)
-- [ ] Step 3 — Assessment screen: household assessment form (5 categories)
-- [ ] Step 4 — Assessment screen: live score display
-- [ ] Step 5 — Assessment screen: connect to POST /api/score/household
-- [ ] Step 6 — Delivery screen: household list for volunteer's zone
-- [ ] Step 7 — Delivery screen: delivery receipt confirmation form
-- [ ] Step 8 — Delivery screen: connect to POST /api/delivery/receipts
-- [ ] Step 9 — Incident screen: quick incident report form
-- [ ] Step 10 — Incident screen: connect to POST /api/incidents
-- [ ] Step 11 — Deploy to Vercel + test on mobile browser
-
-WebSocket (only if time allows — do after all other chats complete):
-- [ ] Step 12 — Install socket.io on backend, socket.io-client on frontend
-- [ ] Step 13 — Backend: emit rema:activated when phase changes (alert.service.ts)
-- [ ] Step 14 — Backend: emit alert:volunteer_safety on VOLUNTEER_SAFETY incident
-- [ ] Step 15 — Frontend: listen for both events, show full-screen alert banner
-- [ ] Step 16 — Test: advance phase in Swagger → banner appears in open browser tab instantly
-- [ ] Step 17 — Update README: document WebSocket events
-
-**End state:** V8 live on Vercel. If WebSocket steps completed: phase changes and 
-volunteer safety alerts appear instantly across all open dashboard tabs without polling.
+- [ ] Mobile layout (max-width 480px, large touch targets)
+- [ ] Bottom navigation bar (Assessment / Delivery / Incident)
+- [ ] Assessment screen: 5-category form + live score
+- [ ] Delivery screen: household list + receipt confirmation
+- [ ] Incident screen: quick report form
+- [ ] All screens connected to backend
+- [ ] Deploy and test on mobile browser
 
 ---
 
-## CHAT 14 — V3 Warehouse Layout (draw.io) ⬜ Not started
+## CHAT 14 — Frontend: V9 User Management ⬜ Not started
 
-**Goal:** Warehouse layout diagrams complete and exported.
-
-**Steps:**
-- [ ] Step 1 — Central warehouse floor plan (~200–250 sqm)
-- [ ] Step 2 — Sub-warehouse floor plan (~40–60 sqm)
-- [ ] Step 3 — Add stock zone labels and capacity numbers
-- [ ] Step 4 — Export central warehouse as PNG + SVG
-- [ ] Step 5 — Export sub-warehouse as PNG + SVG
-- [ ] Step 6 — Save to sections/visuals/V3-warehouse-layout.png
-
-**End state:** V3 diagrams exported and saved in repo.
+- [ ] User list table (role, district, active status)
+- [ ] Create user form (POST /api/users)
+- [ ] Deactivate / reactivate user (PATCH /api/users/:id)
+- [ ] Reset password form (POST /api/users/:id/reset-password)
+- [ ] Role-gated to SUPER_ADMIN only
+- [ ] Deploy and test
 
 ---
 
-## CHAT 15 — V5 Stakeholder Flowchart (draw.io) ⬜ Not started
+## CHAT 15 — V3 Warehouse Layout (draw.io) ⬜ Not started
 
-**Goal:** Stakeholder flowchart complete and exported.
-
-**Steps:**
-- [ ] Step 1 — Swimlane layout (5 lanes: Volunteer / Team Leader / Hub Manager / Operations Center / Emergency Coordinator)
-- [ ] Step 2 — Phase 1 flow (Hours 0–24)
-- [ ] Step 3 — Phase 2 flow (Hours 24–48)
-- [ ] Step 4 — Information flow arrows (paper / SMS / radio / dashboard)
-- [ ] Step 5 — Decision diamonds at key points
-- [ ] Step 6 — Export as PNG + SVG
-- [ ] Step 7 — Save to sections/visuals/V5-stakeholder-flowchart.png
-
-**End state:** V5 diagram exported and saved in repo.
+- [ ] Central warehouse floor plan (~200–250 sqm)
+- [ ] Sub-warehouse floor plan (~40–60 sqm)
+- [ ] Stock zone labels and capacity numbers
+- [ ] Export as PNG + SVG
+- [ ] Save to sections/visuals/V3-warehouse-layout.png
 
 ---
 
-## CHAT 16 — V6 Operating Protocol Document ⬜ Not started
+## CHAT 16 — V5 Stakeholder Flowchart (draw.io) ⬜ Not started
 
-**Goal:** Operating protocol PDF complete and ready to use in the field.
-
-**Steps:**
-- [ ] Step 1 — Phase 1 activation checklist (hour-by-hour)
-- [ ] Step 2 — Phase 2 activation checklist
-- [ ] Step 3 — Radio check-in script (08:00/12:00/16:00/20:00)
-- [ ] Step 4 — Delivery runsheet template
-- [ ] Step 5 — Incident log template
-- [ ] Step 6 — Volunteer assessment form template (Vietnamese labels)
-- [ ] Step 7 — Format as clean printable document
-- [ ] Step 8 — Export as PDF
-- [ ] Step 9 — Save to sections/visuals/V6-operating-protocol.pdf
-
-**End state:** V6 PDF ready to print and use in the field.
+- [ ] Swimlane layout (5 lanes)
+- [ ] Phase 1 flow (Hours 0–24)
+- [ ] Phase 2 flow (Hours 24–48)
+- [ ] Information flow arrows
+- [ ] Decision diamonds
+- [ ] Export as PNG + SVG
+- [ ] Save to sections/visuals/V5-stakeholder-flowchart.png
 
 ---
 
-## CHAT 17 — Final Assembly + Submission Package ⬜ Not started
+## CHAT 17 — V6 Operating Protocol (PDF) ⬜ Not started
 
-**Goal:** Complete submission package ready for Viet Nam Red Cross.
+- [ ] Phase 1 + 2 activation checklists
+- [ ] Radio check-in script (4 time slots)
+- [ ] Delivery runsheet template
+- [ ] Incident log template
+- [ ] Volunteer assessment form (Vietnamese labels)
+- [ ] Export as PDF
+- [ ] Save to sections/visuals/V6-operating-protocol.pdf
 
-**Steps:**
-- [ ] Step 1 — Verify all live URLs work (Render + Vercel + Swagger)
-- [ ] Step 2 — Compile all strategy sections into one master document
-- [ ] Step 3 — Compile all visuals into submission folder
-- [ ] Step 4 — Write executive summary (1 page)
-- [ ] Step 5 — Write system demo guide
-- [ ] Step 6 — Final assumptions log review
-- [ ] Step 7 — Build presentation slide outline
-- [ ] Step 8 — Final git tag: v1.0.0
-- [ ] Step 9 — Package everything into submission folder
+---
 
-**End state:** Full submission package ready. System live. Repository clean and tagged.
+## CHAT 18 — Final Assembly + Submission Package ⬜ Not started
+
+- [ ] Verify all live URLs (Render + Vercel + Swagger)
+- [ ] Compile all strategy sections into master document
+- [ ] Compile all visuals into submission folder
+- [ ] Write executive summary (1 page)
+- [ ] Write system demo guide
+- [ ] Final assumptions log review
+- [ ] Build presentation slide outline
+- [ ] Final git tag: v1.0.0
+- [ ] Package everything into submission folder
 
 ---
 
@@ -441,6 +357,7 @@ rema-medical-logistics/
 │   │   ├── middleware/
 │   │   ├── utils/
 │   │   └── types/
+│   ├── swagger.yaml
 │   ├── package.json
 │   ├── tsconfig.json
 │   └── .env.example
@@ -469,8 +386,3 @@ rema-medical-logistics/
 ```bash
 git add . && git commit -m "Chat [N] complete: [brief description]"
 ```
-
-Examples:
-- `git add . && git commit -m "Chat 2 complete: project setup, schema migrated, Express + Swagger running"`
-- `git add . && git commit -m "Chat 3 complete: auth + RBAC, JWT login, role middleware"`
-- `git add . && git commit -m "Chat 7 complete: all endpoints live on Render"`
