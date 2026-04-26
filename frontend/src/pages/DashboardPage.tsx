@@ -4,6 +4,46 @@ import { PhaseBanner } from '../components/PhaseBanner';
 import { dashboardApi } from '../api/dashboard';
 import type { DashboardSummary } from '../api/dashboard';
 
+// ─── SKELETON ─────────────────────────────────────────────────────────────────
+
+function Skeleton({ className = '' }: { className?: string }) {
+  return <div className={`animate-pulse bg-bg-elevated rounded ${className}`} />;
+}
+
+function DashboardSkeleton() {
+  return (
+    <div className="space-y-6 animate-fade-in">
+      <Skeleton className="h-14 w-full" />
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+        {[...Array(4)].map((_, i) => <Skeleton key={i} className="h-20" />)}
+      </div>
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+        {[...Array(4)].map((_, i) => <Skeleton key={i} className="h-20" />)}
+      </div>
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+        {[...Array(3)].map((_, i) => <Skeleton key={i} className="h-64" />)}
+      </div>
+    </div>
+  );
+}
+
+// ─── STAT CARD ────────────────────────────────────────────────────────────────
+
+function StatCard({ label, value, color = 'text-text-primary' }: {
+  label: string;
+  value: string | number;
+  color?: string;
+}) {
+  return (
+    <div className="card px-4 py-3">
+      <p className="font-mono text-[10px] text-text-muted uppercase tracking-widest mb-1">
+        {label}
+      </p>
+      <p className={`font-mono text-2xl font-semibold ${color}`}>{value}</p>
+    </div>
+  );
+}
+
 // ─── DISTRICT CARD ────────────────────────────────────────────────────────────
 
 function DistrictCard({ d }: { d: DashboardSummary['districts'][number] }) {
@@ -16,7 +56,6 @@ function DistrictCard({ d }: { d: DashboardSummary['districts'][number] }) {
     ? statusColors[d.subWarehouseStatus]
     : statusColors.INACTIVE;
 
-  // Stock bar color
   const stockColor =
     d.anyScarce ? 'bg-accent-red' :
     d.stockPct > 60 ? 'bg-accent-green' :
@@ -32,7 +71,7 @@ function DistrictCard({ d }: { d: DashboardSummary['districts'][number] }) {
             {d.population.toLocaleString()} households
           </p>
         </div>
-        <span className={`font-mono text-[10px] px-2 py-0.5 rounded border ${statusColor}`}>
+        <span className={`font-mono text-[10px] px-2 py-0.5 rounded border flex-shrink-0 ${statusColor}`}>
           {d.subWarehouseStatus ?? 'NO WAREHOUSE'}
         </span>
       </div>
@@ -60,7 +99,9 @@ function DistrictCard({ d }: { d: DashboardSummary['districts'][number] }) {
               const total = d.stock![`${type}Total`];
               return (
                 <div key={type} className="bg-bg-elevated rounded px-2 py-1.5">
-                  <p className="font-mono text-[9px] text-text-muted uppercase">{type.toUpperCase()}</p>
+                  <p className="font-mono text-[9px] text-text-muted uppercase">
+                    {type.toUpperCase()}
+                  </p>
                   <p className="font-mono text-xs text-text-primary">
                     {remaining.toLocaleString()}
                     <span className="text-text-muted">/{total.toLocaleString()}</span>
@@ -78,36 +119,27 @@ function DistrictCard({ d }: { d: DashboardSummary['districts'][number] }) {
           <p className="font-mono text-lg font-semibold text-text-primary">
             {d.householdsAssessed}
           </p>
-          <p className="font-mono text-[9px] text-text-muted uppercase tracking-wide">Assessed</p>
+          <p className="font-mono text-[9px] text-text-muted uppercase tracking-wide">
+            Assessed
+          </p>
         </div>
         <div className="text-center">
           <p className="font-mono text-lg font-semibold text-accent-green">
             {d.deliveredCount}
           </p>
-          <p className="font-mono text-[9px] text-text-muted uppercase tracking-wide">Delivered</p>
+          <p className="font-mono text-[9px] text-text-muted uppercase tracking-wide">
+            Delivered
+          </p>
         </div>
         <div className="text-center">
           <p className={`font-mono text-lg font-semibold ${d.openIncidents > 0 ? 'text-accent-red' : 'text-text-muted'}`}>
             {d.openIncidents}
           </p>
-          <p className="font-mono text-[9px] text-text-muted uppercase tracking-wide">Incidents</p>
+          <p className="font-mono text-[9px] text-text-muted uppercase tracking-wide">
+            Incidents
+          </p>
         </div>
       </div>
-    </div>
-  );
-}
-
-// ─── STAT CARD ────────────────────────────────────────────────────────────────
-
-function StatCard({ label, value, color = 'text-text-primary' }: {
-  label: string;
-  value: string | number;
-  color?: string;
-}) {
-  return (
-    <div className="card px-4 py-3">
-      <p className="font-mono text-[10px] text-text-muted uppercase tracking-widest mb-1">{label}</p>
-      <p className={`font-mono text-2xl font-semibold ${color}`}>{value}</p>
     </div>
   );
 }
@@ -116,46 +148,84 @@ function StatCard({ label, value, color = 'text-text-primary' }: {
 
 export function DashboardPage() {
   const [data, setData] = useState<DashboardSummary | null>(null);
+  const [isStale, setIsStale] = useState(false);
+  const [isRefreshing, setIsRefreshing] = useState(false);
+  const [firstLoad, setFirstLoad] = useState(true);
   const [error, setError] = useState('');
-  const [isLoading, setIsLoading] = useState(true);
   const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
 
-  const load = useCallback(async () => {
+  // Fetch fresh data from network
+  const revalidate = useCallback(async (silent = false) => {
+    if (!silent) setIsRefreshing(true);
     try {
-      const summary = await dashboardApi.getSummary();
-      setData(summary);
+      const fresh = await dashboardApi.getSummary();
+      setData(fresh);
+      setIsStale(false);
       setLastUpdated(new Date());
       setError('');
     } catch {
-      setError('Failed to load dashboard data. Retrying...');
+      setError('Failed to refresh. Showing cached data.');
     } finally {
-      setIsLoading(false);
+      if (!silent) setIsRefreshing(false);
     }
   }, []);
 
-  // Initial load
+  // Initial load — show cache instantly, revalidate in background
   useEffect(() => {
-    load();
-  }, [load]);
+    async function init() {
+      const result = await dashboardApi.getSummaryCached();
+      setData(result.data);
+      setLastUpdated(new Date());
+      setIsStale(result.isStale);
+      setFirstLoad(false);
 
-  if (isLoading) {
+      if (result.fromCache) {
+        // Cached data shown instantly — fetch fresh silently in background
+        revalidate(true);
+      }
+    }
+    init();
+  }, [revalidate]);
+
+  // Auto-poll every 30 seconds silently
+  useEffect(() => {
+    const id = setInterval(() => revalidate(true), 30_000);
+    return () => clearInterval(id);
+  }, [revalidate]);
+
+  // Manual refresh — shows spinner
+  const handleRefresh = useCallback(async () => {
+    await revalidate(false);
+  }, [revalidate]);
+
+  // First ever load with no cache — show skeleton
+  if (firstLoad && !data) {
     return (
-      <div className="flex-1 flex items-center justify-center">
-        <p className="font-mono text-text-muted text-sm animate-pulse">
-          loading operations data...
-        </p>
-      </div>
+      <DashboardLayout title="Operations Dashboard">
+        <DashboardSkeleton />
+      </DashboardLayout>
     );
   }
 
   return (
     <DashboardLayout
       title="Operations Dashboard"
-      onRefresh={load}
+      onRefresh={handleRefresh}
       lastUpdated={lastUpdated}
+      isRefreshing={isRefreshing}
     >
+      {/* Stale cache warning */}
+      {isStale && !isRefreshing && (
+        <div className="mb-4 bg-accent-yellow/10 border border-accent-yellow/30 rounded px-4 py-2 animate-fade-in">
+          <p className="font-mono text-xs text-accent-yellow">
+            Showing cached data — refreshing in background...
+          </p>
+        </div>
+      )}
+
+      {/* Network error */}
       {error && (
-        <div className="mb-4 bg-accent-red/10 border border-accent-red/30 rounded px-4 py-2">
+        <div className="mb-4 bg-accent-red/10 border border-accent-red/30 rounded px-4 py-2 animate-slide-in">
           <p className="font-mono text-xs text-accent-red">{error}</p>
         </div>
       )}
@@ -188,7 +258,7 @@ export function DashboardPage() {
               color="text-accent-green"
             />
             <StatCard
-              label="Radio Check-ins Today"
+              label="Radio Check-ins"
               value={data.todayRadioCheckins}
             />
           </div>
@@ -239,12 +309,17 @@ export function DashboardPage() {
               </h2>
               <div className="card divide-y divide-bg-border">
                 {data.openIncidents.map((inc) => (
-                  <div key={inc.id} className="px-4 py-3 flex items-start justify-between gap-4">
+                  <div
+                    key={inc.id}
+                    className="px-4 py-3 flex items-start justify-between gap-4"
+                  >
                     <div className="min-w-0">
                       <div className="flex items-center gap-2 mb-0.5">
                         <span
                           className={`font-mono text-[10px] ${
-                            inc.status === 'ESCALATED' ? 'text-accent-red' : 'text-accent-orange'
+                            inc.status === 'ESCALATED'
+                              ? 'text-accent-red'
+                              : 'text-accent-orange'
                           }`}
                         >
                           {inc.status}
