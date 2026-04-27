@@ -384,5 +384,6 @@ rema-medical-logistics/
 ## GIT COMMIT PATTERN
 
 ```bash
-git add . && git commit -m "Chat [N] complete: [brief description]"
+git add . 
+git commit -m "Chat [N] complete: [brief description]"
 ```
