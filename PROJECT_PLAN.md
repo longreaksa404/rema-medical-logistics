@@ -10,7 +10,7 @@
 | Backend API | https://rema-medical-logistics.onrender.com | ✅ Live |
 | Swagger Docs | https://rema-medical-logistics.onrender.com/api/docs | ✅ Live |
 | Frontend | https://rema-frontend-delta.vercel.app |
-| Database | Supabase — rema-medical-logistics (Singapore) | ✅ Live |
+| Database | Supabase — rema-medical-logistics (Singapore, ref: vkrtqhiymbbdgmtybjrm) |
 
 ---
 
@@ -27,7 +27,7 @@
 | Chat 7 | Volunteers + Incidents + Radio + Dashboard | ✅ Complete |
 | Chat 7.5 | Cache + Polling Architecture | ✅ Complete |
 | Chat 7.6 | User Management + Public Status (real deployment prep) | ✅ Complete |
-| Chat 8 | Frontend: Auth + Dashboard Setup | ⬜ Not started |
+| Chat 8 | Frontend: Auth + Dashboard Setup | ✅ Complete |
 | Chat 9 | Frontend: V1 Dashboard Data + Charts | ⬜ Not started |
 | Chat 10 | Frontend: V2 Routing Map | ⬜ Not started |
 | Chat 11 | Frontend: V4 Prioritization Tool | ⬜ Not started |
