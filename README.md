@@ -58,8 +58,8 @@ API docs available at: `http://localhost:3000/api/docs`
 
 ## Live URLs
 
-| Service  | URL |
-|----------|-----|
-| Backend  | TBD (Render) |
-| Frontend | TBD (Vercel) |
-| Database | Supabase PostgreSQL |
+| Service | URL | Status |
+|---|---|---|
+| Backend API | https://rema-medical-logistics.onrender.com | ✅ Live |
+| Swagger Docs | https://rema-medical-logistics.onrender.com/api/docs | ✅ Live |
+| Frontend | https://rema-frontend-delta.vercel.app | ✅ Live |
