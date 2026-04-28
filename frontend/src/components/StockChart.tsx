@@ -5,7 +5,6 @@ import {
   YAxis,
   CartesianGrid,
   Tooltip,
-  Legend,
   ResponsiveContainer,
   Cell,
 } from 'recharts';
@@ -123,15 +122,6 @@ export function StockChart({ districts }: StockChartProps) {
               strokeDasharray="3 3"
               stroke="#21262d"
               vertical={false}
-            />
-            {/* Scarcity threshold reference line */}
-            <CartesianGrid
-              strokeDasharray="6 2"
-              stroke="#f85149"
-              strokeOpacity={0.3}
-              vertical={false}
-              // Draw only at y=30 by using a custom reference approach
-              // We'll add it as a separate line
             />
             <XAxis
               dataKey="name"
