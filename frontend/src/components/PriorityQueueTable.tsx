@@ -79,7 +79,7 @@ export function PriorityQueueTable({ districts }: PriorityQueueTableProps) {
       <div className="px-5 py-4 border-b border-bg-border">
         <div className="flex items-start justify-between gap-4 flex-wrap">
           <div>
-            <h2 className="font-sans font-bold text-text-primary">Priority Queue</h2>
+            <h2 className="font-sans font-bold uppercase text-text-primary">Priority Queue</h2>
             <p className="font-mono text-[10px] text-text-muted mt-0.5">
               Undelivered households — sorted by Section C tiebreaker rules
             </p>

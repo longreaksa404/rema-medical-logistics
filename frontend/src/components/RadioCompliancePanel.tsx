@@ -43,7 +43,7 @@ export function RadioCompliancePanel() {
     <div className="card p-5">
       <div className="flex items-start justify-between mb-4">
         <div>
-          <h2 className="font-sans font-bold text-text-primary">Radio Check-ins</h2>
+          <h2 className="font-sans font-bold uppercase text-text-primary">Radio Check-ins</h2>
           <p className="font-mono text-[10px] text-text-muted mt-0.5">
             Today's schedule — 08:00 / 12:00 / 16:00 / 20:00
           </p>

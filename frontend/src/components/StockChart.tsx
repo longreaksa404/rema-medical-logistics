@@ -89,7 +89,7 @@ export function StockChart({ districts }: StockChartProps) {
     <div className="card p-5">
       <div className="flex items-center justify-between mb-4">
         <div>
-          <h2 className="font-sans font-bold text-text-primary">Stock Levels</h2>
+          <h2 className="font-sans font-bold uppercase text-text-primary">Stock Levels</h2>
           <p className="font-mono text-[10px] text-text-muted mt-0.5">
             % remaining per EMK type — red bars below 30% scarcity threshold
           </p>
