@@ -29,7 +29,7 @@
 | Chat 7.6 | User Management + Public Status (real deployment prep) | ✅ Complete |
 | Chat 8 | Frontend: Auth + Dashboard Setup | ✅ Complete |
 | Chat 9 | Frontend: V1 Dashboard Data + Charts | ✅ Complete |
-| Chat 10 | Frontend: V2 Routing Map | ⬜ Not started |
+| Chat 10 | Frontend: V2 Routing Map | ✅ Complete |
 | Chat 11 | Frontend: V4 Prioritization Tool | ⬜ Not started |
 | Chat 12 | Frontend: V7 Hub Manager Portal | ⬜ Not started |
 | Chat 13 | Frontend: V8 Volunteer Mobile View | ⬜ Not started |
@@ -220,18 +220,18 @@
 
 ---
 
-## CHAT 10 — Frontend: V2 Routing Map ⬜ Not started
+## CHAT 10 — Frontend: V2 Routing Map ✅ Complete
 
-- [ ] Leaflet.js + react-leaflet setup
-- [ ] OpenStreetMap base layer
-- [ ] 3 district zone polygon overlays
-- [ ] Water depth slider per zone (0–120cm)
-- [ ] Delivery mode per zone (color coded)
-- [ ] Connect to GET /api/route/recommend
-- [ ] Connect depth update to POST /api/route/update
-- [ ] SUSPENDED zone warning above 80cm
-- [ ] Route change history panel
-- [ ] Deploy and verify
+- [x] Leaflet.js + react-leaflet setup
+- [x] OpenStreetMap base layer
+- [x] 3 district zone polygon overlays
+- [x] Water depth slider per zone (0–120cm)
+- [x] Delivery mode per zone (color coded)
+- [x] Connect to GET /api/route/recommend
+- [x] Connect depth update to POST /api/route/update
+- [x] SUSPENDED zone warning above 80cm
+- [x] Route change history panel
+- [x] Deploy and verify
 
 ---
 
