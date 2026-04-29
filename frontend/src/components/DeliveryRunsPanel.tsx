@@ -55,9 +55,9 @@ export function DeliveryRunsPanel({ activeRuns, districts }: DeliveryRunsPanelPr
         <table className="w-full border-collapse table-fixed">
           <thead>
             <tr className="border-b border-bg-border text-text-muted font-medium text-[9px] font-mono">
-              <th className="text-left py-2 w-[40%] uppercase">District</th>
-              <th className="text-center py-2 w-[30%] uppercase">Volume</th>
-              <th className="text-right py-2 w-[30%] uppercase">Progress</th>
+              <th className="text-left py-2 w-[30%] uppercase">District</th>
+              <th className="text-center py-2 w-[35%] uppercase">Volume</th>
+              <th className="text-right py-2 w-[35%] uppercase">Progress</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-bg-border/40">
