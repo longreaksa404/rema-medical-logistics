@@ -23,16 +23,6 @@ function Placeholder({ title, chat, description }: PlaceholderProps) {
   );
 }
 
-export function RoutingPage() {
-  return (
-    <Placeholder
-      title="Routing Map"
-      chat="Chat 10"
-      description="Leaflet map with water depth per zone and delivery mode tiers."
-    />
-  );
-}
-
 export function PrioritizePage() {
   return (
     <Placeholder
