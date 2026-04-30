@@ -4,19 +4,9 @@
 <feFlood flood-opacity="0" result="BackgroundImageFix"/>
 <feColorMatrix in="SourceAlpha" type="matrix" values="0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 127 0" result="hardAlpha"/>
 <feOffset dx="0" dy="0"/>
-<feGaussianBlur stdDeviation="30"/>
+<feGaussianBlur stdDeviation="35"/>
 <feComposite in2="hardAlpha" operator="out"/>
-<feColorMatrix type="matrix" values="0 0 0 0 0.00392157 0 0 0 0 0.207843 0 0 0 0 1 0 0 0 1 0"/>
-<feBlend mode="normal" in2="BackgroundImageFix" result="effect1_dropShadow_1_2"/>
-<feBlend mode="normal" in="SourceGraphic" in2="effect1_dropShadow_1_2" result="shape"/>
-</filter>
-<filter id="filter1_d_1_2" x="100" y="50" width="824" height="924" filterUnits="userSpaceOnUse" color-interpolation-filters="sRGB">
-<feFlood flood-opacity="0" result="BackgroundImageFix"/>
-<feColorMatrix in="SourceAlpha" type="matrix" values="0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 127 0" result="hardAlpha"/>
-<feOffset dx="0" dy="0"/>
-<feGaussianBlur stdDeviation="20"/>
-<feComposite in2="hardAlpha" operator="out"/>
-<feColorMatrix type="matrix" values="0 0 0 0 0.00392157 0 0 0 0 0.207843 0 0 0 0 1 0 0 0 1 0"/>
+<feColorMatrix type="matrix" values="0 0 0 0 0 0 0 0 0 0.439216 0 0 0 0 1 0 0 0 1 0"/>
 <feBlend mode="normal" in2="BackgroundImageFix" result="effect1_dropShadow_1_2"/>
 <feBlend mode="normal" in="SourceGraphic" in2="effect1_dropShadow_1_2" result="shape"/>
 </filter>
@@ -31,16 +21,16 @@
 <feBlend mode="normal" in="SourceGraphic" in2="effect1_dropShadow_1_2" result="shape"/>
 </filter>
 </defs>
+<!-- Bold Shield with Blue Stroke -->
 <g filter="url(#filter0_d_1_2)">
-<path d="M512 964C512 964 110 820 110 400V120L512 20L914 120V400C914 820 512 964 512 964Z" fill="#1A1E24"/>
-<path d="M512 964C512 964 110 820 110 400V120L512 20L914 120V400C914 820 512 964 512 964Z" stroke="white" stroke-width="40"/>
+<path d="M512 964C512 964 110 820 110 400V120L512 20L914 120V400C914 820 512 964 512 964Z" fill="#0D1117"/>
+<path d="M512 964C512 964 110 820 110 400V120L512 20L914 120V400C914 820 512 964 512 964Z" stroke="#2563EB" stroke-width="50" stroke-linejoin="round"/>
 </g>
-<g filter="url(#filter1_d_1_2)">
-<path d="M512 914C512 914 140 780 140 400V160L512 60L884 160V400C884 780 512 914 512 914Z" fill="#14181F"/>
-</g>
-<rect x="442" y="272" width="140" height="420" rx="10" fill="#60A5FA"/>
-<rect x="292" y="412" width="440" height="140" rx="10" fill="#60A5FA"/>
+<!-- Plus Sign (Shifted slightly up) -->
+<rect x="442" y="240" width="140" height="420" rx="8" fill="#60A5FA"/>
+<rect x="292" y="380" width="440" height="140" rx="8" fill="#60A5FA"/>
+<!-- Green Status Dot -->
 <g filter="url(#filter2_d_1_2)">
-<circle cx="512" cy="802" r="50" fill="#3BFA73"/>
+<circle cx="512" cy="802" r="55" fill="#3BFA73"/>
 </g>
 </svg>
