@@ -1,57 +1,49 @@
 # REMA Handoff Document
-Last updated: Chat 10 complete
+Last updated: Chat 11 complete
 
 ## Current Chat Goal
-Chat 10 — Frontend V2 Routing Map — COMPLETE
+Chat 11 — Frontend V4 Prioritization Tool — COMPLETE
 
 ## What Was Completed This Chat
 
 ### New files created
 
-**API layer:**
-- `frontend/src/api/routes.ts` — `recommend()`, `update()`, `getLogs()`, `getDistrictRoutes()`
-  - Full TypeScript types: `DeliveryMode`, `Route`, `RouteLog`, `RouteRecommendation`, `UpdateRouteResponse`
+**Utility:**
+- `frontend/src/utils/scoring.ts` — Client-side scoring engine mirroring backend exactly
+  - `scoreHousehold()`, `computeCat2()`, `assignBand()`, `recommendEmk()`
+  - All option arrays with labels: `CAT1_OPTIONS`, `CAT2_FLAGS`, `CAT3_OPTIONS`, `CAT4_OPTIONS`
+  - Types: `ScoreInput`, `ScoreResult`, `PriorityBand`, `EmkRecommendation`, `Cat2FlagId`
 
-**New page (replaces placeholder):**
-- `frontend/src/pages/RoutingPage.tsx` — Full routing map implementation
-  - Leaflet loaded dynamically from CDN (no npm install needed — avoids Vite/SSR issues)
-  - OpenStreetMap base layer (free, no API key)
-  - 3 district polygon overlays with approximate HCMC coordinates
-  - Color-coded by current delivery mode (green/yellow/blue/red)
-  - Click-to-select district interaction
-  - Zone water depth sliders (0–120cm, step 5cm) for Zone A/B/C per district
-  - Real-time mode display as slider moves (no backend call needed for preview)
-  - "Update Backend" button → `POST /api/route/update` → creates route_log
-  - Save status feedback: idle → saving → saved/error with timeout reset
-  - Section A.4 locked tier reference panel
-  - Route change log panel (last 30 entries from `GET /api/route/logs`)
-  - SUSPENDED global warning banner when any zone exceeds 80cm
-  - District quick-view cards showing per-zone depths
-  - Loads existing routes from backend on mount via `GET /api/route/district/:id`
-  - `lastUpdated` timestamp in header refreshes after each backend save
+**API:**
+- `frontend/src/api/households.ts` — Added `create()` and `scoreOnly()` methods
+
+**New page:**
+- `frontend/src/pages/PrioritizePage.tsx`
+  - Two-panel layout: form (3/5 width) + live preview (2/5 width)
+  - Animated score ring dial (SVG, color changes per band)
+  - Cat 1 & 3: radio groups with correct locked values (0/2/5/8 and 0/1/3/4)
+  - Cat 2: checkbox flags, sum capped at 5, cap warning shown
+  - Cat 4: radio group 0/1/2
+  - Cat 5: single checkbox toggle
+  - Live score preview updates on every input change (no API call)
+  - Submit → POST /api/households → SuccessCard with score/band/EMK
+  - Form resets after submit; queue re-renders via key change
+  - Section C.8 worked example reference panel
+  - Full PriorityQueueTable embedded below
 
 **Updated files:**
-- `frontend/src/pages/PlaceholderPages.tsx` — `RoutingPage` placeholder removed
-- `frontend/src/App.tsx` — RoutingPage import switched to real component
+- `frontend/src/pages/PlaceholderPages.tsx` — PrioritizePage removed
+- `frontend/src/App.tsx` — imports real PrioritizePage
 
 ### Key decisions made this chat
-- Used CDN Leaflet (not npm) — avoids react-leaflet compatibility issues with Vite/React 19
-- Zone model: 3 zones per district (Zone A, Zone B, Zone C) — matches backend zone field
-- District polygons are approximations of HCMC flood-prone districts (Binh Thanh, Go Vap, District 8 areas)
-- No `react-leaflet` install required — pure vanilla Leaflet via CDN script injection
-- Depths initialized at 0 on load, then overwritten with live backend data
-- "Update Backend" is explicit (not auto-save) — avoids flooding the API on every slider move
-- Assumption #50: Each district has exactly 3 delivery zones (Zone A, Zone B, Zone C) for the purposes of this routing view. The backend zone field is a string so this assumption is compatible.
-
-### Install step required
-```bash
-# NO npm install needed — Leaflet loads from CDN
-# If you want types for development (optional):
-cd frontend && npm install --save-dev @types/leaflet
-```
+- Live scoring is entirely client-side — no `POST /api/score/household` call needed for preview
+- Submit still hits `POST /api/households` to persist the record and create audit trail
+- Queue refresh triggered by React key change (`queueRefreshKey`) after successful submit
+- `assignBand` and `recommendEmk` are exported from scoring.ts but only used internally by `scoreHousehold` — not called directly from the page (clean imports)
+- Assumption #51: Cat 2 flag labels are adapted for quick volunteer field use; they match Section C.5 criteria exactly
 
 ## Live URLs
-| Service  | URL |
+| Service | URL |
 |----------|-----|
 | Backend API | https://rema-medical-logistics.onrender.com |
 | Swagger docs | https://rema-medical-logistics.onrender.com/api/docs |
@@ -69,50 +61,34 @@ cd frontend && npm install --save-dev @types/leaflet
 | volunteer1@rema.vn | VOLUNTEER | District 1 |
 | viewer@rema.vn | VIEWER | — |
 
-## Next Chat Goal — Chat 11: Frontend V4 Prioritization Tool
+## Next Chat Goal — Chat 12: Frontend V7 Hub Manager Portal
 
-### What Chat 11 builds
-**Page:** `frontend/src/pages/PrioritizePage.tsx` (replaces placeholder)
+### What Chat 12 builds
+**Page:** `frontend/src/pages/HubPage.tsx` (replaces placeholder)
 
-**Two panels:**
-1. **Assessment Form** — 5 categories, correct valid values per Section C
-   - Cat 1: radio buttons → 0, 2, 5, 8 (with labels for each value)
-   - Cat 2: 0–5 slider (sum of flags, capped)
-   - Cat 3: radio buttons → 0, 1, 3, 4 (with labels)
-   - Cat 4: radio buttons → 0, 1, 2
-   - Cat 5: toggle → 0 or 1
-   - Live score preview as form fills (no API needed — compute locally using scoring logic)
-   - Score band badge (CRITICAL/HIGH/MEDIUM/STANDARD) updates in real time
-   - EMK recommendation badge updates in real time
-   - District selector + address field
-   - Submit → `POST /api/households` → creates household record
-   - Success: show score result, clear form
+**Tabbed layout — 5 tabs:**
 
-2. **Priority Queue Table** (already built as component — embed here with full-page width)
-   - District tab selector
-   - Band filter tabs with counts
-   - Full household rows
+1. **Stock** — EMK levels per sub-warehouse, dispatch form, adjustment form, movements log
+2. **Volunteers** — district roster, add volunteer form, assign to zone/team form
+3. **Deliveries** — start run form, active runs list (IN_PROGRESS), mark complete button
+4. **Incidents** — report form, open/escalated incidents list, resolve button
+5. **Radio** — check-in form (T0800/T1200/T1600/T2000 selector), today's compliance grid
 
-**API additions needed:**
-- `POST /api/score/household` — already in api layer as `householdsApi`
-- `POST /api/households` — need to add to `householdsApi`
+**Role gate:** HUB_MANAGER, EMERGENCY_COORDINATOR, SUPER_ADMIN
 
-### First steps for Chat 11
+**APIs used:**
+- Stock: `GET /api/stock/:districtId`, `POST /api/stock/dispatch`, `POST /api/stock/adjust`, `GET /api/stock/movements/:districtId`
+- Volunteers: `GET /api/volunteers/:districtId/roster`, `POST /api/volunteers`, `POST /api/volunteers/assign`
+- Deliveries: `POST /api/delivery/runs`, `GET /api/delivery/runs?districtId=X`, `PATCH /api/delivery/runs/:id/complete`
+- Incidents: `POST /api/incidents`, `GET /api/incidents?districtId=X`, `PATCH /api/incidents/:id/resolve`
+- Radio: `POST /api/radio/checkin`, `GET /api/radio/checkins?districtId=X&date=today`
+
+**Hub Manager sees only their own district. EC and SUPER_ADMIN get a district selector.**
+
+### First steps for Chat 12
 1. Read HANDOFF.md + PROJECT_SCOPE.md
-2. Add `create()` to `frontend/src/api/households.ts`
-3. Create scoring utility `frontend/src/utils/scoring.ts` (mirrors backend logic, no API call)
-4. Build `PrioritizePage.tsx` with two-panel layout
-5. Update `PlaceholderPages.tsx` — remove `PrioritizePage`
-6. Update `App.tsx` — import real `PrioritizePage`
-
-### Scoring logic to replicate client-side (from backend/src/utils/scoring.ts)
-```
-cat1: 8=medication run out, 5=low 1-2 days, 2=adequate, 0=none
-cat2: 0-5 (sum of flags: +2 infant, +2 pregnant, +2 elderly alone, +2 disabled — cap at 5)
-cat3: 4=water inside/unsafe, 3=doorstep, 1=street but not household, 0=dry
-cat4: 2=no clean water/food/sanitation, 1=partial, 0=adequate
-cat5: 1=completely isolated, 0=some contact
-
-Band: 15-20=CRITICAL, 10-14=HIGH, 5-9=MEDIUM, 0-4=STANDARD
-EMK: cat1>=5 → EMK3, cat2>=1 → EMK2, else → EMK1
-```
+2. Create `frontend/src/api/hub.ts` — typed wrappers for all 5 tab APIs
+3. Build `HubPage.tsx` with tab navigation
+4. Build each tab as a sub-component
+5. Update PlaceholderPages.tsx — remove HubPage
+6. Update App.tsx — import real HubPage

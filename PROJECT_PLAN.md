@@ -30,7 +30,7 @@
 | Chat 8 | Frontend: Auth + Dashboard Setup | ✅ Complete |
 | Chat 9 | Frontend: V1 Dashboard Data + Charts | ✅ Complete |
 | Chat 10 | Frontend: V2 Routing Map | ✅ Complete |
-| Chat 11 | Frontend: V4 Prioritization Tool | ⬜ Not started |
+| Chat 11 | Frontend: V4 Prioritization Tool | ✅ Complete |
 | Chat 12 | Frontend: V7 Hub Manager Portal | ⬜ Not started |
 | Chat 13 | Frontend: V8 Volunteer Mobile View | ⬜ Not started |
 | Chat 14 | Frontend: V9 User Management (SUPER_ADMIN) | ⬜ Not started |
@@ -235,18 +235,18 @@
 
 ---
 
-## CHAT 11 — Frontend: V4 Prioritization Tool ⬜ Not started
+## CHAT 11 — Frontend: V4 Prioritization Tool ✅ Complete
 
-- [ ] Assessment form (5 category sections)
-- [ ] Cat 1–5 inputs with correct valid values
-- [ ] Live score calculation as form fills
-- [ ] Score band result display with color
-- [ ] EMK type recommendation display
-- [ ] Connect to POST /api/score/household
-- [ ] Sortable household priority table
-- [ ] Connect to GET /api/households/priority-queue
-- [ ] Scarcity mode indicator
-- [ ] Deploy and verify scoring matches Section C
+- [x] Assessment form (5 category sections)
+- [x] Cat 1–5 inputs with correct valid values
+- [x] Live score calculation as form fills
+- [x] Score band result display with color
+- [x] EMK type recommendation display
+- [x] Connect to POST /api/score/household
+- [x] Sortable household priority table
+- [x] Connect to GET /api/households/priority-queue
+- [x] Scarcity mode indicator
+- [x] Deploy and verify scoring matches Section C
 
 ---
 
