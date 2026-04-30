@@ -23,16 +23,6 @@ function Placeholder({ title, chat, description }: PlaceholderProps) {
   );
 }
 
-export function PrioritizePage() {
-  return (
-    <Placeholder
-      title="Prioritization Tool"
-      chat="Chat 11"
-      description="20-point scoring form and sorted household priority queue."
-    />
-  );
-}
-
 export function HubPage() {
   return (
     <Placeholder
