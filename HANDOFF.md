@@ -1,46 +1,42 @@
 # REMA Handoff Document
-Last updated: Chat 11 complete
+Last updated: Chat 12 complete
 
 ## Current Chat Goal
-Chat 11 — Frontend V4 Prioritization Tool — COMPLETE
+Chat 12 — Frontend V7 Hub Manager Portal — COMPLETE
 
 ## What Was Completed This Chat
 
 ### New files created
 
-**Utility:**
-- `frontend/src/utils/scoring.ts` — Client-side scoring engine mirroring backend exactly
-  - `scoreHousehold()`, `computeCat2()`, `assignBand()`, `recommendEmk()`
-  - All option arrays with labels: `CAT1_OPTIONS`, `CAT2_FLAGS`, `CAT3_OPTIONS`, `CAT4_OPTIONS`
-  - Types: `ScoreInput`, `ScoreResult`, `PriorityBand`, `EmkRecommendation`, `Cat2FlagId`
-
 **API:**
-- `frontend/src/api/households.ts` — Added `create()` and `scoreOnly()` methods
+- `frontend/src/api/hub.ts` — typed wrappers for all 5 hub tab APIs
+  - Types: `StockLevel`, `StockMovement`, `Volunteer`, `DistrictRoster`, `DeliveryRun`, `Incident`, `RadioCheckin`
+  - Methods: `getDistrictStock`, `dispatch`, `adjust`, `getMovements`, `getRoster`, `createVolunteer`, `updateVolunteer`, `assignVolunteer`, `getDeliveryRuns`, `startRun`, `completeRun`, `abortRun`, `getIncidents`, `reportIncident`, `resolveIncident`, `getCheckins`, `submitCheckin`
 
 **New page:**
-- `frontend/src/pages/PrioritizePage.tsx`
-  - Two-panel layout: form (3/5 width) + live preview (2/5 width)
-  - Animated score ring dial (SVG, color changes per band)
-  - Cat 1 & 3: radio groups with correct locked values (0/2/5/8 and 0/1/3/4)
-  - Cat 2: checkbox flags, sum capped at 5, cap warning shown
-  - Cat 4: radio group 0/1/2
-  - Cat 5: single checkbox toggle
-  - Live score preview updates on every input change (no API call)
-  - Submit → POST /api/households → SuccessCard with score/band/EMK
-  - Form resets after submit; queue re-renders via key change
-  - Section C.8 worked example reference panel
-  - Full PriorityQueueTable embedded below
+- `frontend/src/pages/HubPage.tsx` — Full Hub Manager Portal
+  - Tab navigation: Stock | Volunteers | Deliveries | Incidents | Radio
+  - **Stock tab**: Live EMK1/2/3 levels with scarcity badges, dispatch form, manual adjustment form, audit log (last 50 movements)
+  - **Volunteers tab**: Roster summary cards, add volunteer form, assign to zone+team form (requires REMA activated), full roster table with status toggle
+  - **Deliveries tab**: Start delivery run form, active runs panel with complete/abort actions (abort requires reason), run history
+  - **Incidents tab**: Report form with all 5 incident types (VOLUNTEER_SAFETY auto-escalation noted), active incidents list with resolve button, resolved history
+  - **Radio tab**: Today's 4-slot compliance grid, submit check-in form (slot + status + notes), today's submission history
+  - District selector for EC/SUPER_ADMIN; HUB_MANAGER locked to own district
+  - Alert phase indicator in top bar
+  - Sub-warehouse warning if none found
 
 **Updated files:**
-- `frontend/src/pages/PlaceholderPages.tsx` — PrioritizePage removed
-- `frontend/src/App.tsx` — imports real PrioritizePage
+- `frontend/src/pages/PlaceholderPages.tsx` — HubPage removed; only VolunteerPage and UsersPage remain
+- `frontend/src/App.tsx` — imports real HubPage from `./pages/HubPage`
 
 ### Key decisions made this chat
-- Live scoring is entirely client-side — no `POST /api/score/household` call needed for preview
-- Submit still hits `POST /api/households` to persist the record and create audit trail
-- Queue refresh triggered by React key change (`queueRefreshKey`) after successful submit
-- `assignBand` and `recommendEmk` are exported from scoring.ts but only used internally by `scoreHousehold` — not called directly from the page (clean imports)
-- Assumption #51: Cat 2 flag labels are adapted for quick volunteer field use; they match Section C.5 criteria exactly
+- HUB_MANAGER is locked to `user.districtId` automatically; EC and SUPER_ADMIN get district selector buttons
+- Alert ID for volunteer assignment is fetched from `GET /api/alert/status` on load — if not activated, assignment form shows a warning instead of crashing
+- Abort run requires a reason field (enforced client-side before API call) per Section A.4
+- VOLUNTEER_SAFETY incidents show escalation note from backend response if `autoEscalated` is true
+- EMK-3 stock shows "MoH cold storage" note when total is 0 (not yet transferred)
+- Radio check-in slots already submitted today are visually marked "done" in both the compliance grid and the slot selector buttons
+- `subWarehouseId` is passed down from `selectedDistrict.subWarehouseId` — if null, dispatch/assign/start-run forms show a warning instead of erroring silently
 
 ## Live URLs
 | Service | URL |
@@ -61,34 +57,47 @@ Chat 11 — Frontend V4 Prioritization Tool — COMPLETE
 | volunteer1@rema.vn | VOLUNTEER | District 1 |
 | viewer@rema.vn | VIEWER | — |
 
-## Next Chat Goal — Chat 12: Frontend V7 Hub Manager Portal
+## Testing Sequence for Chat 12
 
-### What Chat 12 builds
-**Page:** `frontend/src/pages/HubPage.tsx` (replaces placeholder)
+1. Login as `hub1@rema.vn` → /hub
+2. **Stock tab**: Check EMK levels → try dispatch (need sub-warehouse ID) → try adjustment with reason → check audit log
+3. **Volunteers tab**: Add a volunteer → check roster table → try assign (requires activated alert)
+4. **Deliveries tab**: Start a run → mark complete → verify run appears in history
+5. **Incidents tab**: Report ROUTE_BLOCKED → report VOLUNTEER_SAFETY (auto-escalates) → resolve one
+6. **Radio tab**: Submit T0800 check-in as OK → verify slot turns green → submit T1200 as ISSUE_REPORTED with notes
+7. Login as `coordinator@rema.vn` → /hub → district selector visible → switch between districts
 
-**Tabbed layout — 5 tabs:**
+## Next Chat Goal — Chat 13: Frontend V8 Volunteer Mobile View
 
-1. **Stock** — EMK levels per sub-warehouse, dispatch form, adjustment form, movements log
-2. **Volunteers** — district roster, add volunteer form, assign to zone/team form
-3. **Deliveries** — start run form, active runs list (IN_PROGRESS), mark complete button
-4. **Incidents** — report form, open/escalated incidents list, resolve button
-5. **Radio** — check-in form (T0800/T1200/T1600/T2000 selector), today's compliance grid
+### What Chat 13 builds
+**Page:** `frontend/src/pages/VolunteerPage.tsx` (replaces placeholder)
 
-**Role gate:** HUB_MANAGER, EMERGENCY_COORDINATOR, SUPER_ADMIN
+**Mobile-optimized layout — 3 bottom-nav tabs:**
+
+1. **Assess** — 5-category household assessment form (reuses scoring utils), live score ring, submit creates household record
+2. **Deliver** — Priority queue for volunteer's district, record delivery receipt (POST /api/delivery/receipts) per household
+3. **Report** — Quick incident report form (5 types), confirmation screen
+
+**Design:**
+- Max width 480px centered, large touch targets (min 44px tap area)
+- Bottom navigation bar (fixed, 3 icons)
+- No sidebar — full-screen mobile experience
+- Uses existing scoring.ts utils for live preview
+- District inferred from `user.districtId` (VOLUNTEER role)
 
 **APIs used:**
-- Stock: `GET /api/stock/:districtId`, `POST /api/stock/dispatch`, `POST /api/stock/adjust`, `GET /api/stock/movements/:districtId`
-- Volunteers: `GET /api/volunteers/:districtId/roster`, `POST /api/volunteers`, `POST /api/volunteers/assign`
-- Deliveries: `POST /api/delivery/runs`, `GET /api/delivery/runs?districtId=X`, `PATCH /api/delivery/runs/:id/complete`
-- Incidents: `POST /api/incidents`, `GET /api/incidents?districtId=X`, `PATCH /api/incidents/:id/resolve`
-- Radio: `POST /api/radio/checkin`, `GET /api/radio/checkins?districtId=X&date=today`
+- `GET /api/households/priority-queue?districtId=X` — for Deliver tab
+- `POST /api/households` — for Assess tab (same as PrioritizePage)
+- `POST /api/delivery/receipts` — record individual household delivery
+- `GET /api/delivery/runs?districtId=X&status=IN_PROGRESS` — pick active run for receipts
+- `POST /api/incidents` — for Report tab
 
-**Hub Manager sees only their own district. EC and SUPER_ADMIN get a district selector.**
+**Role gate:** VOLUNTEER, HUB_MANAGER, SUPER_ADMIN (volunteers need access, HMs may use it too)
 
-### First steps for Chat 12
+### First steps for Chat 13
 1. Read HANDOFF.md + PROJECT_SCOPE.md
-2. Create `frontend/src/api/hub.ts` — typed wrappers for all 5 tab APIs
-3. Build `HubPage.tsx` with tab navigation
-4. Build each tab as a sub-component
-5. Update PlaceholderPages.tsx — remove HubPage
-6. Update App.tsx — import real HubPage
+2. Create `frontend/src/pages/VolunteerPage.tsx` with mobile layout
+3. Build 3 tab components: AssessTab, DeliverTab, ReportTab
+4. Update PlaceholderPages.tsx — remove VolunteerPage
+5. Update App.tsx — import real VolunteerPage
+6. Deploy and test on mobile browser width
