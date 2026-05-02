@@ -1,6 +1,5 @@
-// RoutingPage.tsx - V2 Fixed: circles instead of polygons, correct HCMC spread
-
-import { useState, useEffect, useCallback, useRef } from 'react';
+// RoutingPage.tsx - V3 Improved + TypeScript Fixed
+import { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { DashboardLayout } from '../components/DashboardLayout';
 import { routesApi } from '../api/routes';
 import type { RouteLog, DeliveryMode } from '../api/routes';
@@ -8,23 +7,28 @@ import { api } from '../api/client';
 import type { DistrictCard } from '../api/dashboard.types';
 
 const MODE_CONFIG: Record<DeliveryMode, {
-  label: string; color: string; bgColor: string; borderColor: string;
-  icon: string; depth: string; fillColor: string; opacity: number;
+  label: string;
+  color: string;
+  bgColor: string;
+  borderColor: string;
+  icon: string;
+  depth: string;
+  fillColor: string;
+  opacity: number;
 }> = {
-  MOTORBIKE:       { label: 'Motorbike',      color: 'text-accent-green',  bgColor: 'bg-accent-green/10',  borderColor: 'border-accent-green/30',  icon: '🏍', depth: '0–30 cm',  fillColor: '#3fb950', opacity: 0.35 },
+  MOTORBIKE: { label: 'Motorbike', color: 'text-accent-green', bgColor: 'bg-accent-green/10', borderColor: 'border-accent-green/30', icon: '🏍', depth: '0–30 cm', fillColor: '#3fb950', opacity: 0.35 },
   BICYCLE_OR_FOOT: { label: 'Bicycle / Foot', color: 'text-accent-yellow', bgColor: 'bg-accent-yellow/10', borderColor: 'border-accent-yellow/30', icon: '🚲', depth: '30–60 cm', fillColor: '#d29922', opacity: 0.45 },
-  BOAT:            { label: 'Boat',           color: 'text-accent-blue',   bgColor: 'bg-accent-blue/10',   borderColor: 'border-accent-blue/30',   icon: '⛵', depth: '60–80 cm', fillColor: '#58a6ff', opacity: 0.50 },
-  SUSPENDED:       { label: 'SUSPENDED',      color: 'text-accent-red',    bgColor: 'bg-accent-red/10',    borderColor: 'border-accent-red/30',    icon: '⛔', depth: '> 80 cm',  fillColor: '#f85149', opacity: 0.55 },
+  BOAT: { label: 'Boat', color: 'text-accent-blue', bgColor: 'bg-accent-blue/10', borderColor: 'border-accent-blue/30', icon: '⛵', depth: '60–80 cm', fillColor: '#58a6ff', opacity: 0.50 },
+  SUSPENDED: { label: 'SUSPENDED', color: 'text-accent-red', bgColor: 'bg-accent-red/10', borderColor: 'border-accent-red/30', icon: '⛔', depth: '> 80 cm', fillColor: '#f85149', opacity: 0.55 },
 };
 
-// Well-spread HCMC locations — clearly visible and distinct on the map
 const DISTRICT_CENTERS: Record<string, [number, number]> = {
-  'District 1': [10.820, 106.660],  // North-west (Go Vap / Binh Thanh area)
-  'District 2': [10.776, 106.703],  // Central HCMC urban core
-  'District 3': [10.735, 106.668],  // South (District 8 / Binh Chanh area)
+  'District 1': [10.820, 106.660],
+  'District 2': [10.776, 106.703],
+  'District 3': [10.735, 106.668],
 };
 
-const CIRCLE_RADIUS = 2500; // meters — large, clearly visible
+const CIRCLE_RADIUS = 2800;
 
 function depthToMode(depth: number): DeliveryMode {
   if (depth <= 30) return 'MOTORBIKE';
@@ -33,163 +37,199 @@ function depthToMode(depth: number): DeliveryMode {
   return 'SUSPENDED';
 }
 
-function DepthSlider({ label, value, onChange }: { label: string; value: number; onChange: (v: number) => void }) {
+function DepthSlider({ 
+  label, 
+  value, 
+  onChange 
+}: { 
+  label: string; 
+  value: number; 
+  onChange: (v: number) => void;
+}) {
   const mode = depthToMode(value);
   const cfg = MODE_CONFIG[mode];
-  const trackColor = value > 80 ? '#f85149' : value > 60 ? '#58a6ff' : value > 30 ? '#d29922' : '#3fb950';
+  const trackColor = cfg.fillColor;
 
   return (
-    <div className="bg-bg-elevated rounded-lg p-3">
-      <div className="flex items-center justify-between mb-2">
-        <span className="font-mono text-[10px] text-text-muted uppercase tracking-widest">{label}</span>
-        <span className={`font-mono text-[10px] font-semibold ${cfg.color}`}>{cfg.icon} {cfg.label}</span>
+    <div className="bg-bg-elevated rounded-xl p-4 border border-bg-border">
+      <div className="flex items-center justify-between mb-3">
+        <span className="font-mono text-xs text-text-muted uppercase tracking-widest">{label}</span>
+        <span className={`font-mono text-sm font-semibold flex items-center gap-1.5 ${cfg.color}`}>
+          {cfg.icon} {cfg.label}
+        </span>
       </div>
-      <div className="flex items-center gap-3">
-        <input type="range" min={0} max={120} step={5} value={value}
+
+      <div className="flex items-center gap-4">
+        <input
+          type="range"
+          min={0}
+          max={120}
+          step={5}
+          value={value}
           onChange={(e) => onChange(Number(e.target.value))}
-          className="flex-1 cursor-pointer" style={{ accentColor: trackColor }} />
-        <span className="font-mono text-sm text-text-primary w-14 text-right font-semibold">{value} cm</span>
+          className="flex-1 accent-slider"
+          style={{ accentColor: trackColor }}
+        />
+        <span className="font-mono text-lg font-semibold text-text-primary w-16 text-right tabular-nums">
+          {value}<span className="text-xs text-text-muted">cm</span>
+        </span>
       </div>
+
       {value > 80 && (
-        <p className="font-mono text-[9px] text-accent-red mt-1.5 animate-pulse-slow">
-          ⛔ Exceeds 80cm — delivery SUSPENDED per Section A.4
+        <p className="mt-3 text-xs text-accent-red font-medium flex items-center gap-1.5 bg-accent-red/10 px-3 py-1.5 rounded-lg">
+          ⛔ Exceeds 80cm — Delivery SUSPENDED (Section A.4)
         </p>
       )}
     </div>
   );
 }
 
-declare global {
-  interface Window { L: any; } // eslint-disable-line @typescript-eslint/no-explicit-any
-}
-
-function LeafletMap({ districts, zoneDepths, selectedDistrictId, onDistrictClick }: {
+function LeafletMap({
+  districts,
+  zoneDepths,
+  selectedDistrictId,
+  onDistrictClick,
+}: {
   districts: DistrictCard[];
   zoneDepths: Record<string, Record<string, number>>;
   selectedDistrictId: string | null;
   onDistrictClick: (districtId: string, districtName: string) => void;
 }) {
   const mapRef = useRef<HTMLDivElement>(null);
-  const leafletMapRef = useRef<any>(null); // eslint-disable-line @typescript-eslint/no-explicit-any
-  const layersRef = useRef<Record<string, any[]>>({}); // eslint-disable-line @typescript-eslint/no-explicit-any
+  const leafletMapRef = useRef<any>(null);
+  const layersRef = useRef<Record<string, any[]>>({});
 
-  // Init map once
   useEffect(() => {
     if (!mapRef.current || leafletMapRef.current) return;
-    const L = window.L;
-    const map = L.map(mapRef.current, { center: [10.776, 106.690], zoom: 12, zoomControl: true });
+
+    const L = (window as any).L;
+    if (!L) return;
+
+    const map = L.map(mapRef.current, {
+      center: [10.776, 106.690],
+      zoom: 12,
+      zoomControl: true,
+    });
+
     L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-      attribution: '© <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>',
-      maxZoom: 18,
+      attribution: '© OpenStreetMap',
+      maxZoom: 19,
     }).addTo(map);
+
     leafletMapRef.current = map;
-    return () => { map.remove(); leafletMapRef.current = null; layersRef.current = {}; };
+
+    return () => {
+      map.remove();
+      leafletMapRef.current = null;
+      layersRef.current = {};
+    };
   }, []);
 
-  // Redraw circles on data change
   useEffect(() => {
-    const L = window.L;
+    const L = (window as any).L;
     const map = leafletMapRef.current;
     if (!map || !L || districts.length === 0) return;
 
-    // Clear old layers
-    Object.values(layersRef.current).forEach(layers => layers.forEach(l => l.remove()));
+    Object.values(layersRef.current).forEach(layers => 
+      layers.forEach(layer => layer.remove())
+    );
     layersRef.current = {};
 
-    districts.forEach((d) => {
-      const center = DISTRICT_CENTERS[d.name];
+    districts.forEach((district: DistrictCard) => {
+      const center = DISTRICT_CENTERS[district.name];
       if (!center) return;
 
-      const depths = zoneDepths[d.name] ?? {};
+      const depths = zoneDepths[district.name] ?? {};
       const depthValues = Object.values(depths);
-      const avgDepth = depthValues.length > 0
-        ? Math.round(depthValues.reduce((a, b) => a + b, 0) / depthValues.length) : 0;
+      const avgDepth = depthValues.length
+        ? Math.round(depthValues.reduce((a, b) => a + b, 0) / depthValues.length)
+        : 0;
 
       const mode = depthToMode(avgDepth);
       const cfg = MODE_CONFIG[mode];
-      const isSelected = selectedDistrictId === d.districtId;
+      const isSelected = selectedDistrictId === district.districtId;
 
-      // Big colored circle
       const circle = L.circle(center, {
         radius: CIRCLE_RADIUS,
         color: isSelected ? '#ffffff' : cfg.fillColor,
-        weight: isSelected ? 3 : 2,
+        weight: isSelected ? 4 : 2.5,
         fillColor: cfg.fillColor,
         fillOpacity: cfg.opacity,
       }).addTo(map);
 
-      // Dashed outer ring when selected
-      let outerRing = null;
+      let outerRing: any = null;
       if (isSelected) {
         outerRing = L.circle(center, {
-          radius: CIRCLE_RADIUS + 400,
+          radius: CIRCLE_RADIUS + 450,
           color: '#ffffff',
-          weight: 1.5,
+          weight: 2,
           fillOpacity: 0,
-          dashArray: '6 5',
+          dashArray: '8 4',
         }).addTo(map);
       }
 
-      // Label inside circle
       const zoneLines = Object.entries(depths)
-        .map(([z, dep]) => `<span style="color:${MODE_CONFIG[depthToMode(dep)].fillColor}">${z}: ${dep}cm</span>`)
-        .join(' &nbsp;');
+        .map(([zone, dep]) => {
+          const m = MODE_CONFIG[depthToMode(dep)];
+          return `<span style="color:${m.fillColor}">${zone}: ${dep}cm</span>`;
+        })
+        .join(' • ');
 
       const labelHtml = `
-        <div style="
-          background: rgba(17,20,24,0.93);
-          border: 2px solid ${cfg.fillColor};
-          border-radius: 12px;
-          padding: 7px 13px;
-          font-family: 'JetBrains Mono', monospace;
-          white-space: nowrap;
-          cursor: pointer;
-          box-shadow: 0 2px 16px ${cfg.fillColor}44;
-          text-align: center;
-          min-width: 130px;
-        ">
-          <div style="font-size: 20px; line-height: 1.1;">${cfg.icon}</div>
-          <div style="color: #e6edf3; font-size: 12px; font-weight: 700; margin-top: 3px;">${d.name}</div>
-          <div style="color: ${cfg.fillColor}; font-size: 10px; margin-top: 1px;">${avgDepth}cm avg · ${cfg.label}</div>
-          <div style="font-size: 9px; margin-top: 3px; color: #8b949e;">${zoneLines}</div>
+        <div style="background:rgba(17,20,24,0.96);border:3px solid ${cfg.fillColor};border-radius:14px;padding:10px 16px;font-family:'JetBrains Mono',monospace;min-width:160px;box-shadow:0 10px 30px ${cfg.fillColor}40;">
+          <div style="font-size:26px;line-height:1;">${cfg.icon}</div>
+          <div style="color:#e6edf3;font-weight:700;margin:6px 0 2px;">${district.name}</div>
+          <div style="color:${cfg.fillColor};font-size:13px;">${avgDepth}cm • ${cfg.label}</div>
+          <div style="margin-top:8px;font-size:10px;color:#8b949e;line-height:1.4;">${zoneLines}</div>
         </div>`;
 
       const labelIcon = L.divIcon({
-        className: '',
+        className: 'custom-label',
         html: labelHtml,
-        iconAnchor: [65, 62],
-        iconSize: [130, 124],
+        iconSize: [170, 130],
+        iconAnchor: [85, 70],
       });
 
       const marker = L.marker(center, { icon: labelIcon }).addTo(map);
-      const clickHandler = () => onDistrictClick(d.districtId, d.name);
-      circle.on('click', clickHandler);
-      marker.on('click', clickHandler);
+      const handleClick = () => onDistrictClick(district.districtId, district.name);
 
-      layersRef.current[d.districtId] = [circle, marker, ...(outerRing ? [outerRing] : [])];
+      circle.on('click', handleClick);
+      marker.on('click', handleClick);
+
+      layersRef.current[district.districtId] = [circle, marker, ...(outerRing ? [outerRing] : [])];
     });
   }, [districts, zoneDepths, selectedDistrictId, onDistrictClick]);
 
-  return <div ref={mapRef} className="w-full h-full rounded-lg overflow-hidden" />;
+  return (
+    <div 
+      ref={mapRef} 
+      className="w-full h-full rounded-2xl overflow-hidden shadow-inner border border-bg-border"
+    />
+  );
 }
 
 function RouteLogRow({ log }: { log: RouteLog }) {
   const prevCfg = MODE_CONFIG[log.previousMode];
   const newCfg = MODE_CONFIG[log.newMode];
+
   return (
-    <div className="px-4 py-2.5 border-b border-bg-border last:border-0 hover:bg-bg-elevated/40 transition-colors">
-      <div className="flex items-start justify-between gap-2">
-        <div className="min-w-0 flex-1">
-          <p className="font-mono text-[10px] text-text-muted mb-0.5">
-            {log.route?.district?.name ?? '—'} · {log.route?.zone ?? '—'}
+    <div className="px-4 py-3 border-b border-bg-border last:border-0 hover:bg-bg-elevated/60 transition-colors">
+      <div className="flex justify-between items-start gap-3">
+        <div className="flex-1 min-w-0">
+          <p className="font-mono text-[10px] text-text-muted">
+            {log.route?.district?.name ?? '—'} • {log.route?.zone ?? '—'}
           </p>
-          <div className="flex items-center gap-1.5 flex-wrap">
-            <span className={`font-mono text-[10px] ${prevCfg.color}`}>{prevCfg.icon} {log.previousDepth}cm</span>
-            <span className="font-mono text-[10px] text-text-muted">→</span>
-            <span className={`font-mono text-[10px] font-semibold ${newCfg.color}`}>{newCfg.icon} {log.newDepth}cm · {newCfg.label}</span>
+          <div className="flex items-center gap-2 mt-1 flex-wrap">
+            <span className={`font-mono text-xs ${prevCfg.color}`}>
+              {prevCfg.icon} {log.previousDepth}cm
+            </span>
+            <span className="text-text-muted">→</span>
+            <span className={`font-mono text-xs font-semibold ${newCfg.color}`}>
+              {newCfg.icon} {log.newDepth}cm {newCfg.label}
+            </span>
           </div>
         </div>
-        <span className="font-mono text-[9px] text-text-muted flex-shrink-0">
+        <span className="font-mono text-[10px] text-text-muted whitespace-nowrap">
           {new Date(log.createdAt).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' })}
         </span>
       </div>
@@ -207,42 +247,65 @@ export function RoutingPage() {
   const [updateStatus, setUpdateStatus] = useState<Record<string, 'idle' | 'saving' | 'saved' | 'error'>>({});
   const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
   const [zoneDepths, setZoneDepths] = useState<Record<string, Record<string, number>>>({});
-  const ZONES = ['Zone A', 'Zone B', 'Zone C'];
 
+  const ZONES = ['Zone A', 'Zone B', 'Zone C'] as const;
+
+  // Load Leaflet
   useEffect(() => {
-    if (window.L) { setLeafletLoaded(true); return; }
+    if ((window as any).L) {
+      setLeafletLoaded(true);
+      return;
+    }
     const link = document.createElement('link');
     link.rel = 'stylesheet';
     link.href = 'https://unpkg.com/leaflet@1.9.4/dist/leaflet.css';
     document.head.appendChild(link);
+
     const script = document.createElement('script');
     script.src = 'https://unpkg.com/leaflet@1.9.4/dist/leaflet.js';
     script.onload = () => setLeafletLoaded(true);
     document.head.appendChild(script);
   }, []);
 
+  // Load districts
   useEffect(() => {
-    api.get('/api/dashboard/summary').then((res) => {
-      const d: DistrictCard[] = res.data.districts ?? [];
-      setDistricts(d);
-      const initial: Record<string, Record<string, number>> = {};
-      d.forEach((dist) => { initial[dist.name] = { 'Zone A': 0, 'Zone B': 0, 'Zone C': 0 }; });
-      setZoneDepths(initial);
-    }).catch(console.error);
+    api.get('/api/dashboard/summary')
+      .then((res) => {
+        const d: DistrictCard[] = res.data.districts ?? [];
+        setDistricts(d);
+
+        const initial: Record<string, Record<string, number>> = {};
+        d.forEach((dist: DistrictCard) => {
+          initial[dist.name] = { 'Zone A': 15, 'Zone B': 25, 'Zone C': 45 };
+        });
+        setZoneDepths(initial);
+      })
+      .catch(console.error);
   }, []);
 
+  // Load zone depths from routes
   useEffect(() => {
     if (districts.length === 0) return;
-    districts.forEach((d) => {
-      routesApi.getDistrictRoutes(d.districtId).then((routes) => {
-        if (routes.length === 0) return;
-        setZoneDepths(prev => {
-          const next = { ...prev };
-          if (!next[d.name]) next[d.name] = { 'Zone A': 0, 'Zone B': 0, 'Zone C': 0 };
-          routes.forEach(r => { next[d.name][r.zone] = r.waterDepthCm; });
-          return next;
+
+    const promises = districts.map((district: DistrictCard) =>
+      routesApi.getDistrictRoutes(district.districtId)
+        .then((routes) => ({ district, routes }))
+    );
+
+    Promise.all(promises).then((results) => {
+      setZoneDepths((prev) => {
+        const next = { ...prev };
+        results.forEach(({ district, routes }) => {
+          if (routes.length > 0) {
+            next[district.name] = {
+              'Zone A': routes.find(r => r.zone === 'Zone A')?.waterDepthCm ?? 15,
+              'Zone B': routes.find(r => r.zone === 'Zone B')?.waterDepthCm ?? 25,
+              'Zone C': routes.find(r => r.zone === 'Zone C')?.waterDepthCm ?? 45,
+            };
+          }
         });
-      }).catch(() => {});
+        return next;
+      });
     });
   }, [districts]);
 
@@ -251,10 +314,16 @@ export function RoutingPage() {
     try {
       const data = await routesApi.getLogs(selectedDistrictId ?? undefined);
       setLogs(data.slice(0, 30));
-    } catch { /* ignore */ } finally { setLogsLoading(false); }
+    } catch (err) {
+      console.error(err);
+    } finally {
+      setLogsLoading(false);
+    }
   }, [selectedDistrictId]);
 
-  useEffect(() => { fetchLogs(); }, [fetchLogs]);
+  useEffect(() => {
+    fetchLogs();
+  }, [fetchLogs]);
 
   const handleDistrictClick = useCallback((districtId: string, name: string) => {
     setSelectedDistrictId(prev => prev === districtId ? null : districtId);
@@ -262,205 +331,236 @@ export function RoutingPage() {
   }, []);
 
   const handleDepthChange = useCallback((districtName: string, zone: string, depth: number) => {
-    setZoneDepths(prev => ({ ...prev, [districtName]: { ...(prev[districtName] ?? {}), [zone]: depth } }));
+    setZoneDepths(prev => ({
+      ...prev,
+      [districtName]: { ...(prev[districtName] ?? {}), [zone]: depth }
+    }));
   }, []);
 
-  const handleSaveDepth = useCallback(async (districtId: string, districtName: string, zone: string, depth: number) => {
+  const handleSaveDepth = useCallback(async (
+    districtId: string,
+    districtName: string,
+    zone: string,
+    depth: number
+  ) => {
     const key = `${districtId}:${zone}`;
     setUpdateStatus(prev => ({ ...prev, [key]: 'saving' }));
+
     try {
       await routesApi.update({ districtId, zone, waterDepthCm: depth });
       setUpdateStatus(prev => ({ ...prev, [key]: 'saved' }));
       setLastUpdated(new Date());
       await fetchLogs();
-      setTimeout(() => setUpdateStatus(prev => ({ ...prev, [key]: 'idle' })), 2000);
+      setTimeout(() => setUpdateStatus(prev => ({ ...prev, [key]: 'idle' })), 1800);
     } catch {
       setUpdateStatus(prev => ({ ...prev, [key]: 'error' }));
-      setTimeout(() => setUpdateStatus(prev => ({ ...prev, [key]: 'idle' })), 3000);
+      setTimeout(() => setUpdateStatus(prev => ({ ...prev, [key]: 'idle' })), 2500);
     }
   }, [fetchLogs]);
 
-  const selectedDistrictDepths = selectedDistrictName ? (zoneDepths[selectedDistrictName] ?? {}) : {};
-  const anySuspended = districts.some(d => Object.values(zoneDepths[d.name] ?? {}).some(dep => dep > 80));
+  const selectedDistrictDepths = useMemo(() => 
+    selectedDistrictName ? (zoneDepths[selectedDistrictName] ?? {}) : {}, 
+    [selectedDistrictName, zoneDepths]
+  );
+
+  const anySuspended = useMemo(() => 
+    districts.some((d: DistrictCard) =>
+      Object.values(zoneDepths[d.name] ?? {}).some(dep => dep > 80)
+    ), 
+    [districts, zoneDepths]
+  );
 
   return (
     <DashboardLayout title="Routing Map" onRefresh={fetchLogs} lastUpdated={lastUpdated}>
       {anySuspended && (
-        <div className="mb-4 bg-accent-red/10 border border-accent-red/40 rounded-lg px-5 py-3 flex items-center gap-3 animate-slide-in">
-          <span className="text-xl flex-shrink-0">⛔</span>
+        <div className="mb-6 bg-gradient-to-r from-accent-red/10 to-transparent border border-accent-red/30 rounded-2xl px-6 py-4 flex gap-4">
+          <span className="text-3xl">⛔</span>
           <div>
-            <p className="font-mono text-sm font-semibold text-accent-red">DELIVERY SUSPENDED — Water depth exceeds 80cm</p>
-            <p className="font-mono text-[10px] text-accent-red/70 mt-0.5">All volunteer delivery halted in affected zones. Escalate to civil defense per Section A.4.</p>
+            <p className="font-semibold text-accent-red">DELIVERY SUSPENDED IN AFFECTED ZONES</p>
+            <p className="text-sm text-accent-red/80 mt-1">Water depth exceeds 80cm. Escalate to civil defense per Section A.4.</p>
           </div>
         </div>
       )}
 
-      <div className="grid grid-cols-1 xl:grid-cols-3 gap-5">
-        {/* LEFT: Map + district cards */}
-        <div className="xl:col-span-2 space-y-4">
-          <div className="card p-4">
-            <div className="flex items-center justify-between mb-3 flex-wrap gap-2">
+      <div className="grid grid-cols-1 xl:grid-cols-12 gap-6">
+        {/* Left Side - Map + Cards */}
+        <div className="xl:col-span-8 space-y-6">
+          <div className="card p-6">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-5">
               <div>
-                <h2 className="font-sans font-bold text-text-primary">Ho Chi Minh City — Affected Districts</h2>
-                <p className="font-mono text-[10px] text-text-muted mt-0.5">Click a circle to select · Colors show delivery mode</p>
+                <h2 className="text-xl font-bold">Ho Chi Minh City — Flood Routing</h2>
+                <p className="text-sm text-text-muted">Click districts to adjust water depth</p>
               </div>
-              <div className="flex items-center gap-3 flex-wrap">
-                {(Object.keys(MODE_CONFIG) as DeliveryMode[]).map(mode => {
-                  const cfg = MODE_CONFIG[mode];
-                  return (
-                    <div key={mode} className="flex items-center gap-1.5">
-                      <span className="w-3 h-3 rounded-full inline-block flex-shrink-0" style={{ background: cfg.fillColor, opacity: 0.85 }} />
-                      <span className={`font-mono text-[9px] ${cfg.color}`}>{cfg.depth}</span>
-                    </div>
-                  );
-                })}
+
+              <div className="flex flex-wrap gap-x-6 gap-y-2 text-sm">
+                {Object.values(MODE_CONFIG).map((cfg) => (
+                  <div key={cfg.label} className="flex items-center gap-2">
+                    <div className="w-3.5 h-3.5 rounded-full" style={{ backgroundColor: cfg.fillColor }} />
+                    <span className="font-mono text-xs text-text-muted">{cfg.depth}</span>
+                  </div>
+                ))}
               </div>
             </div>
-            <div className="relative rounded-lg overflow-hidden" style={{ height: 420 }}>
+
+            <div className="relative h-[460px] rounded-2xl overflow-hidden border border-bg-border">
               {leafletLoaded ? (
-                <LeafletMap districts={districts} zoneDepths={zoneDepths} selectedDistrictId={selectedDistrictId} onDistrictClick={handleDistrictClick} />
+                <LeafletMap
+                  districts={districts}
+                  zoneDepths={zoneDepths}
+                  selectedDistrictId={selectedDistrictId}
+                  onDistrictClick={handleDistrictClick}
+                />
               ) : (
-                <div className="w-full h-full bg-bg-elevated flex items-center justify-center rounded-lg">
-                  <p className="font-mono text-sm text-text-muted animate-pulse">Loading map...</p>
+                <div className="absolute inset-0 flex items-center justify-center bg-bg-elevated">
+                  <p className="font-mono text-text-muted">Loading interactive map...</p>
                 </div>
               )}
             </div>
           </div>
 
-          {/* District cards */}
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-            {districts.map((d) => {
+          {/* District Cards */}
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+            {districts.map((d: DistrictCard) => {
               const depths = zoneDepths[d.name] ?? {};
               const depthValues = Object.values(depths);
-              const avgDepth = depthValues.length > 0 ? Math.round(depthValues.reduce((a, b) => a + b, 0) / depthValues.length) : 0;
+              const avgDepth = depthValues.length
+                ? Math.round(depthValues.reduce((a, b) => a + b, 0) / depthValues.length)
+                : 0;
               const mode = depthToMode(avgDepth);
               const cfg = MODE_CONFIG[mode];
               const isSelected = selectedDistrictId === d.districtId;
+
               return (
-                <button key={d.districtId} onClick={() => handleDistrictClick(d.districtId, d.name)}
-                  className={`card p-4 text-left transition-all duration-150 hover:border-text-muted/30 w-full ${isSelected ? 'border-accent-blue/50 bg-accent-blue/5' : ''}`}>
-                  <div className="flex items-center justify-between mb-2">
-                    <h3 className="font-sans font-bold text-text-primary text-sm">{d.name}</h3>
-                    <div className="w-8 h-8 rounded-full flex items-center justify-center text-base"
-                      style={{ background: cfg.fillColor + '33', border: `2px solid ${cfg.fillColor}` }}>
+                <button
+                  key={d.districtId}
+                  onClick={() => handleDistrictClick(d.districtId, d.name)}
+                  className={`card p-5 text-left transition-all hover:scale-[1.015] ${
+                    isSelected ? 'ring-2 ring-accent-blue/70 bg-accent-blue/5' : ''
+                  }`}
+                >
+                  <div className="flex justify-between items-start">
+                    <h3 className="font-bold text-lg">{d.name}</h3>
+                    <div
+                      className="w-10 h-10 rounded-2xl flex items-center justify-center text-2xl shadow-inner"
+                      style={{ backgroundColor: cfg.fillColor + '22', border: `2px solid ${cfg.fillColor}` }}
+                    >
                       {cfg.icon}
                     </div>
                   </div>
-                  <div className={`inline-block font-mono text-[10px] px-2 py-0.5 rounded border mb-2 ${cfg.bgColor} ${cfg.borderColor} ${cfg.color}`}>
-                    {cfg.label} · avg {avgDepth}cm
+
+                  <div className={`inline-flex items-center gap-2 mt-3 mb-4 px-3 py-1 rounded-full text-xs font-medium ${cfg.bgColor} ${cfg.borderColor} ${cfg.color}`}>
+                    {cfg.label} • {avgDepth}cm
                   </div>
-                  <div className="space-y-0.5">
-                    {ZONES.map(zone => {
-                      const zDepth = depths[zone] ?? 0;
-                      const zCfg = MODE_CONFIG[depthToMode(zDepth)];
+
+                  <div className="space-y-2 text-sm">
+                    {ZONES.map((zone) => {
+                      const depth = depths[zone] ?? 0;
+                      const zCfg = MODE_CONFIG[depthToMode(depth)];
                       return (
-                        <div key={zone} className="flex justify-between items-center">
-                          <span className="font-mono text-[9px] text-text-muted">{zone}</span>
-                          <span className={`font-mono text-[9px] font-semibold ${zCfg.color}`}>{zDepth}cm</span>
+                        <div key={zone} className="flex justify-between">
+                          <span className="text-text-muted">{zone}</span>
+                          <span className={`font-semibold ${zCfg.color}`}>{depth}cm</span>
                         </div>
                       );
                     })}
                   </div>
-                  {isSelected && <p className="font-mono text-[9px] text-accent-blue mt-2">● Selected — edit zones →</p>}
                 </button>
               );
             })}
           </div>
         </div>
 
-        {/* RIGHT: Controls */}
-        <div className="space-y-4">
-          <div className="card p-5">
-            <div className="mb-4">
-              <h2 className="font-sans font-bold text-text-primary">Zone Water Depth</h2>
-              <p className="font-mono text-[10px] text-text-muted mt-0.5">{selectedDistrictName ?? 'Select a district'}</p>
-            </div>
+        {/* Right Sidebar */}
+        <div className="xl:col-span-4 space-y-6">
+          {/* Zone Controls */}
+          <div className="card p-6">
+            <h2 className="font-bold mb-1">Zone Water Depth</h2>
+            <p className="text-sm text-text-muted mb-6">
+              {selectedDistrictName ?? 'Select a district on the map'}
+            </p>
+
             {!selectedDistrictName ? (
-              <div className="bg-bg-elevated rounded-lg p-6 text-center">
-                <p className="text-3xl mb-3">🗺</p>
-                <p className="font-mono text-xs text-text-muted leading-relaxed">Click a district circle on the map or a card below to edit water depths</p>
+              <div className="bg-bg-elevated rounded-2xl py-16 text-center">
+                <div className="text-5xl mb-4 opacity-40">🗺️</div>
+                <p className="text-text-muted">Select a district to adjust depths</p>
               </div>
             ) : (
-              <div className="space-y-3">
-                {ZONES.map(zone => {
+              <div className="space-y-4">
+                {ZONES.map((zone) => {
                   const depth = selectedDistrictDepths[zone] ?? 0;
                   const key = `${selectedDistrictId}:${zone}`;
                   const status = updateStatus[key] ?? 'idle';
+
                   return (
                     <div key={zone}>
-                      <DepthSlider label={zone} value={depth} onChange={(v) => handleDepthChange(selectedDistrictName!, zone, v)} />
-                      <div className="flex justify-end mt-1.5">
-                        <button onClick={() => handleSaveDepth(selectedDistrictId!, selectedDistrictName!, zone, depth)}
+                      <DepthSlider
+                        label={zone}
+                        value={depth}
+                        onChange={(v) => handleDepthChange(selectedDistrictName!, zone, v)}
+                      />
+                      <div className="flex justify-end mt-2">
+                        <button
+                          onClick={() => handleSaveDepth(selectedDistrictId!, selectedDistrictName!, zone, depth)}
                           disabled={status === 'saving'}
-                          className={`font-mono text-[10px] px-3 py-1 rounded border transition-all duration-150 ${
-                            status === 'saved'   ? 'text-accent-green border-accent-green/40 bg-accent-green/10' :
-                            status === 'error'   ? 'text-accent-red border-accent-red/40 bg-accent-red/10' :
-                            status === 'saving'  ? 'text-text-muted border-bg-border animate-pulse' :
-                            'text-text-secondary border-bg-border hover:text-text-primary hover:border-text-muted'}`}>
-                          {status === 'saving' ? 'Saving...' : status === 'saved' ? '✓ Saved' : status === 'error' ? '✗ Error' : 'Save to Backend'}
+                          className={`px-5 py-2 text-xs font-mono rounded-xl border transition-all ${
+                            status === 'saved' ? 'bg-accent-green/10 border-accent-green text-accent-green' :
+                            status === 'error' ? 'bg-accent-red/10 border-accent-red text-accent-red' :
+                            status === 'saving' ? 'bg-bg-border text-text-muted' :
+                            'hover:bg-bg-elevated border-bg-border hover:border-text-muted'
+                          }`}
+                        >
+                          {status === 'saving' ? 'Saving...' :
+                           status === 'saved' ? '✓ Saved' :
+                           status === 'error' ? '✗ Failed' : 'Save to Backend'}
                         </button>
                       </div>
                     </div>
                   );
                 })}
-                <div className="pt-3 border-t border-bg-border">
-                  <p className="font-mono text-[10px] text-text-muted uppercase tracking-widest mb-2">Current Modes</p>
-                  {ZONES.map(zone => {
-                    const depth = selectedDistrictDepths[zone] ?? 0;
-                    const cfg = MODE_CONFIG[depthToMode(depth)];
-                    return (
-                      <div key={zone} className={`flex items-center justify-between px-3 py-1.5 rounded mb-1 border ${cfg.bgColor} ${cfg.borderColor}`}>
-                        <span className="font-mono text-[10px] text-text-secondary">{zone}</span>
-                        <div className="flex items-center gap-1.5">
-                          <span>{cfg.icon}</span>
-                          <span className={`font-mono text-[10px] font-semibold ${cfg.color}`}>{cfg.label}</span>
-                        </div>
-                      </div>
-                    );
-                  })}
-                </div>
               </div>
             )}
           </div>
 
-          <div className="card p-4">
-            <h3 className="font-mono text-[10px] text-text-muted uppercase tracking-widest mb-3">Section A.4 — Delivery Tiers (Locked)</h3>
-            <div className="space-y-1.5">
-              {(Object.keys(MODE_CONFIG) as DeliveryMode[]).map(mode => {
-                const cfg = MODE_CONFIG[mode];
-                return (
-                  <div key={mode} className={`flex items-center justify-between px-3 py-2 rounded border ${cfg.bgColor} ${cfg.borderColor}`}>
-                    <div className="flex items-center gap-2">
-                      <span className="w-3 h-3 rounded-full flex-shrink-0" style={{ background: cfg.fillColor }} />
-                      <span>{cfg.icon}</span>
-                      <span className={`font-mono text-[10px] font-semibold ${cfg.color}`}>{cfg.label}</span>
-                    </div>
-                    <span className="font-mono text-[9px] text-text-muted">{cfg.depth}</span>
+          {/* Delivery Tiers */}
+          <div className="card p-6">
+            <h3 className="font-mono uppercase text-xs tracking-widest text-text-muted mb-4">Section A.4 — Delivery Tiers</h3>
+            <div className="space-y-3">
+              {Object.values(MODE_CONFIG).map((cfg) => (
+                <div
+                  key={cfg.label}
+                  className={`flex items-center justify-between px-4 py-3 rounded-2xl border ${cfg.bgColor} ${cfg.borderColor}`}
+                >
+                  <div className="flex items-center gap-3">
+                    <span className="text-xl">{cfg.icon}</span>
+                    <span className={`font-medium ${cfg.color}`}>{cfg.label}</span>
                   </div>
-                );
-              })}
+                  <span className="font-mono text-xs text-text-muted">{cfg.depth}</span>
+                </div>
+              ))}
             </div>
-            <p className="font-mono text-[9px] text-text-muted mt-3 leading-relaxed">Above 80cm: halt all delivery, escalate to civil defense. No exceptions.</p>
           </div>
 
-          <div className="card">
-            <div className="px-4 py-3 border-b border-bg-border flex items-center justify-between">
-              <h3 className="font-sans font-bold text-text-primary text-sm">Route Change Log</h3>
-              <button onClick={fetchLogs} className="font-mono text-[10px] text-text-muted hover:text-text-primary transition-colors">↻ refresh</button>
+          {/* Route Change Log */}
+          <div className="card overflow-hidden">
+            <div className="px-6 py-4 border-b border-bg-border flex items-center justify-between">
+              <h3 className="font-semibold">Route Change Log</h3>
+              <button onClick={fetchLogs} className="text-xs text-text-muted hover:text-text-primary transition-colors">
+                ↻ Refresh
+              </button>
             </div>
+
             {logsLoading ? (
-              <div>{[...Array(3)].map((_, i) => (
-                <div key={i} className="px-4 py-3 border-b border-bg-border">
-                  <div className="h-3 bg-bg-elevated rounded animate-pulse mb-1.5 w-3/4" />
-                  <div className="h-3 bg-bg-elevated rounded animate-pulse w-1/2" />
-                </div>
-              ))}</div>
+              <div className="p-6 space-y-4">
+                {[...Array(4)].map((_, i) => (
+                  <div key={i} className="h-14 bg-bg-elevated rounded-xl animate-pulse" />
+                ))}
+              </div>
             ) : logs.length === 0 ? (
-              <div className="px-4 py-6 text-center">
-                <p className="font-mono text-xs text-text-muted leading-relaxed">No route changes yet. Select a district, adjust depth, and click "Save to Backend".</p>
+              <div className="p-10 text-center text-text-muted text-sm">
+                No changes recorded yet.
               </div>
             ) : (
-              <div className="max-h-64 overflow-y-auto">
+              <div className="max-h-[380px] overflow-y-auto">
                 {logs.map((log) => <RouteLogRow key={log.id} log={log} />)}
               </div>
             )}
