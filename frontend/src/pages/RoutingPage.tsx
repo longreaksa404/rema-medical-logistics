@@ -373,11 +373,11 @@ export function RoutingPage() {
   return (
     <DashboardLayout title="Routing Map" onRefresh={fetchLogs} lastUpdated={lastUpdated}>
       {anySuspended && (
-        <div className="mb-6 bg-gradient-to-r from-accent-red/10 to-transparent border border-accent-red/30 rounded-2xl px-6 py-4 flex gap-4">
-          <span className="text-3xl">⛔</span>
+        <div className="mb-6 bg-gradient-to-r from-accent-red/10 to-transparent border border-accent-red/30 rounded-2xl px-6 py-2 flex gap-4">
+          <span className="text-2xl">⛔</span>
           <div>
             <p className="font-semibold text-accent-red">DELIVERY SUSPENDED IN AFFECTED ZONES</p>
-            <p className="text-sm text-accent-red/80 mt-1">Water depth exceeds 80cm. Escalate to civil defense per Section A.4.</p>
+            <p className="text-sm text-accent-red/80 mt-1">Water depth exceeds 80cm. Escalate to civil defense</p>
           </div>
         </div>
       )}
@@ -528,7 +528,7 @@ export function RoutingPage() {
               {Object.values(MODE_CONFIG).map((cfg) => (
                 <div
                   key={cfg.label}
-                  className={`flex items-center justify-between px-4 py-3 rounded-2xl border ${cfg.bgColor} ${cfg.borderColor}`}
+                  className={`flex items-center justify-between px-4 py-2.5 rounded-xl border ${cfg.bgColor} ${cfg.borderColor}`}
                 >
                   <div className="flex items-center gap-3">
                     <span className="text-xl">{cfg.icon}</span>
