@@ -23,16 +23,6 @@ function Placeholder({ title, chat, description }: PlaceholderProps) {
   );
 }
 
-export function HubPage() {
-  return (
-    <Placeholder
-      title="Hub Manager Portal"
-      chat="Chat 12"
-      description="Per-district: stock, volunteers, delivery runs, incidents, radio check-ins."
-    />
-  );
-}
-
 export function VolunteerPage() {
   return (
     <Placeholder
