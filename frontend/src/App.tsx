@@ -7,8 +7,8 @@ import { DashboardPage } from './pages/DashboardPage';
 import { ChangePasswordPage } from './pages/ChangePasswordPage';
 import { RoutingPage } from './pages/RoutingPage';
 import { PrioritizePage } from './pages/PrioritizePage';
+import { HubPage } from './pages/HubPage';
 import {
-  HubPage,
   VolunteerPage,
   UsersPage,
 } from './pages/PlaceholderPages';
