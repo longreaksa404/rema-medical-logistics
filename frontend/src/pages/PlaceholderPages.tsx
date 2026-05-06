@@ -1,34 +1,35 @@
+// PlaceholderPages.tsx
+// All real pages now have their own files.
+// This file is kept for any future pages not yet built.
+
 import { DashboardLayout } from '../components/DashboardLayout';
 
-interface PlaceholderProps {
-  title: string;
-  chat: string;
-  description: string;
-}
-
-function Placeholder({ title, chat, description }: PlaceholderProps) {
+export function WarehouseLayoutPage() {
   return (
-    <DashboardLayout title={title}>
-      <div className="max-w-lg">
-        <div className="card p-8 text-center">
-          <p className="font-mono text-4xl text-text-muted mb-4">⬡</p>
-          <h2 className="font-sans font-bold text-text-primary text-xl mb-2">{title}</h2>
-          <p className="font-mono text-xs text-text-muted mb-4">{description}</p>
-          <span className="inline-block font-mono text-[10px] text-accent-blue bg-accent-blue/10 px-3 py-1.5 rounded border border-accent-blue/20">
-            Coming in {chat}
-          </span>
-        </div>
+    <DashboardLayout title="Warehouse Layout (V3)">
+      <div className="py-20 text-center">
+        <p className="font-mono text-sm text-text-muted">Coming soon — draw.io warehouse diagrams (Chat 15)</p>
       </div>
     </DashboardLayout>
   );
 }
 
-export function UsersPage() {
+export function StakeholderFlowchartPage() {
   return (
-    <Placeholder
-      title="User Management"
-      chat="Chat 14"
-      description="Create, deactivate, and reset passwords for system users."
-    />
+    <DashboardLayout title="Stakeholder Flowchart (V5)">
+      <div className="py-20 text-center">
+        <p className="font-mono text-sm text-text-muted">Coming soon — swimlane coordination diagram (Chat 16)</p>
+      </div>
+    </DashboardLayout>
+  );
+}
+
+export function OperatingProtocolPage() {
+  return (
+    <DashboardLayout title="Operating Protocol (V6)">
+      <div className="py-20 text-center">
+        <p className="font-mono text-sm text-text-muted">Coming soon — activation checklist PDF (Chat 17)</p>
+      </div>
+    </DashboardLayout>
   );
 }
