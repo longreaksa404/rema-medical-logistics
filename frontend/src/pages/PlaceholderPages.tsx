@@ -23,16 +23,6 @@ function Placeholder({ title, chat, description }: PlaceholderProps) {
   );
 }
 
-export function VolunteerPage() {
-  return (
-    <Placeholder
-      title="Volunteer Mobile View"
-      chat="Chat 13"
-      description="Mobile-optimized assessment, delivery receipt, and incident reporting."
-    />
-  );
-}
-
 export function UsersPage() {
   return (
     <Placeholder
