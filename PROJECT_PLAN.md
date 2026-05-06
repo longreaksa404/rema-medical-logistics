@@ -34,7 +34,7 @@
 | Chat 12 | Frontend: V7 Hub Manager Portal | ✅ Complete |
 | Chat 13 | Frontend: V8 Volunteer Mobile View | ✅ Complete |
 | Chat 14 | Frontend: V9 User Management (SUPER_ADMIN) | ✅ Complete |
-| Chat 15 | V3 Warehouse Layout (draw.io) | ⬜ Not started |
+| Chat 15 | V3 Warehouse Layout (draw.io) | ✅ Complete |
 | Chat 16 | V5 Stakeholder Flowchart (draw.io) | ⬜ Not started |
 | Chat 17 | V6 Operating Protocol (PDF) | ⬜ Not started |
 | Chat 18 | Final Assembly + Submission Package | ⬜ Not started |
@@ -286,13 +286,13 @@
 
 ---
 
-## CHAT 15 — V3 Warehouse Layout (draw.io) ⬜ Not started
+## CHAT 15 — V3 Warehouse Layout (draw.io) ✅ Complete
 
-- [ ] Central warehouse floor plan (~200–250 sqm)
-- [ ] Sub-warehouse floor plan (~40–60 sqm)
-- [ ] Stock zone labels and capacity numbers
-- [ ] Export as PNG + SVG
-- [ ] Save to sections/visuals/V3-warehouse-layout.png
+- [x] Central warehouse floor plan (~200–250 sqm)
+- [x] Sub-warehouse floor plan (~40–60 sqm)
+- [x] Stock zone labels and capacity numbers
+- [x] Export as PNG + SVG
+- [x] Save to sections/visuals/V3-warehouse-layout.png
 
 ---
 

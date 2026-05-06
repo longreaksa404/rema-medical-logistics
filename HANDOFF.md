@@ -1,34 +1,49 @@
 # REMA Handoff Document
-Last updated: Chat 14 complete
+Last updated: Chat 15 complete
 
 ## Current Chat Goal
-Chat 14 — Frontend V9 User Management — COMPLETE
+Chat 15 — V3 Warehouse Layout (draw.io) — COMPLETE
 
 ## What Was Completed This Chat
 
-### New / updated files
-- `frontend/src/pages/UsersPage.tsx` — NEW. Full User Management for SUPER_ADMIN only
-  - Stats row: total, active, inactive, per-role counts
-  - Toolbar: role filter, active/inactive filter, name/email/district search, "+ New User" toggle
-  - Create User panel: name, email, role (4 creatable roles), conditional district
-    (HUB_MANAGER/VOLUNTEER), temp password with show/hide. POST /api/users
-  - Edit User panel: inline above table. Name, email, role, district, active toggle
-    (self-deactivation blocked), password reset section (admin override)
-  - User table: role badge (color-coded), district, ACTIVE/INACTIVE, created date
-  - SUPER_ADMIN rows: no Edit button
-  - Inactive rows: 50% opacity
-  - Table footer: "accounts deactivated, never deleted"
-- `frontend/src/App.tsx` — UPDATED. Imports real UsersPage + correct filenames
-  (RoutingPage, PrioritizePage matching actual project structure)
-- `frontend/src/pages/PlaceholderPages.tsx` — UPDATED. UsersPage removed,
-  only V3/V5/V6 placeholders remain
+### Deliverables produced
+- `V3-central-warehouse.drawio` — Full XML provided, ready to import
+  - Outer warehouse wall with title block
+  - EMK-1 Zone (green) with 6 pallets
+  - EMK-2 Zone (yellow) with 4 pallets
+  - EMK-3 Staging Zone (red dashed) — cold chain warning box
+  - 30% Reserve Zone (purple) with 4 pallets
+  - Management Area (top-right)
+  - Dispatch Staging Area (bottom, full width)
+  - Loading Dock / Truck Bay
+  - Arrows: Reserve → Dispatch → Loading Dock → Sub-Warehouses
+  - Legend + Title Block
+- `V3-sub-warehouse.drawio` — Full XML provided, ready to import
+  - Outer sub-warehouse wall with title block
+  - EMK-1 Zone (green) with 4 pallets
+  - EMK-2 Zone (yellow) with 3 pallets
+  - EMK-3 Temp Zone (red dashed) — cold box, no overnight storage rule
+  - Volunteer Check-in Station (blue)
+  - Comms + Map Point (purple)
+  - Entrance arrow + truck access label
+  - Physical Storage Standards box (yellow)
+  - Delivery Team Structure box (grey)
+  - Legend
 
 ### Key decisions made this chat
-- Folder structure confirmed: PrioritizePage.tsx and RoutingPage.tsx (not PrioritizationPage / RoutingMapPage)
-- UsersPage renders inside AppShell (desktop layout, not fullscreen mobile)
-- Edit panel opens inline above table, not a modal
-- District selector conditional on role (HUB_MANAGER / VOLUNTEER only)
-- SUPER_ADMIN rows read-only in UI (backend enforces same rule)
+- Both diagrams built in draw.io (not React SVG) as requested
+- Two separate XML files — can be combined into one .drawio file with two page tabs
+- Export target: PNG at 150% scale, white background, 20px border
+- Save to: `sections/visuals/` and `frontend/public/visuals/`
+- Frontend embed code provided for WarehouseLayoutPage.tsx
+
+### Files to create/update after this chat
+- `sections/visuals/V3-central-warehouse.png` — export from draw.io
+- `sections/visuals/V3-sub-warehouse.png` — export from draw.io
+- `sections/visuals/V3-warehouse-layout.drawio` — source file
+- `frontend/public/visuals/V3-central-warehouse.png` — copy for frontend
+- `frontend/public/visuals/V3-sub-warehouse.png` — copy for frontend
+- `frontend/src/pages/WarehouseLayoutPage.tsx` — replace placeholder with embed code
 
 ## Live URLs
 | Service | URL |
@@ -49,21 +64,22 @@ Chat 14 — Frontend V9 User Management — COMPLETE
 | volunteer1@rema.vn | VOLUNTEER | District 1 |
 | viewer@rema.vn | VIEWER | — |
 
-## Next Chat Goal — Chat 15: V3 Warehouse Layout (draw.io / SVG)
+## Next Chat Goal — Chat 16: V5 Stakeholder Flowchart (draw.io)
 
-### What Chat 15 builds
-Two floor plan diagrams embedded in the frontend WarehouseLayoutPage:
-1. Central warehouse (~200–250 sqm) — pallet zones by EMK type, 30% reserve area,
-   dispatch staging, manifest table
-2. Sub-warehouse (~40–60 sqm) — raised pallets, EMK zones, volunteer check-in,
-   radio/comms point, printed map on wall
+### What Chat 16 builds
+One swimlane flowchart showing how all 5 actor groups coordinate
+across Phase 0, Phase 1, and Phase 2:
+1. Red Cross Operations Center
+2. Hub Managers
+3. Volunteers
+4. Local Authorities (Ward People's Committees + Civil Defense)
+5. Logistics Partners (trucks, boats, pharmacy distributors)
 
-Options: draw.io export (PNG/SVG) embedded in React, OR React SVG component built inline.
-React SVG component is more portable for the submission (no file hosting needed).
+Includes decision diamonds, information flow arrows, escalation paths,
+and coordination failure triggers. Full XML for draw.io import.
 
-### First steps for Chat 15
-1. Read HANDOFF.md + PROJECT_SCOPE.md + section-B-logistics-model.md
-2. Confirm approach: React SVG component (recommended) vs draw.io PNG embed
-3. Build both floor plans as SVG inside WarehouseLayoutPage
-4. Replace placeholder in PlaceholderPages (or make standalone WarehousePage.tsx)
-5. Deploy and verify
+### First steps for Chat 16
+1. Read HANDOFF.md + PROJECT_SCOPE.md + section-D-coordination-model.md
+2. Read section-A-response-design.md for phase timing
+3. Produce full draw.io XML for V5 swimlane diagram
+4. Guide export + frontend embed into StakeholderPage.tsx
