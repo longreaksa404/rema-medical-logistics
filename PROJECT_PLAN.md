@@ -32,7 +32,7 @@
 | Chat 10 | Frontend: V2 Routing Map | ✅ Complete |
 | Chat 11 | Frontend: V4 Prioritization Tool | ✅ Complete |
 | Chat 12 | Frontend: V7 Hub Manager Portal | ✅ Complete |
-| Chat 13 | Frontend: V8 Volunteer Mobile View | ⬜ Not started |
+| Chat 13 | Frontend: V8 Volunteer Mobile View | ✅ Complete |
 | Chat 14 | Frontend: V9 User Management (SUPER_ADMIN) | ⬜ Not started |
 | Chat 15 | V3 Warehouse Layout (draw.io) | ⬜ Not started |
 | Chat 16 | V5 Stakeholder Flowchart (draw.io) | ⬜ Not started |
@@ -263,15 +263,15 @@
 
 ---
 
-## CHAT 13 — Frontend: V8 Volunteer Mobile View ⬜ Not started
+## CHAT 13 — Frontend: V8 Volunteer Mobile View ✅ Complete
 
-- [ ] Mobile layout (max-width 480px, large touch targets)
-- [ ] Bottom navigation bar (Assessment / Delivery / Incident)
-- [ ] Assessment screen: 5-category form + live score
-- [ ] Delivery screen: household list + receipt confirmation
-- [ ] Incident screen: quick report form
-- [ ] All screens connected to backend
-- [ ] Deploy and test on mobile browser
+- [x] Mobile layout (max-width 480px, large touch targets)
+- [x] Bottom navigation bar (Assessment / Delivery / Incident)
+- [x] Assessment screen: 5-category form + live score
+- [x] Delivery screen: household list + receipt confirmation
+- [x] Incident screen: quick report form
+- [x] All screens connected to backend
+- [x] Deploy and test on mobile browser
 
 ---
 

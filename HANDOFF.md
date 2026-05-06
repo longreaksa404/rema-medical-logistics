@@ -1,42 +1,64 @@
 # REMA Handoff Document
-Last updated: Chat 12 complete
+Last updated: Chat 13 complete
 
 ## Current Chat Goal
-Chat 12 — Frontend V7 Hub Manager Portal — COMPLETE
+Chat 13 — Frontend V8 Volunteer Mobile View — COMPLETE
 
 ## What Was Completed This Chat
 
 ### New files created
 
-**API:**
-- `frontend/src/api/hub.ts` — typed wrappers for all 5 hub tab APIs
-  - Types: `StockLevel`, `StockMovement`, `Volunteer`, `DistrictRoster`, `DeliveryRun`, `Incident`, `RadioCheckin`
-  - Methods: `getDistrictStock`, `dispatch`, `adjust`, `getMovements`, `getRoster`, `createVolunteer`, `updateVolunteer`, `assignVolunteer`, `getDeliveryRuns`, `startRun`, `completeRun`, `abortRun`, `getIncidents`, `reportIncident`, `resolveIncident`, `getCheckins`, `submitCheckin`
-
 **New page:**
-- `frontend/src/pages/HubPage.tsx` — Full Hub Manager Portal
-  - Tab navigation: Stock | Volunteers | Deliveries | Incidents | Radio
-  - **Stock tab**: Live EMK1/2/3 levels with scarcity badges, dispatch form, manual adjustment form, audit log (last 50 movements)
-  - **Volunteers tab**: Roster summary cards, add volunteer form, assign to zone+team form (requires REMA activated), full roster table with status toggle
-  - **Deliveries tab**: Start delivery run form, active runs panel with complete/abort actions (abort requires reason), run history
-  - **Incidents tab**: Report form with all 5 incident types (VOLUNTEER_SAFETY auto-escalation noted), active incidents list with resolve button, resolved history
-  - **Radio tab**: Today's 4-slot compliance grid, submit check-in form (slot + status + notes), today's submission history
-  - District selector for EC/SUPER_ADMIN; HUB_MANAGER locked to own district
-  - Alert phase indicator in top bar
-  - Sub-warehouse warning if none found
+- `frontend/src/pages/VolunteerPage.tsx` — Full Volunteer Mobile View
+  - Mobile-optimized layout: max-width 480px centered, no sidebar, fullscreen
+  - Fixed bottom navigation bar (3 tabs: Assess | Deliver | Report)
+  - Large touch targets (min 44px / min-h-[52px]) throughout
+  - District resolved from `user.districtId` (VOLUNTEER role) or falls back to first district (EC/SUPER_ADMIN)
+
+  **Assess tab:**
+  - Live scoring ring (SVG, animated) showing score/20 and band in real time
+  - All 5 category sections as large tap-friendly buttons/checkboxes
+  - Cat 1: 4 radio options (0/2/5/8)
+  - Cat 2: 4 checkboxes (flags, capped at 5, shows warning at cap)
+  - Cat 3: 4 radio options (0/1/3/4)
+  - Cat 4: 3 radio options (0/1/2)
+  - Cat 5: single toggle checkbox (0/1)
+  - Address field (required), notes field (optional)
+  - Submit → POST /api/households → result screen showing score, band, EMK, action guidance
+  - "Assess Next Household" button resets entire form
+
+  **Deliver tab:**
+  - Loads active IN_PROGRESS run for district (GET /api/delivery/runs)
+  - Loads priority queue (GET /api/households/priority-queue)
+  - Shows active run status card (team number, zone, receipts count)
+  - Warning if no active run (tells volunteer to contact Hub Manager)
+  - Priority queue sorted by band order (CRITICAL first)
+  - Each household card shows band, EMK type, score, address, medical urgency flag
+  - Two-step confirm flow: tap "Deliver EMK" → confirm prompt → POST /api/delivery/receipts
+  - Records delivery with emkType from household's recommendedEmk
+  - Empty state when all households delivered
+
+  **Report tab:**
+  - 5 incident types as large tap-friendly radio buttons with icons
+  - VOLUNTEER_SAFETY: red styling, safety warning banner (Section A.4), red submit button
+  - Other types: standard blue selection
+  - Large textarea with context-sensitive placeholder per type
+  - Submit → POST /api/incidents → confirmation screen
+  - Shows auto-escalation notice if VOLUNTEER_SAFETY (backend returns autoEscalated flag)
+  - "Report Another Incident" resets form
 
 **Updated files:**
-- `frontend/src/pages/PlaceholderPages.tsx` — HubPage removed; only VolunteerPage and UsersPage remain
-- `frontend/src/App.tsx` — imports real HubPage from `./pages/HubPage`
+- `frontend/src/pages/PlaceholderPages.tsx` — VolunteerPage removed; only UsersPage remains
+- `frontend/src/App.tsx` — VolunteerPage route uses NO AppShell (fullscreen mobile); imported from `./pages/VolunteerPage`
 
 ### Key decisions made this chat
-- HUB_MANAGER is locked to `user.districtId` automatically; EC and SUPER_ADMIN get district selector buttons
-- Alert ID for volunteer assignment is fetched from `GET /api/alert/status` on load — if not activated, assignment form shows a warning instead of crashing
-- Abort run requires a reason field (enforced client-side before API call) per Section A.4
-- VOLUNTEER_SAFETY incidents show escalation note from backend response if `autoEscalated` is true
-- EMK-3 stock shows "MoH cold storage" note when total is 0 (not yet transferred)
-- Radio check-in slots already submitted today are visually marked "done" in both the compliance grid and the slot selector buttons
-- `subWarehouseId` is passed down from `selectedDistrict.subWarehouseId` — if null, dispatch/assign/start-run forms show a warning instead of erroring silently
+- VolunteerPage renders WITHOUT AppShell/sidebar — it's a standalone fullscreen mobile experience
+- Route is accessible to VOLUNTEER, HUB_MANAGER, EMERGENCY_COORDINATOR, SUPER_ADMIN
+- District for VOLUNTEER is inferred from `user.districtId`; EC/SUPER_ADMIN get first district as fallback (no selector needed for mobile field view)
+- Delivery records use `household.recommendedEmk` as the emkType — volunteer doesn't choose, system recommends
+- Two-step confirm prevents accidental delivery taps on mobile
+- No active run → clear warning message, Deliver tab still loads queue for reference
+- VOLUNTEER_SAFETY auto-escalation is surfaced clearly on confirmation screen
 
 ## Live URLs
 | Service | URL |
@@ -57,47 +79,41 @@ Chat 12 — Frontend V7 Hub Manager Portal — COMPLETE
 | volunteer1@rema.vn | VOLUNTEER | District 1 |
 | viewer@rema.vn | VIEWER | — |
 
-## Testing Sequence for Chat 12
+## Testing Sequence for Chat 13
 
-1. Login as `hub1@rema.vn` → /hub
-2. **Stock tab**: Check EMK levels → try dispatch (need sub-warehouse ID) → try adjustment with reason → check audit log
-3. **Volunteers tab**: Add a volunteer → check roster table → try assign (requires activated alert)
-4. **Deliveries tab**: Start a run → mark complete → verify run appears in history
-5. **Incidents tab**: Report ROUTE_BLOCKED → report VOLUNTEER_SAFETY (auto-escalates) → resolve one
-6. **Radio tab**: Submit T0800 check-in as OK → verify slot turns green → submit T1200 as ISSUE_REPORTED with notes
-7. Login as `coordinator@rema.vn` → /hub → district selector visible → switch between districts
+1. Deploy 3 files to frontend: `VolunteerPage.tsx`, `PlaceholderPages.tsx`, `App.tsx`
+2. Login as `volunteer1@rema.vn` → navigate to /volunteer
+3. **Assess tab**: Fill all 5 categories → watch score ring animate → enter address → submit → verify result screen → tap "Assess Next Household"
+4. **Deliver tab**: Verify queue loads → if no active run, shows warning → (start a run via hub1) → refresh → confirm delivery → household disappears from queue
+5. **Report tab**: Select ROUTE_BLOCKED → describe it → submit → verify confirmation screen → tap Report Another → select VOLUNTEER_SAFETY → verify red warning banner → submit → verify auto-escalation message
+6. Login as `hub1@rema.vn` → /volunteer → verify same mobile view, District 1 shown
+7. Resize browser to mobile width (375px) → verify layout fits, no horizontal scroll, all buttons 44px+ height
 
-## Next Chat Goal — Chat 13: Frontend V8 Volunteer Mobile View
+## Next Chat Goal — Chat 14: Frontend V9 User Management
 
-### What Chat 13 builds
-**Page:** `frontend/src/pages/VolunteerPage.tsx` (replaces placeholder)
+### What Chat 14 builds
+**Page:** `frontend/src/pages/UsersPage.tsx` (replaces placeholder)
 
-**Mobile-optimized layout — 3 bottom-nav tabs:**
+**Layout:** Standard AppShell with sidebar (desktop view, SUPER_ADMIN only)
 
-1. **Assess** — 5-category household assessment form (reuses scoring utils), live score ring, submit creates household record
-2. **Deliver** — Priority queue for volunteer's district, record delivery receipt (POST /api/delivery/receipts) per household
-3. **Report** — Quick incident report form (5 types), confirmation screen
-
-**Design:**
-- Max width 480px centered, large touch targets (min 44px tap area)
-- Bottom navigation bar (fixed, 3 icons)
-- No sidebar — full-screen mobile experience
-- Uses existing scoring.ts utils for live preview
-- District inferred from `user.districtId` (VOLUNTEER role)
+**Features:**
+1. **User list table** — all users with role, district, active status; filter by role/active
+2. **Create user form** — POST /api/users (SUPER_ADMIN only); fields: email, name, role, districtId (conditional), temporaryPassword; shows mustChangePassword note
+3. **Edit user panel** — PATCH /api/users/:id; change name, email, role, district, deactivate/reactivate
+4. **Reset password** — POST /api/users/:id/reset-password; admin sets new temp password
+5. Role badges color-coded; inactive users shown with opacity + "INACTIVE" badge
+6. Cannot deactivate self (guard client-side too); cannot assign SUPER_ADMIN role
 
 **APIs used:**
-- `GET /api/households/priority-queue?districtId=X` — for Deliver tab
-- `POST /api/households` — for Assess tab (same as PrioritizePage)
-- `POST /api/delivery/receipts` — record individual household delivery
-- `GET /api/delivery/runs?districtId=X&status=IN_PROGRESS` — pick active run for receipts
-- `POST /api/incidents` — for Report tab
+- `GET /api/users` — with ?role= and ?active= filters
+- `POST /api/users` — create with temporaryPassword
+- `PATCH /api/users/:id` — update or deactivate
+- `POST /api/users/:id/reset-password` — admin override
+- `GET /api/districts` — for districtId selector in create/edit form
 
-**Role gate:** VOLUNTEER, HUB_MANAGER, SUPER_ADMIN (volunteers need access, HMs may use it too)
-
-### First steps for Chat 13
+### First steps for Chat 14
 1. Read HANDOFF.md + PROJECT_SCOPE.md
-2. Create `frontend/src/pages/VolunteerPage.tsx` with mobile layout
-3. Build 3 tab components: AssessTab, DeliverTab, ReportTab
-4. Update PlaceholderPages.tsx — remove VolunteerPage
-5. Update App.tsx — import real VolunteerPage
-6. Deploy and test on mobile browser width
+2. Create `frontend/src/pages/UsersPage.tsx`
+3. Update `PlaceholderPages.tsx` — remove UsersPage
+4. Update `App.tsx` — import real UsersPage
+5. Deploy and test
