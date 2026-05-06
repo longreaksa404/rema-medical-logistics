@@ -23,7 +23,7 @@ import {
   OperatingProtocolPage,
 } from './pages/PlaceholderPages';
 
-export default function App() {
+export function App() {
   return (
     <AuthProvider>
       <BrowserRouter>

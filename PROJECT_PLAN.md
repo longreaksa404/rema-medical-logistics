@@ -33,7 +33,7 @@
 | Chat 11 | Frontend: V4 Prioritization Tool | ✅ Complete |
 | Chat 12 | Frontend: V7 Hub Manager Portal | ✅ Complete |
 | Chat 13 | Frontend: V8 Volunteer Mobile View | ✅ Complete |
-| Chat 14 | Frontend: V9 User Management (SUPER_ADMIN) | ⬜ Not started |
+| Chat 14 | Frontend: V9 User Management (SUPER_ADMIN) | ✅ Complete |
 | Chat 15 | V3 Warehouse Layout (draw.io) | ⬜ Not started |
 | Chat 16 | V5 Stakeholder Flowchart (draw.io) | ⬜ Not started |
 | Chat 17 | V6 Operating Protocol (PDF) | ⬜ Not started |
@@ -275,14 +275,14 @@
 
 ---
 
-## CHAT 14 — Frontend: V9 User Management ⬜ Not started
+## CHAT 14 — Frontend: V9 User Management ✅ Complete
 
-- [ ] User list table (role, district, active status)
-- [ ] Create user form (POST /api/users)
-- [ ] Deactivate / reactivate user (PATCH /api/users/:id)
-- [ ] Reset password form (POST /api/users/:id/reset-password)
-- [ ] Role-gated to SUPER_ADMIN only
-- [ ] Deploy and test
+- [x] User list table (role, district, active status)
+- [x] Create user form (POST /api/users)
+- [x] Deactivate / reactivate user (PATCH /api/users/:id)
+- [x] Reset password form (POST /api/users/:id/reset-password)
+- [x] Role-gated to SUPER_ADMIN only
+- [x] Deploy and test
 
 ---
 
