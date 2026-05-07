@@ -98,6 +98,7 @@ model StockMovement {
   performedBy    User         @relation(fields: [performedById], references: [id])
   subWarehouse   SubWarehouse @relation(fields: [subWarehouseId], references: [id])
 
+  @@index([subWarehouseId, createdAt])
   @@map("stock_movements")
 }
 
@@ -138,6 +139,7 @@ model Household {
   assessedBy           User?                 @relation("AssessedBy", fields: [assessedById], references: [id])
   district             District              @relation(fields: [districtId], references: [id])
 
+  @@index([districtId, delivered, priorityBand])
   @@map("households")
 }
 
@@ -206,6 +208,7 @@ model DeliveryRun {
   performedBy     User              @relation(fields: [performedById], references: [id])
   subWarehouse    SubWarehouse      @relation(fields: [subWarehouseId], references: [id])
 
+  @@index([subWarehouseId, status])
   @@map("delivery_runs")
 }
 
@@ -268,6 +271,7 @@ model Incident {
   reportedBy   User           @relation("ReportedBy", fields: [reportedById], references: [id])
   resolvedBy   User?          @relation("ResolvedBy", fields: [resolvedById], references: [id])
 
+  @@index([districtId, status])
   @@map("incidents")
 }
 
@@ -282,6 +286,7 @@ model RadioCheckin {
   district      District       @relation(fields: [districtId], references: [id])
   submittedBy   User           @relation(fields: [submittedById], references: [id])
 
+  @@index([districtId, createdAt])
   @@map("radio_checkins")
 }
 
@@ -294,6 +299,7 @@ model Notification {
   read      Boolean  @default(false)
   user      User     @relation(fields: [userId], references: [id])
 
+  @@index([userId, read])
   @@map("notifications")
 }
 
@@ -330,13 +336,6 @@ enum PriorityBand {
   HIGH
   MEDIUM
   STANDARD
-}
-
-enum DeliveryMode {
-  MOTORBIKE
-  BICYCLE_OR_FOOT
-  BOAT
-  SUSPENDED
 }
 
 enum DeliveryRunStatus {
@@ -380,4 +379,11 @@ enum RadioCheckTime {
 enum RadioStatus {
   OK
   ISSUE_REPORTED
+}
+
+enum DeliveryMode {
+  MOTORBIKE
+  BICYCLE_OR_FOOT
+  BOAT
+  SUSPENDED
 }
