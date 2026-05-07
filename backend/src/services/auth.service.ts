@@ -1,9 +1,8 @@
 import bcrypt from 'bcrypt';
 import jwt from 'jsonwebtoken';
-import { PrismaClient } from '@prisma/client';
+import { prisma } from '../lib/prisma';
 import { JwtPayload } from '../types/auth';
 
-const prisma = new PrismaClient();
 const JWT_SECRET = process.env.JWT_SECRET || 'rema-dev-secret-change-in-production';
 const JWT_EXPIRES_IN = '12h'; // Long enough for a full flood event shift
 

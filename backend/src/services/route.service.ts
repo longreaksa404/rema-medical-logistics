@@ -1,6 +1,5 @@
-import { PrismaClient, DeliveryMode } from '@prisma/client';
-
-const prisma = new PrismaClient();
+import { DeliveryMode } from '@prisma/client';
+import { prisma } from '../lib/prisma';
 
 // ─── DELIVERY MODE TIERS (Section A.4 — LOCKED) ───────────────────────────────
 // 0–30 cm   → MOTORBIKE

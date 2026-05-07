@@ -1,6 +1,5 @@
-import { PrismaClient, IncidentType, IncidentStatus } from '@prisma/client';
-
-const prisma = new PrismaClient();
+import { IncidentType, IncidentStatus } from '@prisma/client';
+import { prisma } from '../lib/prisma';
 
 // ─── REPORT AN INCIDENT ───────────────────────────────────────────────────────
 // Section B.6 contingency + Section A.4 volunteer safety

@@ -1,8 +1,7 @@
-import { PrismaClient, EmkType, MovementType } from '@prisma/client';
+import { EmkType, MovementType } from '@prisma/client';
+import { prisma } from '../lib/prisma';
 import { invalidateCache } from './dashboard.service';
 import { isInScarcity } from '../utils/stock.utils';
-
-const prisma = new PrismaClient();
 
 // ─── SCARCITY THRESHOLD ───────────────────────────────────────────────────────
 // Section C.9: Scarcity mode triggers when stock falls below 30% of original allocation.

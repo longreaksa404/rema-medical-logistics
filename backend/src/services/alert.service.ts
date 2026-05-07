@@ -1,7 +1,5 @@
-import { PrismaClient } from '@prisma/client';
+import { prisma } from '../lib/prisma';
 import { invalidateCache } from './dashboard.service';
-
-const prisma = new PrismaClient();
 
 // ─── VALID TRIGGER CONDITIONS ─────────────────────────────────────────────────
 export type TriggerCondition =

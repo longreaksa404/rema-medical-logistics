@@ -1,7 +1,6 @@
-import { PrismaClient, Role } from '@prisma/client';
+import { Role } from '@prisma/client';
+import { prisma } from '../lib/prisma';
 import bcrypt from 'bcrypt';
-
-const prisma = new PrismaClient();
 
 // ─── ROLE HIERARCHY ───────────────────────────────────────────────────────────
 // SUPER_ADMIN can create/manage any role except another SUPER_ADMIN.

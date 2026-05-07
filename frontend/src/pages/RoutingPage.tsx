@@ -20,7 +20,7 @@ const MODE_CONFIG: Record<DeliveryMode, {
 }> = {
   MOTORBIKE:       { label: 'Motorbike',      color: 'text-accent-green',  bgColor: 'bg-accent-green/10',  borderColor: 'border-accent-green/30',  icon: '🏍',  depth: '0–30 cm',  fillColor: '#3fb950', opacity: 0.35 },
   BICYCLE_OR_FOOT: { label: 'Bicycle / Foot', color: 'text-accent-yellow', bgColor: 'bg-accent-yellow/10', borderColor: 'border-accent-yellow/30', icon: '🚲', depth: '30–60 cm', fillColor: '#d29922', opacity: 0.45 },
-  BOAT:            { label: 'Boat',           color: 'text-accent-blue',   bgColor: 'bg-accent-blue/10',   borderColor: 'border-accent-blue/30',   icon: '⛵', depth: '60–80 cm', fillColor: '#58a6ff', opacity: 0.50 },
+  BOAT:            { label: 'Boat',            color: 'text-accent-orange',bgColor: 'bg-accent-orange/10', borderColor: 'border-accent-orange/30', icon: '⛵', depth: '60–80 cm', fillColor: '#f0883e', opacity: 0.50 },
   SUSPENDED:       { label: 'SUSPENDED',      color: 'text-accent-red',    bgColor: 'bg-accent-red/10',    borderColor: 'border-accent-red/30',    icon: '⛔', depth: '> 80 cm',  fillColor: '#f85149', opacity: 0.55 },
 };
 

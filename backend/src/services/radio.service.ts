@@ -1,6 +1,5 @@
-import { PrismaClient, RadioCheckTime, RadioStatus } from '@prisma/client';
-
-const prisma = new PrismaClient();
+import { RadioCheckTime, RadioStatus } from '@prisma/client';
+import { prisma } from '../lib/prisma';
 
 // ─── RADIO CHECK-IN SCHEDULE (Section D.9) ────────────────────────────────────
 // Fixed times: 08:00, 12:00, 16:00, 20:00

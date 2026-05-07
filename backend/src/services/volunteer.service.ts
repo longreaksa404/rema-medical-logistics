@@ -1,6 +1,5 @@
-import { PrismaClient, VolunteerRole, VolunteerStatus } from '@prisma/client';
-
-const prisma = new PrismaClient();
+import { VolunteerRole, VolunteerStatus } from '@prisma/client';
+import { prisma } from '../lib/prisma';
 
 // ─── LIST VOLUNTEERS ──────────────────────────────────────────────────────────
 

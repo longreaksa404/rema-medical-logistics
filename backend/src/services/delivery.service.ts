@@ -1,7 +1,6 @@
-import { PrismaClient, DeliveryRunStatus, EmkType } from '@prisma/client';
+import { DeliveryRunStatus, EmkType } from '@prisma/client';
+import { prisma } from '../lib/prisma';
 import { recordDelivery } from './stock.service';
-
-const prisma = new PrismaClient();
 
 // ─── START A DELIVERY RUN ────────────────────────────────────────────────────
 // Section B.5: Team Leader collects household list, loads EMKs, departs.
@@ -246,4 +245,4 @@ export async function abortDeliveryRun(id: string, reason: string) {
       receipts: true,
     },
   });
-}``
+}
