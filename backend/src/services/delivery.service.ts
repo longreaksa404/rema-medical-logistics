@@ -1,6 +1,7 @@
 import { DeliveryRunStatus, EmkType } from '@prisma/client';
 import { prisma } from '../lib/prisma';
 import { recordDelivery } from './stock.service';
+import { invalidateQueueCache } from './household.service';
 
 // ─── START A DELIVERY RUN ────────────────────────────────────────────────────
 // Section B.5: Team Leader collects household list, loads EMKs, departs.
@@ -176,6 +177,10 @@ export async function createDeliveryReceipt(data: {
     }),
   ]);
 
+  // Household is now delivered — remove it from the priority queue cache
+  // so volunteers see the updated list within one poll cycle.
+  invalidateQueueCache(household.districtId);
+
   return receipt;
 }
 
@@ -197,7 +202,6 @@ export async function completeDeliveryRun(id: string, performedById: string) {
     throw new Error('Cannot complete an aborted run');
   }
 
-  // Verify the person completing is the one who started it (or above — checked at route level)
   const updated = await prisma.deliveryRun.update({
     where: { id },
     data: {

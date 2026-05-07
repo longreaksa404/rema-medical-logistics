@@ -1,13 +1,59 @@
-import { EmkType, MovementType } from '@prisma/client';
-import { prisma } from '../lib/prisma';
+import { PrismaClient, EmkType, MovementType } from '@prisma/client';
 import { invalidateCache } from './dashboard.service';
 import { isInScarcity } from '../utils/stock.utils';
+
+const prisma = new PrismaClient();
 
 // ─── SCARCITY THRESHOLD ───────────────────────────────────────────────────────
 // Section C.9: Scarcity mode triggers when stock falls below 30% of original allocation.
 // Function lives in utils/stock.utils.ts to avoid circular imports.
 // Re-exported here so existing callers (stock.controller, dashboard.service) are unchanged.
 export { isInScarcity } from '../utils/stock.utils';
+
+// ─── LOCAL CACHE ──────────────────────────────────────────────────────────────
+// Same in-memory pattern as dashboard.service.ts.
+// TTL: 15 seconds — stock status is polled frequently but changes only on
+// dispatch, reallocation, adjustment, or delivery. All four writers call
+// invalidateStockCache() so the cache never serves stale data after a write.
+
+interface CacheEntry<T> {
+  data: T;
+  expiresAt: number;
+}
+
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+const cache = new Map<string, CacheEntry<any>>();
+
+function getCached<T>(key: string): T | null {
+  const entry = cache.get(key);
+  if (!entry) return null;
+  if (Date.now() > entry.expiresAt) {
+    cache.delete(key);
+    return null;
+  }
+  return entry.data as T;
+}
+
+function setCached<T>(key: string, data: T, ttlMs: number): void {
+  cache.set(key, { data, expiresAt: Date.now() + ttlMs });
+}
+
+const STOCK_STATUS_KEY = 'stock:status';
+const STOCK_TTL_MS = 15_000; // 15 seconds
+
+/**
+ * Bust stock:status cache. Called by every write path:
+ *   dispatchStock, reallocateStock, adjustStock, recordDelivery
+ * Also invalidates the dashboard caches that aggregate stock data.
+ */
+function invalidateStockCache(districtId?: string): void {
+  cache.delete(STOCK_STATUS_KEY);
+  // Also propagate to dashboard so district cards reflect the change
+  if (districtId) {
+    invalidateCache(`dashboard:district:${districtId}`);
+  }
+  invalidateCache('dashboard:summary');
+}
 
 export interface StockWithScarcity {
   subWarehouseId: string;
@@ -66,8 +112,12 @@ function enrichStock(stock: {
 }
 
 // ─── GET ALL STOCK ────────────────────────────────────────────────────────────
+// Cached for 15 seconds. Invalidated on every write (dispatch/reallocate/adjust/delivery).
 
 export async function getAllStock(): Promise<StockWithScarcity[]> {
+  const cached = getCached<StockWithScarcity[]>(STOCK_STATUS_KEY);
+  if (cached) return cached;
+
   const records = await prisma.stock.findMany({
     include: {
       subWarehouse: {
@@ -77,10 +127,14 @@ export async function getAllStock(): Promise<StockWithScarcity[]> {
     orderBy: { subWarehouse: { district: { name: 'asc' } } },
   });
 
-  return records.map(enrichStock);
+  const result = records.map(enrichStock);
+  setCached(STOCK_STATUS_KEY, result, STOCK_TTL_MS);
+  return result;
 }
 
 // ─── GET STOCK BY DISTRICT ────────────────────────────────────────────────────
+// Not cached — single-district lookup is fast and called less frequently.
+// Hub Managers view their own district; no need to cache per-district reads.
 
 export async function getStockByDistrict(districtId: string): Promise<StockWithScarcity> {
   const sw = await prisma.subWarehouse.findUnique({
@@ -105,7 +159,7 @@ export async function getStockByDistrict(districtId: string): Promise<StockWithS
 
 // ─── DISPATCH — Central Warehouse → Sub-Warehouse ────────────────────────────
 // Records movement as DISPATCH. Increases stock at sub-warehouse.
-// Also invalidates dashboard cache — stock levels changed.
+// Invalidates stock:status cache and both dashboard caches.
 
 export async function dispatchStock(data: {
   subWarehouseId: string;
@@ -160,11 +214,8 @@ export async function dispatchStock(data: {
     });
   }
 
-  // Invalidate dashboard cache — stock levels are now stale
-  // Target the specific district card + the full summary
   const districtId = updatedStock.subWarehouse.districtId;
-  invalidateCache(`dashboard:district:${districtId}`);
-  invalidateCache('dashboard:summary');
+  invalidateStockCache(districtId);
 
   return {
     stock: enrichStock(updatedStock),
@@ -175,7 +226,7 @@ export async function dispatchStock(data: {
 // ─── REALLOCATE — Cross-District ─────────────────────────────────────────────
 // Emergency Coordinator only (enforced at route level).
 // Moves stock from one sub-warehouse to another.
-// Also invalidates dashboard cache for both affected districts.
+// Invalidates stock:status cache and both affected district dashboard caches.
 
 export async function reallocateStock(data: {
   fromSubWarehouseId: string;
@@ -242,9 +293,10 @@ export async function reallocateStock(data: {
     }),
   ]);
 
-  // Invalidate both affected district caches + summary
   const fromDistrictId = updatedFrom.subWarehouse.districtId;
   const toDistrictId = updatedTo.subWarehouse.districtId;
+  // Bust stock status cache once, then each district dashboard cache
+  cache.delete(STOCK_STATUS_KEY);
   invalidateCache(`dashboard:district:${fromDistrictId}`);
   invalidateCache(`dashboard:district:${toDistrictId}`);
   invalidateCache('dashboard:summary');
@@ -257,8 +309,8 @@ export async function reallocateStock(data: {
 
 // ─── ADJUST — Manual with reason ─────────────────────────────────────────────
 // Hub Manager. Positive = add, negative = remove. Always requires reason.
-// Does NOT invalidate cache — adjustments are small corrections;
-// the 15s TTL is acceptable here to avoid thrashing during active operations.
+// Invalidates stock:status cache. Dashboard TTL (15s) is acceptable here
+// since adjustments are small corrections during active operations.
 
 export async function adjustStock(data: {
   subWarehouseId: string;
@@ -307,6 +359,9 @@ export async function adjustStock(data: {
     }),
   ]);
 
+  // Bust stock:status cache — even small adjustments must be reflected immediately
+  cache.delete(STOCK_STATUS_KEY);
+
   return {
     stock: enrichStock(updatedStock),
     movement,
@@ -343,8 +398,8 @@ export async function getMovementsByDistrict(districtId: string) {
 // ─── RECORD DELIVERY CONSUMPTION ─────────────────────────────────────────────
 // Called internally when a delivery receipt is recorded.
 // Decrements remaining stock at the source sub-warehouse.
-// Does NOT invalidate cache — delivery is a high-frequency operation;
-// the 15s TTL window is acceptable and prevents cache thrashing.
+// Invalidates stock:status cache — delivery frequency is high but the
+// 15s TTL would otherwise serve stale scarcity warnings to volunteers.
 
 export async function recordDelivery(data: {
   subWarehouseId: string;
@@ -388,9 +443,13 @@ export async function recordDelivery(data: {
     }),
   ]);
 
+  // Bust stock:status cache so scarcity warnings propagate immediately
+  cache.delete(STOCK_STATUS_KEY);
+
+  const enriched = enrichStock(updatedStock);
   return {
-    stock: enrichStock(updatedStock),
+    stock: enriched,
     movement,
-    scarcityWarning: enrichStock(updatedStock).anyScarce,
+    scarcityWarning: enriched.anyScarce,
   };
 }

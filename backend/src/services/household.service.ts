@@ -1,6 +1,51 @@
-import { PriorityBand, EmkType } from '@prisma/client';
-import { prisma } from '../lib/prisma';
+import { PrismaClient, PriorityBand, EmkType } from '@prisma/client';
 import { scoreHousehold, ScoreInput } from '../utils/scoring';
+
+const prisma = new PrismaClient();
+
+// ─── LOCAL CACHE ──────────────────────────────────────────────────────────────
+// getPriorityQueue is polled by V1 dashboard and V4 Prioritization Tool.
+// It fetches and sorts all undelivered households per district — the sort is
+// in-memory so the DB query itself is cheap, but frequent polling still adds up.
+// TTL: 10 seconds, keyed per district. Invalidated on create, update, and
+// delivery receipt so volunteers always see an accurate delivery order.
+
+interface CacheEntry<T> {
+  data: T;
+  expiresAt: number;
+}
+
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+const cache = new Map<string, CacheEntry<any>>();
+
+function getCached<T>(key: string): T | null {
+  const entry = cache.get(key);
+  if (!entry) return null;
+  if (Date.now() > entry.expiresAt) {
+    cache.delete(key);
+    return null;
+  }
+  return entry.data as T;
+}
+
+function setCached<T>(key: string, data: T, ttlMs: number): void {
+  cache.set(key, { data, expiresAt: Date.now() + ttlMs });
+}
+
+const QUEUE_TTL_MS = 10_000; // 10 seconds
+
+function queueKey(districtId: string): string {
+  return `household:queue:${districtId}`;
+}
+
+/**
+ * Bust the priority queue cache for a specific district.
+ * Called after any write that changes queue order or membership:
+ *   createHousehold, updateHousehold, and delivery receipt recording.
+ */
+export function invalidateQueueCache(districtId: string): void {
+  cache.delete(queueKey(districtId));
+}
 
 // ─── SCORE ONLY (no DB write) ─────────────────────────────────────────────────
 
@@ -51,6 +96,9 @@ export async function createHousehold(data: {
       },
     });
   }
+
+  // New household enters the queue — bust the cache for this district
+  invalidateQueueCache(data.districtId);
 
   return { ...household, scoreResult: result };
 }
@@ -163,6 +211,9 @@ export async function updateHousehold(
     });
   }
 
+  // Score change may reorder the queue — bust cache for this district
+  invalidateQueueCache(existing.districtId);
+
   return { ...updated, scoreResult: result };
 }
 
@@ -172,11 +223,14 @@ export async function updateHousehold(
 //   2. Infant under 6 months (we don't have exact age data — use cat2 flag as proxy)
 //   3. First form submitted (createdAt ASC)
 //
-// For the queue, we sort by:
+// Sort order:
 //   1. Band order (CRITICAL first)
 //   2. totalScore DESC
 //   3. medicalUrgencyScore DESC (cat1 tiebreaker)
 //   4. createdAt ASC (first submitted)
+//
+// Cached per district for 10 seconds. Invalidated on create, update, and
+// delivery receipt so volunteers always work from the correct order.
 
 const BAND_ORDER: Record<PriorityBand, number> = {
   CRITICAL: 0,
@@ -186,6 +240,16 @@ const BAND_ORDER: Record<PriorityBand, number> = {
 };
 
 export async function getPriorityQueue(districtId: string) {
+  const key = queueKey(districtId);
+  const cached = getCached<Awaited<ReturnType<typeof buildPriorityQueue>>>(key);
+  if (cached) return cached;
+
+  const result = await buildPriorityQueue(districtId);
+  setCached(key, result, QUEUE_TTL_MS);
+  return result;
+}
+
+async function buildPriorityQueue(districtId: string) {
   const households = await prisma.household.findMany({
     where: {
       districtId,

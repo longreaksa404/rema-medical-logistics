@@ -1,11 +1,47 @@
-import { RadioCheckTime, RadioStatus } from '@prisma/client';
-import { prisma } from '../lib/prisma';
+import { PrismaClient, RadioCheckTime, RadioStatus } from '@prisma/client';
+
+const prisma = new PrismaClient();
 
 // ─── RADIO CHECK-IN SCHEDULE (Section D.9) ────────────────────────────────────
 // Fixed times: 08:00, 12:00, 16:00, 20:00
 // All Hub Managers report to Operations Center at each scheduled time.
 // If internet/phone fails, check-ins are submitted retroactively when contact restored.
 // Content: stock levels, incidents, delivery progress, resupply needs.
+
+// ─── LOCAL CACHE ──────────────────────────────────────────────────────────────
+// getTodayComplianceSummary is polled by the V1 dashboard every 30–60 seconds.
+// It aggregates check-ins across all districts for the current day — moderately
+// expensive. TTL: 30 seconds, invalidated immediately on every new check-in
+// submission so the compliance panel stays accurate without hammering the DB.
+
+interface CacheEntry<T> {
+  data: T;
+  expiresAt: number;
+}
+
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+const cache = new Map<string, CacheEntry<any>>();
+
+function getCached<T>(key: string): T | null {
+  const entry = cache.get(key);
+  if (!entry) return null;
+  if (Date.now() > entry.expiresAt) {
+    cache.delete(key);
+    return null;
+  }
+  return entry.data as T;
+}
+
+function setCached<T>(key: string, data: T, ttlMs: number): void {
+  cache.set(key, { data, expiresAt: Date.now() + ttlMs });
+}
+
+const COMPLIANCE_KEY = 'radio:compliance:today';
+const COMPLIANCE_TTL_MS = 30_000; // 30 seconds
+
+// ─── SUBMIT CHECK-IN ─────────────────────────────────────────────────────────
+// Every new submission invalidates the compliance cache immediately so the
+// dashboard reflects the new check-in within one poll cycle.
 
 export async function submitCheckin(data: {
   districtId: string;
@@ -20,7 +56,7 @@ export async function submitCheckin(data: {
   const district = await prisma.district.findUnique({ where: { id: districtId } });
   if (!district) throw new Error(`District not found: ${districtId}`);
 
-  return prisma.radioCheckin.create({
+  const result = await prisma.radioCheckin.create({
     data: {
       districtId,
       submittedById,
@@ -33,9 +69,15 @@ export async function submitCheckin(data: {
       submittedBy: { select: { name: true, role: true } },
     },
   });
+
+  // Bust compliance cache — new check-in must appear on next poll
+  cache.delete(COMPLIANCE_KEY);
+
+  return result;
 }
 
 // ─── LIST CHECK-INS ───────────────────────────────────────────────────────────
+// Not cached — filtered queries, called infrequently (Hub Manager log view).
 
 export async function listCheckins(filters: {
   districtId?: string;
@@ -65,10 +107,20 @@ export async function listCheckins(filters: {
 }
 
 // ─── GET CHECKIN COMPLIANCE SUMMARY ──────────────────────────────────────────
-// Useful for dashboard: shows which districts have checked in today
-// and which are missing (important during active flood operations)
+// Polled by V1 dashboard to show which districts have checked in today
+// and which are missing — critical during active flood operations.
+// Cached for 30 seconds. Invalidated immediately on submitCheckin.
 
 export async function getTodayComplianceSummary() {
+  const cached = getCached<Awaited<ReturnType<typeof buildComplianceSummary>>>(COMPLIANCE_KEY);
+  if (cached) return cached;
+
+  const result = await buildComplianceSummary();
+  setCached(COMPLIANCE_KEY, result, COMPLIANCE_TTL_MS);
+  return result;
+}
+
+async function buildComplianceSummary() {
   const today = new Date();
   today.setHours(0, 0, 0, 0);
   const tomorrow = new Date(today);
