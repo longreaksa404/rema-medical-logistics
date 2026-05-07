@@ -57,6 +57,16 @@ export function LoginPage() {
               System Online
             </span>
           </div>
+
+          {/* Logo */}
+          <div className="flex justify-center mb-4">
+            <img
+              src="/rema_logo_new.svg"
+              alt="REMA"
+              className="h-20 w-20"
+            />
+          </div>
+
           <h1 className="text-3xl font-sans font-extrabold text-text-primary tracking-tight mb-1">
             REMA
           </h1>
