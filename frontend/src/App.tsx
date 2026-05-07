@@ -52,7 +52,7 @@ export function App() {
 
               {/* V4 — Prioritization Tool */}
               <Route element={<ProtectedRoute roles={['EMERGENCY_COORDINATOR', 'HUB_MANAGER', 'VOLUNTEER', 'SUPER_ADMIN']} />}>
-                <Route path="/prioritization" element={<PrioritizePage />} />
+                <Route path="/prioritize" element={<PrioritizePage />} />
               </Route>
 
               {/* V5 — Stakeholder Flowchart (static — Chat 16) */}
