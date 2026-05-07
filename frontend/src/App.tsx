@@ -1,13 +1,10 @@
 // App.tsx — REMA single unified React app (Option A)
 // Uses React Router nested routes + Outlet pattern (matches existing ProtectedRoute.tsx)
-// VolunteerPage renders WITHOUT AppShell (fullscreen mobile).
-// All other pages render INSIDE AppShell (sidebar + header).
-
+// All authenticated pages render INSIDE AppShell (sidebar + header).
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { AuthProvider } from './context/AuthContext';
 import { ProtectedRoute } from './components/ProtectedRoute';
 import { AppShell } from './components/AppShell';
-
 // Pages — filenames matched to actual project structure
 import { LoginPage } from './pages/LoginPage';
 import { ChangePasswordPage } from './pages/ChangePasswordPage';
@@ -28,18 +25,12 @@ export function App() {
     <AuthProvider>
       <BrowserRouter>
         <Routes>
-
           {/* ── Public ── */}
           <Route path="/login" element={<LoginPage />} />
 
           {/* ── Any authenticated user ── */}
           <Route element={<ProtectedRoute />}>
             <Route path="/change-password" element={<ChangePasswordPage />} />
-          </Route>
-
-          {/* ── Volunteer mobile view — auth required, no AppShell ── */}
-          <Route element={<ProtectedRoute roles={['VOLUNTEER', 'HUB_MANAGER', 'EMERGENCY_COORDINATOR', 'SUPER_ADMIN']} />}>
-            <Route path="/volunteer" element={<VolunteerPage />} />
           </Route>
 
           {/* ── Main app shell (sidebar + header) — any authenticated user ── */}
@@ -75,6 +66,11 @@ export function App() {
                 <Route path="/hub" element={<HubPage />} />
               </Route>
 
+              {/* V8 — Volunteer View */}
+              <Route element={<ProtectedRoute roles={['VOLUNTEER', 'HUB_MANAGER', 'EMERGENCY_COORDINATOR', 'SUPER_ADMIN']} />}>
+                <Route path="/volunteer" element={<VolunteerPage />} />
+              </Route>
+
               {/* V9 — User Management (SUPER_ADMIN only) */}
               <Route element={<ProtectedRoute roles={['SUPER_ADMIN']} />}>
                 <Route path="/users" element={<UsersPage />} />
@@ -86,7 +82,6 @@ export function App() {
 
             </Route>
           </Route>
-
         </Routes>
       </BrowserRouter>
     </AuthProvider>

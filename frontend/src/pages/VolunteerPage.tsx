@@ -668,7 +668,7 @@ function ReportTab({ districtId }: { districtId: string }) {
 
   if (submitted) {
     return (
-      <div className="max-w-lg space-y-4">
+      <div className="space-y-4">
         <div className={`card p-6 ${submitted.autoEscalated ? 'border-accent-red/40 bg-accent-red/5' : 'border-accent-green/30 bg-accent-green/5'}`}>
           <div className="flex items-start gap-4">
             <span className="text-4xl flex-shrink-0">{submitted.autoEscalated ? '🚨' : '✓'}</span>
@@ -696,93 +696,97 @@ function ReportTab({ districtId }: { districtId: string }) {
   }
 
   return (
-    <div className="max-w-2xl space-y-5">
+    <div className="space-y-5">
       {error && <ErrorBox msg={error} onDismiss={() => setError('')} />}
 
-      {/* Incident type grid */}
-      <div className="card p-5">
-        <SectionTitle sub="VOLUNTEER_SAFETY incidents are auto-escalated (Section A.4)">Incident Type</SectionTitle>
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-          {INCIDENT_TYPES.map(t => (
-            <OptionButton
-              key={t.value}
-              selected={incType === t.value}
-              onClick={() => setIncType(t.value)}
-              danger={t.value === 'VOLUNTEER_SAFETY'}
-            >
-              <div className="flex items-center gap-3">
-                <span className="text-lg flex-shrink-0">{t.icon}</span>
-                <div className="flex-1">
-                  <span className={`font-sans text-sm font-medium ${incType === t.value ? 'text-text-primary' : 'text-text-secondary'}`}>
-                    {t.label}
-                  </span>
-                  {t.autoEscalate && (
-                    <span className="block font-mono text-[9px] text-accent-red mt-0.5">
-                      Auto-escalates to Operations Center
-                    </span>
-                  )}
-                </div>
-                <div className={`w-4 h-4 rounded-full border-2 flex-shrink-0 flex items-center justify-center ${
-                  incType === t.value
-                    ? t.value === 'VOLUNTEER_SAFETY' ? 'border-accent-red bg-accent-red' : 'border-accent-blue bg-accent-blue'
-                    : 'border-bg-border'
-                }`}>
-                  {incType === t.value && <span className="text-bg-primary text-[8px] font-bold">✓</span>}
-                </div>
-              </div>
-            </OptionButton>
-          ))}
-        </div>
-      </div>
+      {/* Two-column layout: incident type left, description right */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
 
-      {/* Safety warning — only when VOLUNTEER_SAFETY is selected */}
-      {incType === 'VOLUNTEER_SAFETY' && (
-        <div className="bg-accent-red/10 border border-accent-red/40 rounded px-4 py-3 flex gap-3 animate-slide-in">
-          <span className="text-2xl flex-shrink-0">🚨</span>
-          <div>
-            <p className="font-mono text-xs font-bold text-accent-red mb-1">SAFETY HARD CONSTRAINT — Section A.4</p>
-            <p className="font-mono text-[10px] text-accent-red/80 leading-relaxed">
-              If water depth exceeds 80cm, stop all delivery immediately. Return to sub-warehouse or shelter in place.
-              This report will auto-escalate to the Emergency Coordinator.
-            </p>
+        {/* Left — Incident type selector */}
+        <div className="card p-5">
+          <SectionTitle sub="VOLUNTEER_SAFETY incidents are auto-escalated (Section A.4)">Incident Type</SectionTitle>
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-1 gap-2">
+            {INCIDENT_TYPES.map(t => (
+              <OptionButton
+                key={t.value}
+                selected={incType === t.value}
+                onClick={() => setIncType(t.value)}
+                danger={t.value === 'VOLUNTEER_SAFETY'}
+              >
+                <div className="flex items-center gap-3">
+                  <span className="text-lg flex-shrink-0">{t.icon}</span>
+                  <div className="flex-1">
+                    <span className={`font-sans text-sm font-medium ${incType === t.value ? 'text-text-primary' : 'text-text-secondary'}`}>
+                      {t.label}
+                    </span>
+                    {t.autoEscalate && (
+                      <span className="block font-mono text-[9px] text-accent-red mt-0.5">
+                        Auto-escalates to Operations Center
+                      </span>
+                    )}
+                  </div>
+                  <div className={`w-4 h-4 rounded-full border-2 flex-shrink-0 flex items-center justify-center ${
+                    incType === t.value
+                      ? t.value === 'VOLUNTEER_SAFETY' ? 'border-accent-red bg-accent-red' : 'border-accent-blue bg-accent-blue'
+                      : 'border-bg-border'
+                  }`}>
+                    {incType === t.value && <span className="text-bg-primary text-[8px] font-bold">✓</span>}
+                  </div>
+                </div>
+              </OptionButton>
+            ))}
           </div>
         </div>
-      )}
 
-      {/* Description */}
-      <div className="card p-5">
-        <SectionTitle>
-          Description
-          <span className="font-normal text-text-muted"> — be specific about location and severity</span>
-        </SectionTitle>
-        <textarea
-          rows={5}
-          className="input resize-none"
-          placeholder={
-            incType === 'ROUTE_BLOCKED'    ? 'e.g. Nguyen Hue Street flooded, cannot pass by motorbike. Switching to Zone B alternate route.' :
-            incType === 'VOLUNTEER_SAFETY' ? 'e.g. Water now 85cm in Zone C. Team 2 returning to sub-warehouse immediately.' :
-            incType === 'BUILDING_FLOODED' ? 'e.g. Water entering sub-warehouse. 10cm on ground floor. Activating backup location.' :
-                                             'Describe the incident clearly — include location, current situation, and actions taken.'
-          }
-          value={description}
-          onChange={e => setDescription(e.target.value)}
-        />
-        <p className="font-mono text-[10px] text-text-muted mt-2">
-          Reporting as: {selectedType.icon} {selectedType.label}
-        </p>
+        {/* Right — Description + submit */}
+        <div className="space-y-4">
+          {/* Safety warning — only when VOLUNTEER_SAFETY is selected */}
+          {incType === 'VOLUNTEER_SAFETY' && (
+            <div className="bg-accent-red/10 border border-accent-red/40 rounded px-4 py-3 flex gap-3 animate-slide-in">
+              <span className="text-2xl flex-shrink-0">🚨</span>
+              <div>
+                <p className="font-mono text-xs font-bold text-accent-red mb-1">SAFETY HARD CONSTRAINT — Section A.4</p>
+                <p className="font-mono text-[10px] text-accent-red/80 leading-relaxed">
+                  If water depth exceeds 80cm, stop all delivery immediately. Return to sub-warehouse or shelter in place.
+                  This report will auto-escalate to the Emergency Coordinator.
+                </p>
+              </div>
+            </div>
+          )}
+
+          {/* Description */}
+          <div className="card p-5">
+            <SectionTitle sub="Be specific about location and severity">Description</SectionTitle>
+            <textarea
+              rows={8}
+              className="input resize-none"
+              placeholder={
+                incType === 'ROUTE_BLOCKED'    ? 'e.g. Nguyen Hue Street flooded, cannot pass by motorbike. Switching to Zone B alternate route.' :
+                incType === 'VOLUNTEER_SAFETY' ? 'e.g. Water now 85cm in Zone C. Team 2 returning to sub-warehouse immediately.' :
+                incType === 'BUILDING_FLOODED' ? 'e.g. Water entering sub-warehouse. 10cm on ground floor. Activating backup location.' :
+                                                 'Describe the incident clearly — include location, current situation, and actions taken.'
+              }
+              value={description}
+              onChange={e => setDescription(e.target.value)}
+            />
+            <p className="font-mono text-[10px] text-text-muted mt-2">
+              Reporting as: {selectedType.icon} {selectedType.label}
+            </p>
+          </div>
+
+          <button
+            onClick={handleSubmit}
+            disabled={submitting || !description.trim()}
+            className={`w-full py-2.5 rounded font-sans font-semibold text-sm transition-all disabled:opacity-40 ${
+              incType === 'VOLUNTEER_SAFETY'
+                ? 'bg-accent-red text-white hover:bg-accent-red/90'
+                : 'btn-primary'
+            }`}
+          >
+            {submitting ? 'Reporting...' : `Report ${selectedType.label}`}
+          </button>
+        </div>
       </div>
-
-      <button
-        onClick={handleSubmit}
-        disabled={submitting || !description.trim()}
-        className={`w-full py-2.5 rounded font-sans font-semibold text-sm transition-all disabled:opacity-40 ${
-          incType === 'VOLUNTEER_SAFETY'
-            ? 'bg-accent-red text-white hover:bg-accent-red/90'
-            : 'btn-primary'
-        }`}
-      >
-        {submitting ? 'Reporting...' : `Report ${selectedType.label}`}
-      </button>
     </div>
   );
 }
