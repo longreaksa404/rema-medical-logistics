@@ -98,7 +98,7 @@ export function Sidebar() {
         <button
           onClick={() => setCollapsed(prev => !prev)}
           title={collapsed ? 'Expand sidebar' : 'Collapse sidebar'}
-          className="w-7 h-7 flex items-center justify-center rounded border border-bg-border text-text-muted hover:text-text-primary hover:border-text-muted transition-colors duration-100 flex-shrink-0"
+          className="w-7 h-7 flex items-center justify-center rounded border border-bg-border text-text-primary hover:border-text-muted transition-colors duration-100 flex-shrink-0"
         >
           <span className="font-mono text-xs">
             {collapsed ? '→' : '←'}
