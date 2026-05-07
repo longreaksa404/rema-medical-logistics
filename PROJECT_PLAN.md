@@ -35,7 +35,7 @@
 | Chat 13 | Frontend: V8 Volunteer Mobile View | ✅ Complete |
 | Chat 14 | Frontend: V9 User Management (SUPER_ADMIN) | ✅ Complete |
 | Chat 15 | V3 Warehouse Layout (draw.io) | ✅ Complete |
-| Chat 16 | V5 Stakeholder Flowchart (draw.io) | ⬜ Not started |
+| Chat 16 | V5 Stakeholder Flowchart (draw.io) | ✅ Complete  |
 | Chat 17 | V6 Operating Protocol (PDF) | ⬜ Not started |
 | Chat 18 | Final Assembly + Submission Package | ⬜ Not started |
 
@@ -296,15 +296,15 @@
 
 ---
 
-## CHAT 16 — V5 Stakeholder Flowchart (draw.io) ⬜ Not started
+## CHAT 16 — V5 Stakeholder Flowchart (draw.io) ✅ Complete
 
-- [ ] Swimlane layout (5 lanes)
-- [ ] Phase 1 flow (Hours 0–24)
-- [ ] Phase 2 flow (Hours 24–48)
-- [ ] Information flow arrows
-- [ ] Decision diamonds
-- [ ] Export as PNG + SVG
-- [ ] Save to sections/visuals/V5-stakeholder-flowchart.png
+- [x] Swimlane layout (6 lanes)
+- [x] Phase 1 flow (Hours 0–24)
+- [x] Phase 2 flow (Hours 24–48)
+- [x] Information flow arrows
+- [x] Decision diamonds
+- [x] Export as PNG + SVG
+- [x] Save to sections/visuals/V5-stakeholder-flowchart.png
 
 ---
 
