@@ -16,9 +16,9 @@ import { VolunteerPage } from './pages/VolunteerPage';
 import { UsersPage } from './pages/UsersPage';
 import {
   WarehouseLayoutPage,
-  StakeholderFlowchartPage,
   OperatingProtocolPage,
 } from './pages/PlaceholderPages';
+import StakeholderPage from './pages/StakeholderPage';
 
 export function App() {
   return (
@@ -56,7 +56,7 @@ export function App() {
               </Route>
 
               {/* V5 — Stakeholder Flowchart (static — Chat 16) */}
-              <Route path="/stakeholders" element={<StakeholderFlowchartPage />} />
+              <Route path="/stakeholders" element={<StakeholderPage />} />
 
               {/* V6 — Operating Protocol (static — Chat 17) */}
               <Route path="/protocol" element={<OperatingProtocolPage />} />

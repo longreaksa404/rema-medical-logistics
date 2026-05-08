@@ -26,6 +26,11 @@ const NAV_ITEMS: NavItem[] = [
     icon: '⊞',
   },
   {
+    label: 'Stakeholder',
+    to: '/stakeholders',
+    icon: '⬢',
+  },
+  {
     label: 'Hub Portal',
     to: '/hub',
     icon: '⬡',
