@@ -1,8 +1,32 @@
 import { prisma } from '../lib/prisma';
+import { getCached, setCached, deleteCached } from '../utils/cache';
+
+// ─── CACHE KEYS ───────────────────────────────────────────────────────────────
+// Districts almost never change mid-event (no writes during active flood).
+// 300 s TTL is safe — list and individual records are invalidated together
+// on the rare case a district record is modified outside normal flow.
+
+const KEY_LIST = 'districts:list';
+const KEY_PREFIX = 'districts:';
+const TTL = 300_000; // 300 s
+
+function invalidateDistrictCache(id?: string): void {
+  deleteCached(KEY_LIST);
+  if (id) deleteCached(`${KEY_PREFIX}${id}`);
+}
 
 // ─── LIST ALL DISTRICTS ───────────────────────────────────────────────────────
 
 export async function listDistricts() {
+  const cached = getCached<Awaited<ReturnType<typeof fetchDistricts>>>(KEY_LIST);
+  if (cached) return cached;
+
+  const result = await fetchDistricts();
+  setCached(KEY_LIST, result, TTL);
+  return result;
+}
+
+async function fetchDistricts() {
   return prisma.district.findMany({
     orderBy: { name: 'asc' },
     include: {
@@ -22,40 +46,41 @@ export async function listDistricts() {
 // ─── GET SINGLE DISTRICT ──────────────────────────────────────────────────────
 
 export async function getDistrict(id: string) {
+  const key = `${KEY_PREFIX}detail:${id}`;
+  const cached = getCached<Awaited<ReturnType<typeof fetchDistrict>>>(key);
+  if (cached) return cached;
+
+  const result = await fetchDistrict(id);
+  setCached(key, result, TTL);
+  return result;
+}
+
+async function fetchDistrict(id: string) {
   const district = await prisma.district.findUnique({
     where: { id },
     include: {
-      subWarehouse: {
-        include: {
-          stock: true,
-        },
-      },
+      subWarehouse: { include: { stock: true } },
     },
   });
-
   if (!district) throw new Error('District not found');
   return district;
 }
 
 // ─── GET DISTRICT SUMMARY ─────────────────────────────────────────────────────
-// Used by V1 dashboard district cards and GET /api/dashboard/district/:id
+// Not cached here — the dashboard service caches this under dashboard:district:{id}.
+// Calling getDistrictSummary directly (e.g. GET /api/districts/:id/summary) goes
+// to the DB each time, which is acceptable since it's not polled on a tight loop.
 
 export async function getDistrictSummary(id: string) {
   const district = await prisma.district.findUnique({
     where: { id },
-    include: {
-      subWarehouse: {
-        include: { stock: true },
-      },
-    },
+    include: { subWarehouse: { include: { stock: true } } },
   });
-
   if (!district) throw new Error('District not found');
 
   const sw = district.subWarehouse;
   const stock = sw?.stock;
 
-  // Stock percentage (average of EMK1 + EMK2; EMK3 only counts if total > 0)
   let stockPct = 0;
   if (stock) {
     const components = [
@@ -69,17 +94,11 @@ export async function getDistrictSummary(id: string) {
       : 0;
   }
 
-  const householdsAssessed = await prisma.household.count({
-    where: { districtId: id },
-  });
-
-  const deliveredCount = await prisma.household.count({
-    where: { districtId: id, delivered: true },
-  });
-
-  const openIncidents = await prisma.incident.count({
-    where: { districtId: id, status: { in: ['OPEN', 'ESCALATED'] } },
-  });
+  const [householdsAssessed, deliveredCount, openIncidents] = await Promise.all([
+    prisma.household.count({ where: { districtId: id } }),
+    prisma.household.count({ where: { districtId: id, delivered: true } }),
+    prisma.incident.count({ where: { districtId: id, status: { in: ['OPEN', 'ESCALATED'] } } }),
+  ]);
 
   return {
     districtId: id,
@@ -101,3 +120,6 @@ export async function getDistrictSummary(id: string) {
     openIncidents,
   };
 }
+
+// ─── INVALIDATE (exported for use by other services if needed) ────────────────
+export { invalidateDistrictCache };

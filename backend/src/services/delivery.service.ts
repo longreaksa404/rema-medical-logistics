@@ -2,10 +2,28 @@ import { DeliveryRunStatus, EmkType } from '@prisma/client';
 import { prisma } from '../lib/prisma';
 import { recordDelivery } from './stock.service';
 import { invalidateQueueCache } from './household.service';
+import { getCached, setCached, deleteCached } from '../utils/cache';
+
+// ─── CACHE KEYS ───────────────────────────────────────────────────────────────
+// Delivery runs list is polled by Hub Manager portal and the V1 dashboard.
+// 10 s TTL — runs change state frequently (start/complete/abort) during active ops.
+// Per-district keys allow targeted invalidation from the Hub Manager's district.
+
+const KEY_ALL = 'delivery:runs:all';
+const KEY_DISTRICT_PREFIX = 'delivery:runs:district:';
+const TTL = 10_000; // 10 s
+
+function invalidateRunsCache(districtId?: string): void {
+  deleteCached(KEY_ALL);
+  if (districtId) {
+    deleteCached(`${KEY_DISTRICT_PREFIX}${districtId}`);
+  } else {
+    deleteCached(KEY_DISTRICT_PREFIX);
+  }
+}
 
 // ─── START A DELIVERY RUN ────────────────────────────────────────────────────
 // Section B.5: Team Leader collects household list, loads EMKs, departs.
-// Fixed departure times: 07:00, 11:00, 15:00 — but we record actual departure.
 
 export async function startDeliveryRun(data: {
   subWarehouseId: string;
@@ -16,11 +34,9 @@ export async function startDeliveryRun(data: {
 }) {
   const { subWarehouseId, teamNumber, zone, leadVolunteerId, performedById } = data;
 
-  // Verify sub-warehouse exists
   const sw = await prisma.subWarehouse.findUnique({ where: { id: subWarehouseId } });
   if (!sw) throw new Error(`Sub-warehouse not found: ${subWarehouseId}`);
 
-  // Verify volunteer exists
   const volunteer = await prisma.volunteer.findUnique({ where: { id: leadVolunteerId } });
   if (!volunteer) throw new Error(`Volunteer not found: ${leadVolunteerId}`);
 
@@ -35,42 +51,72 @@ export async function startDeliveryRun(data: {
       performedById,
     },
     include: {
-      subWarehouse: {
-        include: { district: { select: { name: true } } },
-      },
+      subWarehouse: { include: { district: { select: { name: true } } } },
       leadVolunteer: { select: { name: true, phone: true, role: true } },
       receipts: true,
     },
   });
 
+  invalidateRunsCache(sw.districtId);
   return run;
 }
 
 // ─── LIST DELIVERY RUNS ───────────────────────────────────────────────────────
+// Cached 10 s. Status filter applied in-memory when using cached data.
 
 export async function listDeliveryRuns(filters: {
   districtId?: string;
   status?: DeliveryRunStatus;
 }) {
-  const where: Record<string, unknown> = {};
-
-  if (filters.status) where.status = filters.status;
-
-  // Filter by district: go through subWarehouse → district
   if (filters.districtId) {
+    // District-scoped cache
+    const key = `${KEY_DISTRICT_PREFIX}${filters.districtId}`;
     const sw = await prisma.subWarehouse.findUnique({
       where: { districtId: filters.districtId },
     });
-    if (sw) where.subWarehouseId = sw.id;
+
+    if (!sw) return [];
+
+    const cached = getCached<Awaited<ReturnType<typeof fetchRunsByWarehouse>>>(key);
+    const all = cached ?? await (async () => {
+      const result = await fetchRunsByWarehouse(sw.id);
+      setCached(key, result, TTL);
+      return result;
+    })();
+
+    return filters.status ? all.filter(r => r.status === filters.status) : all;
   }
 
+  // All-runs cache (used by dashboard)
+  const cached = getCached<Awaited<ReturnType<typeof fetchAllRuns>>>(KEY_ALL);
+  const all = cached ?? await (async () => {
+    const result = await fetchAllRuns();
+    setCached(KEY_ALL, result, TTL);
+    return result;
+  })();
+
+  return filters.status ? all.filter(r => r.status === filters.status) : all;
+}
+
+async function fetchAllRuns() {
   return prisma.deliveryRun.findMany({
-    where,
     orderBy: { departedAt: 'desc' },
     include: {
-      subWarehouse: {
-        include: { district: { select: { name: true } } },
+      subWarehouse: { include: { district: { select: { name: true } } } },
+      leadVolunteer: { select: { name: true, phone: true } },
+      receipts: {
+        select: { id: true, emkType: true, quantity: true, deliveredAt: true },
       },
+    },
+  });
+}
+
+async function fetchRunsByWarehouse(subWarehouseId: string) {
+  return prisma.deliveryRun.findMany({
+    where: { subWarehouseId },
+    orderBy: { departedAt: 'desc' },
+    include: {
+      subWarehouse: { include: { district: { select: { name: true } } } },
       leadVolunteer: { select: { name: true, phone: true } },
       receipts: {
         select: { id: true, emkType: true, quantity: true, deliveredAt: true },
@@ -80,14 +126,13 @@ export async function listDeliveryRuns(filters: {
 }
 
 // ─── GET SINGLE RUN WITH RECEIPTS ────────────────────────────────────────────
+// Not cached — full detail view with receipt + household data; changes per receipt.
 
 export async function getDeliveryRun(id: string) {
   const run = await prisma.deliveryRun.findUnique({
     where: { id },
     include: {
-      subWarehouse: {
-        include: { district: { select: { name: true } } },
-      },
+      subWarehouse: { include: { district: { select: { name: true } } } },
       leadVolunteer: { select: { name: true, phone: true, role: true } },
       receipts: {
         orderBy: { deliveredAt: 'asc' },
@@ -110,8 +155,7 @@ export async function getDeliveryRun(id: string) {
 }
 
 // ─── RECORD DELIVERY RECEIPT ──────────────────────────────────────────────────
-// Section B.5: At each household, confirm identity, deliver EMK, get signature.
-// Also decrements stock at the sub-warehouse via recordDelivery().
+// Section B.5: Confirm household identity, deliver EMK, get signature.
 
 export async function createDeliveryReceipt(data: {
   deliveryRunId: string;
@@ -124,21 +168,18 @@ export async function createDeliveryReceipt(data: {
 }) {
   const { deliveryRunId, householdId, emkType, quantity, deliveredAt, notes, performedById } = data;
 
-  // Verify run exists and is IN_PROGRESS
   const run = await prisma.deliveryRun.findUnique({ where: { id: deliveryRunId } });
   if (!run) throw new Error('Delivery run not found');
   if (run.status !== DeliveryRunStatus.IN_PROGRESS) {
     throw new Error(`Cannot add receipts to a run with status: ${run.status}`);
   }
 
-  // Verify household exists
   const household = await prisma.household.findUnique({ where: { id: householdId } });
   if (!household) throw new Error(`Household not found: ${householdId}`);
   if (household.delivered) {
     throw new Error(`Household ${householdId} has already been marked as delivered`);
   }
 
-  // Step 1: Decrement stock at sub-warehouse (audit trail created in stock_movements)
   await recordDelivery({
     subWarehouseId: run.subWarehouseId,
     emkType,
@@ -147,7 +188,6 @@ export async function createDeliveryReceipt(data: {
     performedById,
   });
 
-  // Step 2: Create delivery receipt + mark household delivered
   const [receipt] = await prisma.$transaction([
     prisma.deliveryReceipt.create({
       data: {
@@ -160,33 +200,26 @@ export async function createDeliveryReceipt(data: {
       },
       include: {
         household: {
-          select: {
-            address: true,
-            totalScore: true,
-            priorityBand: true,
-          },
+          select: { address: true, totalScore: true, priorityBand: true },
         },
       },
     }),
     prisma.household.update({
       where: { id: householdId },
-      data: {
-        delivered: true,
-        deliveredAt,
-      },
+      data: { delivered: true, deliveredAt },
     }),
   ]);
 
-  // Household is now delivered — remove it from the priority queue cache
-  // so volunteers see the updated list within one poll cycle.
+  // Household is delivered — remove from priority queue cache
   invalidateQueueCache(household.districtId);
+  // Run has a new receipt — bust runs list cache for this district
+  const sw = await prisma.subWarehouse.findUnique({ where: { id: run.subWarehouseId } });
+  if (sw) invalidateRunsCache(sw.districtId);
 
   return receipt;
 }
 
 // ─── COMPLETE A DELIVERY RUN ──────────────────────────────────────────────────
-// Section B.5: Team returns to sub-warehouse, submits signed receipts,
-// reports new critical cases verbally.
 
 export async function completeDeliveryRun(id: string, performedById: string) {
   const run = await prisma.deliveryRun.findUnique({
@@ -195,38 +228,29 @@ export async function completeDeliveryRun(id: string, performedById: string) {
   });
 
   if (!run) throw new Error('Delivery run not found');
-  if (run.status === DeliveryRunStatus.COMPLETE) {
-    throw new Error('Delivery run is already complete');
-  }
-  if (run.status === DeliveryRunStatus.ABORTED) {
-    throw new Error('Cannot complete an aborted run');
-  }
+  if (run.status === DeliveryRunStatus.COMPLETE) throw new Error('Delivery run is already complete');
+  if (run.status === DeliveryRunStatus.ABORTED) throw new Error('Cannot complete an aborted run');
 
   const updated = await prisma.deliveryRun.update({
     where: { id },
-    data: {
-      status: DeliveryRunStatus.COMPLETE,
-      returnedAt: new Date(),
-    },
+    data: { status: DeliveryRunStatus.COMPLETE, returnedAt: new Date() },
     include: {
-      subWarehouse: {
-        include: { district: { select: { name: true } } },
-      },
+      subWarehouse: { include: { district: { select: { name: true } } } },
       leadVolunteer: { select: { name: true, phone: true } },
       receipts: {
-        include: {
-          household: { select: { address: true, priorityBand: true } },
-        },
+        include: { household: { select: { address: true, priorityBand: true } } },
       },
     },
   });
+
+  const sw = await prisma.subWarehouse.findUnique({ where: { id: run.subWarehouseId } });
+  if (sw) invalidateRunsCache(sw.districtId);
 
   return updated;
 }
 
 // ─── ABORT A DELIVERY RUN ─────────────────────────────────────────────────────
-// Section A.4: Volunteer safety — if water exceeds 80cm mid-run, suspend delivery.
-// Hub Manager can abort a run with a reason.
+// Section A.4: Volunteer safety — suspend delivery above 80cm water depth.
 
 export async function abortDeliveryRun(id: string, reason: string) {
   const run = await prisma.deliveryRun.findUnique({ where: { id } });
@@ -235,18 +259,18 @@ export async function abortDeliveryRun(id: string, reason: string) {
     throw new Error(`Cannot abort run with status: ${run.status}`);
   }
 
-  return prisma.deliveryRun.update({
+  const updated = await prisma.deliveryRun.update({
     where: { id },
-    data: {
-      status: DeliveryRunStatus.ABORTED,
-      returnedAt: new Date(),
-    },
+    data: { status: DeliveryRunStatus.ABORTED, returnedAt: new Date() },
     include: {
-      subWarehouse: {
-        include: { district: { select: { name: true } } },
-      },
+      subWarehouse: { include: { district: { select: { name: true } } } },
       leadVolunteer: { select: { name: true } },
       receipts: true,
     },
   });
+
+  const sw = await prisma.subWarehouse.findUnique({ where: { id: run.subWarehouseId } });
+  if (sw) invalidateRunsCache(sw.districtId);
+
+  return updated;
 }

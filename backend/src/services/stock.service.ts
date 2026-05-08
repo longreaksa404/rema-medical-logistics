@@ -1,59 +1,25 @@
 import { PrismaClient, EmkType, MovementType } from '@prisma/client';
 import { invalidateCache } from './dashboard.service';
 import { isInScarcity } from '../utils/stock.utils';
+import { getCached, setCached, deleteCached } from '../utils/cache';
 
 const prisma = new PrismaClient();
 
-// ─── SCARCITY THRESHOLD ───────────────────────────────────────────────────────
-// Section C.9: Scarcity mode triggers when stock falls below 30% of original allocation.
-// Function lives in utils/stock.utils.ts to avoid circular imports.
-// Re-exported here so existing callers (stock.controller, dashboard.service) are unchanged.
 export { isInScarcity } from '../utils/stock.utils';
 
-// ─── LOCAL CACHE ──────────────────────────────────────────────────────────────
-// Same in-memory pattern as dashboard.service.ts.
-// TTL: 15 seconds — stock status is polled frequently but changes only on
-// dispatch, reallocation, adjustment, or delivery. All four writers call
-// invalidateStockCache() so the cache never serves stale data after a write.
+// ─── CACHE KEYS ───────────────────────────────────────────────────────────────
+const KEY_STATUS = 'stock:status';
+const TTL_STATUS = 15_000; // 15 s
 
-interface CacheEntry<T> {
-  data: T;
-  expiresAt: number;
-}
-
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-const cache = new Map<string, CacheEntry<any>>();
-
-function getCached<T>(key: string): T | null {
-  const entry = cache.get(key);
-  if (!entry) return null;
-  if (Date.now() > entry.expiresAt) {
-    cache.delete(key);
-    return null;
-  }
-  return entry.data as T;
-}
-
-function setCached<T>(key: string, data: T, ttlMs: number): void {
-  cache.set(key, { data, expiresAt: Date.now() + ttlMs });
-}
-
-const STOCK_STATUS_KEY = 'stock:status';
-const STOCK_TTL_MS = 15_000; // 15 seconds
-
-/**
- * Bust stock:status cache. Called by every write path:
- *   dispatchStock, reallocateStock, adjustStock, recordDelivery
- * Also invalidates the dashboard caches that aggregate stock data.
- */
 function invalidateStockCache(districtId?: string): void {
-  cache.delete(STOCK_STATUS_KEY);
-  // Also propagate to dashboard so district cards reflect the change
+  deleteCached(KEY_STATUS);
   if (districtId) {
     invalidateCache(`dashboard:district:${districtId}`);
   }
   invalidateCache('dashboard:summary');
 }
+
+// ─── TYPES ────────────────────────────────────────────────────────────────────
 
 export interface StockWithScarcity {
   subWarehouseId: string;
@@ -112,10 +78,10 @@ function enrichStock(stock: {
 }
 
 // ─── GET ALL STOCK ────────────────────────────────────────────────────────────
-// Cached for 15 seconds. Invalidated on every write (dispatch/reallocate/adjust/delivery).
+// Cached 15 s. Invalidated on every write.
 
 export async function getAllStock(): Promise<StockWithScarcity[]> {
-  const cached = getCached<StockWithScarcity[]>(STOCK_STATUS_KEY);
+  const cached = getCached<StockWithScarcity[]>(KEY_STATUS);
   if (cached) return cached;
 
   const records = await prisma.stock.findMany({
@@ -128,19 +94,15 @@ export async function getAllStock(): Promise<StockWithScarcity[]> {
   });
 
   const result = records.map(enrichStock);
-  setCached(STOCK_STATUS_KEY, result, STOCK_TTL_MS);
+  setCached(KEY_STATUS, result, TTL_STATUS);
   return result;
 }
 
 // ─── GET STOCK BY DISTRICT ────────────────────────────────────────────────────
-// Not cached — single-district lookup is fast and called less frequently.
-// Hub Managers view their own district; no need to cache per-district reads.
+// Not cached — single-district lookup called infrequently.
 
 export async function getStockByDistrict(districtId: string): Promise<StockWithScarcity> {
-  const sw = await prisma.subWarehouse.findUnique({
-    where: { districtId },
-  });
-
+  const sw = await prisma.subWarehouse.findUnique({ where: { districtId } });
   if (!sw) throw new Error(`No sub-warehouse found for district ${districtId}`);
 
   const stock = await prisma.stock.findUnique({
@@ -153,13 +115,10 @@ export async function getStockByDistrict(districtId: string): Promise<StockWithS
   });
 
   if (!stock) throw new Error(`No stock record found for district ${districtId}`);
-
   return enrichStock(stock);
 }
 
 // ─── DISPATCH — Central Warehouse → Sub-Warehouse ────────────────────────────
-// Records movement as DISPATCH. Increases stock at sub-warehouse.
-// Invalidates stock:status cache and both dashboard caches.
 
 export async function dispatchStock(data: {
   subWarehouseId: string;
@@ -169,16 +128,13 @@ export async function dispatchStock(data: {
   performedById: string;
 }) {
   const { subWarehouseId, emkType, quantity, reason, performedById } = data;
-
   if (quantity <= 0) throw new Error('Quantity must be positive for dispatch');
 
   const stock = await prisma.stock.findUnique({ where: { subWarehouseId } });
   if (!stock) throw new Error(`No stock record found for sub-warehouse ${subWarehouseId}`);
 
-  const totalField = emkType === 'EMK1' ? 'emk1Total'
-    : emkType === 'EMK2' ? 'emk2Total' : 'emk3Total';
-  const remainingField = emkType === 'EMK1' ? 'emk1Remaining'
-    : emkType === 'EMK2' ? 'emk2Remaining' : 'emk3Remaining';
+  const totalField = emkType === 'EMK1' ? 'emk1Total' : emkType === 'EMK2' ? 'emk2Total' : 'emk3Total';
+  const remainingField = emkType === 'EMK1' ? 'emk1Remaining' : emkType === 'EMK2' ? 'emk2Remaining' : 'emk3Remaining';
 
   const currentTotal = stock[totalField as keyof typeof stock] as number;
   const currentRemaining = stock[remainingField as keyof typeof stock] as number;
@@ -199,14 +155,13 @@ export async function dispatchStock(data: {
         subWarehouseId,
         emkType,
         movementType: MovementType.DISPATCH,
-        quantity: quantity,
+        quantity,
         reason: reason ?? 'Central warehouse dispatch',
         performedById,
       },
     }),
   ]);
 
-  // EMK-3 dispatch is always a MoH transfer (cold chain — Section B.10)
   if (emkType === 'EMK3') {
     await prisma.stockMovement.update({
       where: { id: movement.id },
@@ -217,16 +172,10 @@ export async function dispatchStock(data: {
   const districtId = updatedStock.subWarehouse.districtId;
   invalidateStockCache(districtId);
 
-  return {
-    stock: enrichStock(updatedStock),
-    movement,
-  };
+  return { stock: enrichStock(updatedStock), movement };
 }
 
 // ─── REALLOCATE — Cross-District ─────────────────────────────────────────────
-// Emergency Coordinator only (enforced at route level).
-// Moves stock from one sub-warehouse to another.
-// Invalidates stock:status cache and both affected district dashboard caches.
 
 export async function reallocateStock(data: {
   fromSubWarehouseId: string;
@@ -241,8 +190,7 @@ export async function reallocateStock(data: {
   if (quantity <= 0) throw new Error('Quantity must be positive for reallocation');
   if (fromSubWarehouseId === toSubWarehouseId) throw new Error('From and To sub-warehouses must be different');
 
-  const remainingField = emkType === 'EMK1' ? 'emk1Remaining'
-    : emkType === 'EMK2' ? 'emk2Remaining' : 'emk3Remaining';
+  const remainingField = emkType === 'EMK1' ? 'emk1Remaining' : emkType === 'EMK2' ? 'emk2Remaining' : 'emk3Remaining';
 
   const fromStock = await prisma.stock.findUnique({ where: { subWarehouseId: fromSubWarehouseId } });
   const toStock = await prisma.stock.findUnique({ where: { subWarehouseId: toSubWarehouseId } });
@@ -252,13 +200,11 @@ export async function reallocateStock(data: {
 
   const fromRemaining = fromStock[remainingField as keyof typeof fromStock] as number;
   if (fromRemaining < quantity) {
-    throw new Error(
-      `Insufficient stock: ${fromSubWarehouseId} only has ${fromRemaining} ${emkType} remaining`
-    );
+    throw new Error(`Insufficient stock: ${fromSubWarehouseId} only has ${fromRemaining} ${emkType} remaining`);
   }
 
   const toRemaining = toStock[remainingField as keyof typeof toStock] as number;
-  const reasonText = reason ?? `Cross-district reallocation`;
+  const reasonText = reason ?? 'Cross-district reallocation';
 
   const [updatedFrom, updatedTo] = await prisma.$transaction([
     prisma.stock.update({
@@ -286,31 +232,23 @@ export async function reallocateStock(data: {
         subWarehouseId: toSubWarehouseId,
         emkType,
         movementType: MovementType.REALLOCATION,
-        quantity: quantity,
+        quantity,
         reason: `${reasonText} ← from ${fromSubWarehouseId}`,
         performedById,
       },
     }),
   ]);
 
-  const fromDistrictId = updatedFrom.subWarehouse.districtId;
-  const toDistrictId = updatedTo.subWarehouse.districtId;
-  // Bust stock status cache once, then each district dashboard cache
-  cache.delete(STOCK_STATUS_KEY);
-  invalidateCache(`dashboard:district:${fromDistrictId}`);
-  invalidateCache(`dashboard:district:${toDistrictId}`);
+  // Both district dashboard caches must be busted
+  deleteCached(KEY_STATUS);
+  invalidateCache(`dashboard:district:${updatedFrom.subWarehouse.districtId}`);
+  invalidateCache(`dashboard:district:${updatedTo.subWarehouse.districtId}`);
   invalidateCache('dashboard:summary');
 
-  return {
-    from: enrichStock(updatedFrom),
-    to: enrichStock(updatedTo),
-  };
+  return { from: enrichStock(updatedFrom), to: enrichStock(updatedTo) };
 }
 
 // ─── ADJUST — Manual with reason ─────────────────────────────────────────────
-// Hub Manager. Positive = add, negative = remove. Always requires reason.
-// Invalidates stock:status cache. Dashboard TTL (15s) is acceptable here
-// since adjustments are small corrections during active operations.
 
 export async function adjustStock(data: {
   subWarehouseId: string;
@@ -324,19 +262,15 @@ export async function adjustStock(data: {
   if (quantity === 0) throw new Error('Adjustment quantity cannot be 0');
   if (!reason || reason.trim().length === 0) throw new Error('Reason is required for manual adjustment');
 
-  const remainingField = emkType === 'EMK1' ? 'emk1Remaining'
-    : emkType === 'EMK2' ? 'emk2Remaining' : 'emk3Remaining';
+  const remainingField = emkType === 'EMK1' ? 'emk1Remaining' : emkType === 'EMK2' ? 'emk2Remaining' : 'emk3Remaining';
 
   const stock = await prisma.stock.findUnique({ where: { subWarehouseId } });
   if (!stock) throw new Error(`No stock record found for sub-warehouse ${subWarehouseId}`);
 
   const currentRemaining = stock[remainingField as keyof typeof stock] as number;
   const newRemaining = currentRemaining + quantity;
-
   if (newRemaining < 0) {
-    throw new Error(
-      `Adjustment would result in negative stock: current=${currentRemaining}, adjustment=${quantity}`
-    );
+    throw new Error(`Adjustment would result in negative stock: current=${currentRemaining}, adjustment=${quantity}`);
   }
 
   const [updatedStock, movement] = await prisma.$transaction([
@@ -348,24 +282,13 @@ export async function adjustStock(data: {
       },
     }),
     prisma.stockMovement.create({
-      data: {
-        subWarehouseId,
-        emkType,
-        movementType: MovementType.ADJUSTMENT,
-        quantity,
-        reason,
-        performedById,
-      },
+      data: { subWarehouseId, emkType, movementType: MovementType.ADJUSTMENT, quantity, reason, performedById },
     }),
   ]);
 
-  // Bust stock:status cache — even small adjustments must be reflected immediately
-  cache.delete(STOCK_STATUS_KEY);
+  deleteCached(KEY_STATUS);
 
-  return {
-    stock: enrichStock(updatedStock),
-    movement,
-  };
+  return { stock: enrichStock(updatedStock), movement };
 }
 
 // ─── GET MOVEMENTS ────────────────────────────────────────────────────────────
@@ -374,9 +297,7 @@ export async function getAllMovements() {
   return prisma.stockMovement.findMany({
     orderBy: { createdAt: 'desc' },
     include: {
-      subWarehouse: {
-        include: { district: { select: { name: true } } },
-      },
+      subWarehouse: { include: { district: { select: { name: true } } } },
       performedBy: { select: { name: true, email: true, role: true } },
     },
   });
@@ -396,10 +317,7 @@ export async function getMovementsByDistrict(districtId: string) {
 }
 
 // ─── RECORD DELIVERY CONSUMPTION ─────────────────────────────────────────────
-// Called internally when a delivery receipt is recorded.
-// Decrements remaining stock at the source sub-warehouse.
-// Invalidates stock:status cache — delivery frequency is high but the
-// 15s TTL would otherwise serve stale scarcity warnings to volunteers.
+// Called internally from delivery.service when a receipt is created.
 
 export async function recordDelivery(data: {
   subWarehouseId: string;
@@ -409,11 +327,9 @@ export async function recordDelivery(data: {
   performedById: string;
 }) {
   const { subWarehouseId, emkType, quantity, reason, performedById } = data;
-
   if (quantity <= 0) throw new Error('Quantity must be positive for delivery recording');
 
-  const remainingField = emkType === 'EMK1' ? 'emk1Remaining'
-    : emkType === 'EMK2' ? 'emk2Remaining' : 'emk3Remaining';
+  const remainingField = emkType === 'EMK1' ? 'emk1Remaining' : emkType === 'EMK2' ? 'emk2Remaining' : 'emk3Remaining';
 
   const stock = await prisma.stock.findUnique({ where: { subWarehouseId } });
   if (!stock) throw new Error(`No stock record for sub-warehouse ${subWarehouseId}`);
@@ -443,13 +359,8 @@ export async function recordDelivery(data: {
     }),
   ]);
 
-  // Bust stock:status cache so scarcity warnings propagate immediately
-  cache.delete(STOCK_STATUS_KEY);
+  deleteCached(KEY_STATUS);
 
   const enriched = enrichStock(updatedStock);
-  return {
-    stock: enriched,
-    movement,
-    scarcityWarning: enriched.anyScarce,
-  };
+  return { stock: enriched, movement, scarcityWarning: enriched.anyScarce };
 }
