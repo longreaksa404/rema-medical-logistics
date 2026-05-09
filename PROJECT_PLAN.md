@@ -35,9 +35,12 @@
 | Chat 13 | Frontend: V8 Volunteer Mobile View | ✅ Complete |
 | Chat 14 | Frontend: V9 User Management (SUPER_ADMIN) | ✅ Complete |
 | Chat 15 | V3 Warehouse Layout (draw.io) | ✅ Complete |
-| Chat 16 | V5 Stakeholder Flowchart (draw.io) | ✅ Complete  |
+| Chat 16 | V5 Stakeholder Flowchart (draw.io) | ✅ Complete |
 | Chat 17 | V6 Operating Protocol (PDF) | ✅ Complete |
-| Chat 18 | Final Assembly + Submission Package | ⬜ Not started |
+| Chat 18 | Unit Tests (Jest — backend utility functions) | ⬜ Not started |
+| Chat 19 | CI/CD Pipeline (GitHub Actions) | ⬜ Not started |
+| Chat 20 | AI Integration (REMA AI Brief) | ⬜ Not started |
+| Chat 21 | Final Assembly + Submission Package | ⬜ Not started |
 
 ---
 
@@ -174,19 +177,9 @@
 - [x] Swagger updated with new schemas and paths
 - [x] Architecture decision locked: Option A (single unified frontend app)
 
-**Key decisions:**
-- SUPER_ADMIN created via seed only — never via API
-- No public registration — closed user base
-- Deactivate, never delete — audit trail preserved
-- VIEWER role keeps auth required — dashboard shows PII
-
 ---
 
 ## CHAT 8 — Frontend: Auth + Dashboard Setup ✅ Complete
-
-**Goal:** Login works. Single unified React app (Option A) running on Vercel, connected to Render backend.
-
-**Architecture decision (locked):** Single app, role-based rendering. One Vercel deployment. React Router v6. Auth state in React Context.
 
 - [x] React project setup (Vite + TypeScript + Tailwind CSS) inside `frontend/`
 - [x] Environment config (.env with Render backend URL)
@@ -320,17 +313,183 @@
 
 ---
 
-## CHAT 18 — Final Assembly + Submission Package ⬜ Not started
+## CHAT 18 — Unit Tests (Jest — Backend Utility Functions) ⬜ Not started
+
+**Goal:** Prove the scoring engine, activation trigger, scarcity check, and routing
+logic are correct using automated tests. Pure utility functions only — no database,
+no HTTP, no Prisma.
+
+**Why this scope:** These four utility files contain every critical locked rule in REMA.
+If they are wrong, judges can check against the strategy documents. Tests prove
+correctness without requiring a test database setup.
+
+### Setup
+- [ ] Install Jest + ts-jest + @types/jest in `backend/`
+- [ ] Create `jest.config.ts` with ts-jest preset
+- [ ] Add `"test": "jest"` script to `backend/package.json`
+- [ ] Create `backend/src/utils/__tests__/` directory
+
+### scoring.test.ts
+- [ ] Category 1: life-sustaining medication run out → 8 pts
+- [ ] Category 1: medication low (1–2 days) → 5 pts
+- [ ] Category 1: medication adequate → 2 pts
+- [ ] Category 1: no chronic illness → 0 pts
+- [ ] Category 2: infant + pregnant → capped at 5 pts (not 4)
+- [ ] Category 2: single vulnerable person → correct pts
+- [ ] Category 3: water inside household → 4 pts
+- [ ] Category 3: water at doorstep → 3 pts
+- [ ] Category 3: household dry → 0 pts
+- [ ] Category 4: no access → 2 pts, partial → 1 pt, adequate → 0 pts
+- [ ] Category 5: isolated → 1 pt, not isolated → 0 pts
+- [ ] Total score = sum of all 5 categories (respecting cat 2 cap)
+- [ ] Score band: 15–20 → CRITICAL, 10–14 → HIGH, 5–9 → MEDIUM, 0–4 → STANDARD
+- [ ] Section C worked example — all 6 households score correctly:
+  - Household A: 0+2+3+2+1 = 8 → MEDIUM
+  - Household B: 0+2+3+1+0 = 6 → MEDIUM
+  - Household C: 8+0+1+0+0 = 9 → MEDIUM
+  - Household D: 0+2+4+2+0 = 8 → MEDIUM
+  - Household E: 0+0+0+1+0 = 1 → STANDARD
+  - Household F: 5+2+1+1+1 = 10 → HIGH
+
+### stock.utils.test.ts
+- [ ] isInScarcity(): 0 remaining of 100 total → true
+- [ ] isInScarcity(): 29 remaining of 100 total → true (below 30%)
+- [ ] isInScarcity(): 30 remaining of 100 total → true (at threshold, inclusive)
+- [ ] isInScarcity(): 31 remaining of 100 total → false (above threshold)
+- [ ] isInScarcity(): 100 remaining of 100 total → false (full stock)
+- [ ] isInScarcity(): handles zero total gracefully (no divide-by-zero)
+
+### alert.test.ts
+- [ ] shouldActivate(): all 3 false → false
+- [ ] shouldActivate(): only warningLevelTwo true → false
+- [ ] shouldActivate(): only rainfallExceeds100mm true → false
+- [ ] shouldActivate(): only streetFloodingReport true → false
+- [ ] shouldActivate(): warningLevelTwo + rainfallExceeds100mm → true
+- [ ] shouldActivate(): warningLevelTwo + streetFloodingReport → true
+- [ ] shouldActivate(): rainfallExceeds100mm + streetFloodingReport → true
+- [ ] shouldActivate(): all 3 true → true
+
+### route.test.ts
+- [ ] getDeliveryMode(0) → MOTORBIKE
+- [ ] getDeliveryMode(29) → MOTORBIKE
+- [ ] getDeliveryMode(30) → BICYCLE_OR_FOOT
+- [ ] getDeliveryMode(59) → BICYCLE_OR_FOOT
+- [ ] getDeliveryMode(60) → BOAT
+- [ ] getDeliveryMode(79) → BOAT
+- [ ] getDeliveryMode(80) → SUSPENDED (hard safety rule — at limit, suspend)
+- [ ] getDeliveryMode(81) → SUSPENDED
+- [ ] getDeliveryMode(120) → SUSPENDED
+
+### Final steps
+- [ ] `npm test` passes with all tests green in `backend/`
+- [ ] Screenshot or copy of test output saved (for submission package)
+- [ ] Verify no tests import Prisma or make HTTP calls
+
+---
+
+## CHAT 19 — CI/CD Pipeline (GitHub Actions) ⬜ Not started
+
+**Goal:** Automate test-then-deploy. Every push to main runs tests first. If tests
+fail, Render does not redeploy. PRs are gated by tests.
+
+### GitHub Actions workflow
+- [ ] Create `.github/workflows/ci.yml`
+- [ ] Configure trigger: `on: push: branches: [main]` and `on: pull_request`
+- [ ] Step 1: `actions/checkout@v4`
+- [ ] Step 2: `actions/setup-node@v4` with `node-version: '20'`
+- [ ] Step 3: `npm ci` inside `backend/` (clean install from lockfile)
+- [ ] Step 4: `npm test` inside `backend/` (runs all Jest tests)
+- [ ] Step 5 (main branch only): `curl -X POST ${{ secrets.RENDER_DEPLOY_HOOK_URL }}` to trigger Render redeploy
+- [ ] Confirm Vercel autodeploy is already connected to GitHub main (no extra step needed)
+
+### GitHub repository setup (manual steps — document in README)
+- [ ] Go to GitHub repo → Settings → Secrets and variables → Actions
+- [ ] Add secret: `RENDER_DEPLOY_HOOK_URL`
+  - Get value from: Render dashboard → your backend service → Settings → Deploy Hook → Generate
+  - Format: `https://api.render.com/deploy/srv-xxxxx?key=yyyy`
+- [ ] Confirm Vercel project is connected to GitHub repo (Settings → Git)
+
+### Verify pipeline works
+- [ ] Push a small change to main → check GitHub Actions tab → all steps green
+- [ ] Check Render dashboard → new deploy triggered automatically
+- [ ] Make a PR with a deliberate test failure → confirm PR shows red status check
+- [ ] Fix the failure → confirm PR shows green
+
+### README update
+- [ ] Add "CI/CD" section to README.md explaining the pipeline
+- [ ] Add badge: `![CI](https://github.com/<username>/<repo>/actions/workflows/ci.yml/badge.svg)`
+- [ ] Document the two manual setup steps (Render hook, Vercel connection)
+
+---
+
+## CHAT 20 — AI Integration (REMA AI Brief) ⬜ Not started
+
+**Goal:** Add a meaningful AI feature to the Emergency Coordinator dashboard.
+The AI reads the current operational state and returns a 3-part situation brief.
+Advisory only — cannot trigger any system action.
+
+### Backend
+- [ ] Install `@anthropic-ai/sdk` in `backend/`
+- [ ] Add `ANTHROPIC_API_KEY=` placeholder to `backend/.env.example`
+- [ ] Add real `ANTHROPIC_API_KEY` to Render environment variables (manual step)
+- [ ] Create `backend/src/services/ai.service.ts`:
+  - [ ] Read current dashboard summary from database (reuse dashboard.service logic)
+  - [ ] Build prompt from aggregate data only: phase, stock levels per district,
+        household counts per band, open incident count by type, radio compliance %,
+        active delivery runs count
+  - [ ] Zero PII in prompt — no names, addresses, household IDs
+  - [ ] Call Anthropic API: model `claude-sonnet-4-20250514`, max_tokens 400
+  - [ ] Parse response into `{ summary, priorityAlert, nextStep }` fields
+  - [ ] If API call fails: throw error with message "AI Brief unavailable"
+- [ ] Create `backend/src/controllers/ai.controller.ts`:
+  - [ ] POST /api/ai/brief handler
+  - [ ] Return: `{ summary, priorityAlert, nextStep, generatedAt, dataSnapshot }`
+  - [ ] On AI service error: return HTTP 503 with `{ error: "AI Brief temporarily unavailable" }`
+- [ ] Create `backend/src/routes/ai.routes.ts`:
+  - [ ] POST /api/ai/brief — requires auth, requires EMERGENCY_COORDINATOR or SUPER_ADMIN
+- [ ] Register ai.routes in `app.ts`
+- [ ] Add POST /api/ai/brief to Swagger docs with request/response schema
+- [ ] Deploy to Render and test endpoint via Swagger
+
+### Frontend — V1 Dashboard additions
+- [ ] Add "Generate AI Brief" button to `DashboardPage.tsx`
+  - [ ] Visible only when role is EMERGENCY_COORDINATOR or SUPER_ADMIN
+  - [ ] Shows loading spinner while POST /api/ai/brief is in progress
+- [ ] Create `AiBriefModal.tsx` component:
+  - [ ] Three sections: Situation Summary / Priority Alert / Recommended Next Step
+  - [ ] "⚠️ Advisory only — human decision required" notice in prominent red/amber at top
+  - [ ] "Generated at [timestamp] from live dashboard data" at bottom
+  - [ ] Data snapshot section: shows phase, critical count, scarcity status (transparency)
+  - [ ] Close button
+- [ ] Error state: if 503 returned, show "AI Brief temporarily unavailable — use dashboard directly" inside modal (do not crash)
+- [ ] Loading state: spinner with "Generating operational brief..." text
+- [ ] Deploy to Vercel and test live
+
+### Verify end-to-end
+- [ ] Login as coordinator@rema.vn → dashboard → click "Generate AI Brief"
+- [ ] Confirm loading state appears
+- [ ] Confirm modal opens with all 3 sections populated
+- [ ] Confirm "Advisory only" label is always visible
+- [ ] Confirm data snapshot shows current values
+- [ ] Login as hub1@rema.vn (HUB_MANAGER) → confirm button is NOT visible
+- [ ] Temporarily remove ANTHROPIC_API_KEY from Render → confirm graceful error state
+
+### Update Assumptions log
+- [ ] Add assumptions #50–55 (see PROJECT_SCOPE.md Section 13.4)
+
+---
+
+## CHAT 21 — Final Assembly + Submission Package ⬜ Not started
 
 - [ ] Verify all live URLs (Render + Vercel + Swagger)
+- [ ] Wire V6 PDF into frontend ProtocolPage.tsx
 - [ ] Compile all strategy sections into master document
-- [ ] Compile all visuals into submission folder
 - [ ] Write executive summary (1 page)
-- [ ] Write system demo guide
-- [ ] Final assumptions log review
+- [ ] Write system demo guide (test account walkthrough)
+- [ ] Final assumptions log review (confirm #50–55 added)
 - [ ] Build presentation slide outline
 - [ ] Final git tag: v1.0.0
-- [ ] Package everything into submission folder
+- [ ] Package everything into submission folder README
 
 ---
 
@@ -338,6 +497,9 @@
 
 ```
 rema-medical-logistics/
+├── .github/
+│   └── workflows/
+│       └── ci.yml                        ← NEW (Chat 19)
 ├── .gitignore
 ├── Dockerfile
 ├── docker-compose.yml
@@ -354,6 +516,7 @@ rema-medical-logistics/
 │   ├── package.json
 │   ├── package-lock.json
 │   ├── tsconfig.json
+│   ├── jest.config.ts                    ← NEW (Chat 18)
 │   ├── swagger.yaml
 │   ├── render.yaml
 │   │
@@ -363,6 +526,7 @@ rema-medical-logistics/
 │   │   ├── seed.ts
 │   │   │
 │   │   ├── controllers/
+│   │   │   ├── ai.controller.ts          ← NEW (Chat 20)
 │   │   │   ├── alert.controller.ts
 │   │   │   ├── auth.controller.ts
 │   │   │   ├── dashboard.controller.ts
@@ -378,6 +542,7 @@ rema-medical-logistics/
 │   │   │   └── volunteer.controller.ts
 │   │   │
 │   │   ├── services/
+│   │   │   ├── ai.service.ts             ← NEW (Chat 20)
 │   │   │   ├── alert.service.ts
 │   │   │   ├── auth.service.ts
 │   │   │   ├── dashboard.service.ts
@@ -393,6 +558,7 @@ rema-medical-logistics/
 │   │   │   └── volunteer.service.ts
 │   │   │
 │   │   ├── routes/
+│   │   │   ├── ai.routes.ts              ← NEW (Chat 20)
 │   │   │   ├── alert.routes.ts
 │   │   │   ├── auth.routes.ts
 │   │   │   ├── dashboard.routes.ts
@@ -418,6 +584,11 @@ rema-medical-logistics/
 │   │   │   └── prisma.ts
 │   │   │
 │   │   └── utils/
+│   │       ├── __tests__/                ← NEW (Chat 18)
+│   │       │   ├── scoring.test.ts
+│   │       │   ├── stock.utils.test.ts
+│   │       │   ├── alert.test.ts
+│   │       │   └── route.test.ts
 │   │       ├── cache.ts
 │   │       ├── scoring.ts
 │   │       └── stock.utils.ts
@@ -443,21 +614,16 @@ rema-medical-logistics/
 │   ├── tsconfig.json
 │   ├── tsconfig.app.json
 │   ├── tsconfig.node.json
-│   ├── tsconfig.node.tsbuildinfo
-│   ├── tsconfig.tsbuildinfo
 │   ├── vite.config.ts
-│   ├── vite.config.js
-│   ├── vite.config.d.ts
 │   ├── vercel.json
 │   │
 │   ├── src/
 │   │   ├── main.tsx
 │   │   ├── App.tsx
-│   │   ├── App.css
 │   │   ├── index.css
-│   │   ├── vite-env.d.ts
 │   │   │
 │   │   ├── components/
+│   │   │   ├── AiBriefModal.tsx          ← NEW (Chat 20)
 │   │   │   ├── AppShell.tsx
 │   │   │   ├── DashboardLayout.tsx
 │   │   │   ├── DeliveryRunsPanel.tsx
@@ -470,7 +636,7 @@ rema-medical-logistics/
 │   │   │
 │   │   ├── pages/
 │   │   │   ├── ChangePasswordPage.tsx
-│   │   │   ├── DashboardPage.tsx
+│   │   │   ├── DashboardPage.tsx         ← MODIFIED (Chat 20 — AI Brief button)
 │   │   │   ├── HubPage.tsx
 │   │   │   ├── LoginPage.tsx
 │   │   │   ├── PlaceholderPages.tsx
@@ -484,6 +650,7 @@ rema-medical-logistics/
 │   │   │   └── AuthContext.tsx
 │   │   │
 │   │   ├── api/
+│   │   │   ├── ai.ts                     ← NEW (Chat 20)
 │   │   │   ├── auth.ts
 │   │   │   ├── cache.ts
 │   │   │   ├── client.ts
@@ -494,23 +661,16 @@ rema-medical-logistics/
 │   │   │   ├── radio.ts
 │   │   │   └── routes.ts
 │   │   │
-│   │   ├── utils/
-│   │   │   └── scoring.ts
-│   │   │
-│   │   └── assets/
-│   │       ├── hero.png
-│   │       ├── react.svg
-│   │       └── vite.svg
+│   │   └── utils/
+│   │       └── scoring.ts
 │   │
-│   ├── public/
-│   │   ├── favicon.svg
-│   │   ├── icons.svg
-│   │   ├── rema_logo_new.svg
-│   │   │
-│   │   └── visuals/
-│   │       ├── REMA-stakeholder-flowchart.drawio.png
-│   │       ├── central-warehouse.drawio.png
-│   │       └── sub-warehouse.drawio.png
+│   └── public/
+│       ├── favicon.svg
+│       ├── rema_logo_new.svg
+│       └── visuals/
+│           ├── REMA-stakeholder-flowchart.drawio.png
+│           ├── central-warehouse.drawio.png
+│           └── sub-warehouse.drawio.png
 │
 ├── docs/
 │   ├── Assumptions-log.md
@@ -524,9 +684,7 @@ rema-medical-logistics/
 │
 └── sections/
     ├── documents/
-    │   ├── V6-operating-protocol.docx
-    │   └── node-explanations.docx
-    │
+    │   └── V6-operating-protocol.docx
     └── visuals/
         ├── REMA-stakeholder-flowchart.drawio.png
         ├── central-warehouse.drawio.png
@@ -539,6 +697,23 @@ rema-medical-logistics/
 ## GIT COMMIT PATTERN
 
 ```bash
-git add . 
+git add .
 git commit -m "Chat [N] complete: [brief description]"
+```
+
+### Planned commits for remaining chats:
+```bash
+# Chat 18
+git add . && git commit -m "Chat 18 complete: Jest unit tests for scoring, stock utils, alert trigger, route logic"
+
+# Chat 19
+git add . && git commit -m "Chat 19 complete: GitHub Actions CI/CD — test on PR, deploy to Render on main"
+
+# Chat 20
+git add . && git commit -m "Chat 20 complete: AI Brief endpoint and modal — advisory operational summary for EC dashboard"
+
+# Chat 21
+git add . && git commit -m "Chat 21 complete: final assembly, submission package, v1.0.0 tag"
+git tag v1.0.0
+git push origin main --tags
 ```

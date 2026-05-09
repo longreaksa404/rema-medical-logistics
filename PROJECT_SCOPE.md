@@ -359,6 +359,14 @@ GET    /api/dashboard/summary
 GET    /api/dashboard/district/:id
 ```
 
+### AI Brief (NEW — Chat 20)
+```
+POST   /api/ai/brief                      EMERGENCY_COORDINATOR+
+```
+Reads current dashboard state server-side. Returns operational summary, priority alert,
+and recommended next step. No PII in prompt. Advisory output only — cannot trigger
+any system action. Graceful degradation if Anthropic API is unavailable.
+
 ---
 
 ## 10. FRONTEND PAGES & VIEWS
@@ -368,7 +376,7 @@ GET    /api/dashboard/district/:id
 | View | Name | Visible To | Description |
 |---|---|---|---|
 | V0 | Auth | All | Login page, role-based redirect, change password on first login |
-| V1 | Operations Dashboard | EC, SUPER_ADMIN, VIEWER | Phase banner, district cards, stock chart, priority queue, incidents, notifications |
+| V1 | Operations Dashboard | EC, SUPER_ADMIN, VIEWER | Phase banner, district cards, stock chart, priority queue, incidents, notifications, AI Brief button (EC + SUPER_ADMIN only) |
 | V2 | Routing Map | EC, HUB_MANAGER | Leaflet map, district overlays, water depth input, delivery mode per zone |
 | V3 | Warehouse Layout | All | Static draw.io diagram — central + sub-warehouse floor plans |
 | V4 | Prioritization Tool | EC, HUB_MANAGER, VOLUNTEER | Assessment form, live scoring, score band result, priority table |
@@ -390,6 +398,9 @@ Infrastructure:  Docker + docker-compose
 Hosting:         Render (backend) + Supabase (PostgreSQL) + Vercel (frontend)
 API Docs:        Swagger (swagger-ui-express)
 Static Diagrams: draw.io
+Testing:         Jest + ts-jest (backend unit tests only)
+CI/CD:           GitHub Actions
+AI:              Anthropic Claude API (@anthropic-ai/sdk) — server-side only
 ```
 
 Do NOT use Railway — free tier is 30 days only.
@@ -408,3 +419,163 @@ Do NOT use Railway — free tier is 30 days only.
 | section-E-scalability-sustainability.md | Scale-up model, sustainability mechanisms |
 | section-F-financial-plan.md | Budget estimates, cost breakdown |
 | Assumptions-log.md | 49 assumptions — new assumptions continue from #50 |
+
+---
+
+## 13. ENGINEERING QUALITY ADDITIONS
+
+### 13.1 Unit Testing (Chat 18)
+
+**Framework:** Jest + ts-jest
+**Location:** `backend/src/utils/__tests__/`
+**Scope:** Pure utility functions only — no database, no HTTP calls, no Prisma
+
+These are the functions that implement REMA's locked rules. If they are wrong,
+judges can verify against the strategy documents. Tests prove correctness.
+
+| Test File | Functions Tested | What It Verifies |
+|---|---|---|
+| `scoring.test.ts` | `calculateScore()`, all 5 category scorers | All scoring rules from Section C including the 6-household worked example |
+| `stock.utils.test.ts` | `isInScarcity()` | 30% threshold: 29% → true, 30% → true, 31% → false |
+| `alert.test.ts` | `shouldActivate()` | All 8 combinations of 3 boolean flags — only ≥2 true triggers activation |
+| `route.test.ts` | `getDeliveryMode()` | Correct mode at 0, 30, 60, 80cm; SUSPENDED above 80cm (hard safety rule) |
+
+**Run command:** `npm test` inside `backend/`
+
+**What is NOT tested:**
+- Controllers (require HTTP setup)
+- Services (require database)
+- Frontend components
+- E2E flows
+
+This is an honest scope. The utility functions contain all the critical business logic.
+Controllers and services are integration-tested implicitly through the live Swagger UI.
+
+---
+
+### 13.2 CI/CD Pipeline — GitHub Actions (Chat 19)
+
+**File:** `.github/workflows/ci.yml`
+**Triggers:** Push to `main` branch, and any pull request
+
+**Pipeline steps:**
+
+```
+On pull request:
+  1. Checkout code
+  2. Set up Node.js 20
+  3. Install backend dependencies (npm ci)
+  4. Run backend unit tests (npm test)
+  → If tests fail: PR is blocked. No deploy.
+
+On push to main (after PR merge):
+  1. Checkout code
+  2. Set up Node.js 20
+  3. Install backend dependencies (npm ci)
+  4. Run backend unit tests (npm test)
+  5. Trigger Render deploy hook (HTTP POST to deploy hook URL)
+  → Render rebuilds and redeploys backend automatically.
+  → Vercel autodeploys frontend from GitHub — no extra step needed.
+```
+
+**GitHub repository secrets required:**
+
+| Secret Name | Where to Get It | Set By |
+|---|---|---|
+| `RENDER_DEPLOY_HOOK_URL` | Render dashboard → your service → Settings → Deploy Hook | Manual — document in README |
+
+**No database connection in CI.** Unit tests are pure functions.
+No `DATABASE_URL` or `JWT_SECRET` needed in GitHub secrets.
+
+**What CI does NOT do:**
+- No Docker build (Render handles this)
+- No staging environment
+- No Vercel CLI step (Vercel GitHub integration handles autodeploy)
+- No E2E tests
+
+---
+
+### 13.3 AI Integration — REMA AI Brief (Chat 20)
+
+**Feature name:** REMA AI Brief
+**Visible to:** EMERGENCY_COORDINATOR and SUPER_ADMIN only (on V1 Dashboard)
+**SDK:** `@anthropic-ai/sdk` (server-side only — API key never exposed to browser)
+**Model:** `claude-sonnet-4-20250514`
+
+#### What it does
+
+When the Emergency Coordinator clicks "Generate AI Brief," the system:
+
+1. Backend reads current dashboard state from the database (same data as `GET /api/dashboard/summary`)
+2. Builds a structured prompt using only aggregate, non-PII data:
+   - Current phase (0/1/2)
+   - Stock levels per district (EMK-1/2/3 remaining vs. total)
+   - Number of households per priority band (CRITICAL/HIGH/MEDIUM/STANDARD)
+   - Number of open incidents by type
+   - Radio check-in compliance rate
+   - Active delivery runs count
+3. Calls the Anthropic API server-side
+4. Returns a structured JSON response to the frontend
+
+**API endpoint:**
+```
+POST   /api/ai/brief    EMERGENCY_COORDINATOR+    No request body required
+```
+
+**Response shape:**
+```json
+{
+  "summary": "string — 2-3 sentence situation overview",
+  "priorityAlert": "string — single most urgent issue right now",
+  "nextStep": "string — one concrete action for the EC in the next hour",
+  "generatedAt": "ISO timestamp",
+  "dataSnapshot": {
+    "phase": 1,
+    "totalCritical": 12,
+    "totalHigh": 34,
+    "scarcityActive": false
+  }
+}
+```
+
+#### Hard constraints (from REMA Principle 4: Technology serves people, not the reverse)
+
+| Constraint | Implementation |
+|---|---|
+| Advisory only | Frontend always shows "Advisory only — human decision required" label |
+| No PII in prompt | Prompt uses aggregate counts only — no names, addresses, or household IDs |
+| Cannot trigger actions | Endpoint is read-only — no write operations in this flow |
+| Graceful degradation | If Anthropic API is unavailable, return HTTP 503 with clear message; frontend shows "AI Brief temporarily unavailable — use dashboard directly" |
+| Transparent to user | Response includes `dataSnapshot` so EC can see exactly what data the AI used |
+
+#### Frontend implementation (V1 Dashboard additions)
+
+- "Generate AI Brief" button — visible only to EMERGENCY_COORDINATOR and SUPER_ADMIN
+- Button shows loading spinner while API call is in progress (typically 2–5 seconds)
+- Result displayed in a modal with three clearly labelled sections
+- "Advisory only" notice in red at top of modal — always visible
+- "Generated at [timestamp] from live dashboard data" shown at bottom
+- Error state: if 503 returned, show fallback message without crashing
+
+#### Environment variable
+
+```
+ANTHROPIC_API_KEY=sk-ant-...   # Added to Render environment variables only
+                                # Never committed to repository
+                                # Documented in backend/.env.example as placeholder
+```
+
+---
+
+### 13.4 New Assumptions (from Sections 13.1–13.3)
+
+These continue from assumption #49 in Assumptions-log.md:
+
+| # | Section | Assumption | Reason |
+|---|---|---|---|
+| 50 | Chat 18 | Unit tests cover backend utility functions only — no integration or E2E tests | Pure function tests give highest confidence per effort; controllers and services are implicitly tested via live Swagger UI |
+| 51 | Chat 19 | Vercel autodeploys frontend from the GitHub main branch — no explicit CI step needed | Vercel's native GitHub integration handles this; only Render requires an explicit deploy hook |
+| 52 | Chat 19 | GitHub Actions CI uses Node.js 20 — matches Render's build environment | Version consistency prevents "works in CI, fails on Render" failures |
+| 53 | Chat 20 | AI Brief prompt contains aggregate counts only — no household-level data, no addresses, no personal information | Humanitarian data protection principle; aggregate data is sufficient for an operational summary |
+| 54 | Chat 20 | ANTHROPIC_API_KEY is stored as a Render environment variable only — never committed to the repository or exposed to the frontend browser bundle | Standard secret management; .env.example documents the key name with a placeholder value |
+| 55 | Chat 20 | AI Brief feature is advisory only and cannot trigger any database write or system state change | Matches REMA Operating Principle 4: technology augments human judgment, does not replace it |
