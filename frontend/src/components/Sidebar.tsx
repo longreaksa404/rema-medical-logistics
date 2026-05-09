@@ -14,21 +14,25 @@ const NAV_ITEMS: NavItem[] = [
     label: 'Dashboard',
     to: '/dashboard',
     icon: '◈',
+    // No roles = visible to all authenticated users
   },
   {
     label: 'Routing',
     to: '/routing',
     icon: '⟁',
+    roles: ['EMERGENCY_COORDINATOR', 'HUB_MANAGER', 'SUPER_ADMIN'] as const,
   },
   {
     label: 'Prioritize',
     to: '/prioritize',
     icon: '⊞',
+    roles: ['EMERGENCY_COORDINATOR', 'HUB_MANAGER', 'VOLUNTEER', 'SUPER_ADMIN'] as const,
   },
   {
     label: 'Stakeholder',
     to: '/stakeholders',
     icon: '⬢',
+    // No roles = visible to all (static page, no ProtectedRoute role guard)
   },
   {
     label: 'Hub Portal',
