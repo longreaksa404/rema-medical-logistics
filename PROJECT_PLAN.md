@@ -36,7 +36,7 @@
 | Chat 14 | Frontend: V9 User Management (SUPER_ADMIN) | ✅ Complete |
 | Chat 15 | V3 Warehouse Layout (draw.io) | ✅ Complete |
 | Chat 16 | V5 Stakeholder Flowchart (draw.io) | ✅ Complete  |
-| Chat 17 | V6 Operating Protocol (PDF) | ⬜ Not started |
+| Chat 17 | V6 Operating Protocol (PDF) | ✅ Complete |
 | Chat 18 | Final Assembly + Submission Package | ⬜ Not started |
 
 ---
@@ -308,15 +308,15 @@
 
 ---
 
-## CHAT 17 — V6 Operating Protocol (PDF) ⬜ Not started
+## CHAT 17 — V6 Operating Protocol (PDF) ✅ Complete
 
-- [ ] Phase 1 + 2 activation checklists
-- [ ] Radio check-in script (4 time slots)
-- [ ] Delivery runsheet template
-- [ ] Incident log template
-- [ ] Volunteer assessment form (Vietnamese labels)
-- [ ] Export as PDF
-- [ ] Save to sections/visuals/V6-operating-protocol.pdf
+- [x] Phase 1 + 2 activation checklists
+- [x] Radio check-in script (4 time slots)
+- [x] Delivery runsheet template
+- [x] Incident log template
+- [x] Volunteer assessment form (Vietnamese labels)
+- [x] Export as PDF
+- [x] Save to sections/visuals/V6-operating-protocol.pdf
 
 ---
 

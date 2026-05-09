@@ -1,55 +1,48 @@
 # REMA Handoff Document
-Last updated: Chat 16 complete
+Last updated: Chat 17 complete
 
 ## Current Chat Goal
-Chat 16 — V5 Stakeholder Flowchart (draw.io) — COMPLETE
+Chat 17 — V6 Operating Protocol (PDF) — COMPLETE
 
 ## What Was Completed This Chat
 
 ### Deliverables produced
-- `V5-stakeholder-flowchart-v4.drawio` — Full V4 rebuild, ready to import
-  - 6 swimlanes (added Health Facilities as distinct lane)
-  - Lane 1: RC Operations Center
-  - Lane 2: Hub Managers
-  - Lane 3: Volunteers
-  - Lane 4: Health Facilities (NEW — Ward Health Stations + District Hospital)
-  - Lane 5: Local Authorities (Ward People's Committees + Civil Defense)
-  - Lane 6: Logistics Partners (Trucks / Boats / Pharmacy Distributors / MoH)
-  - All 3 phases with correct timing
-  - Activation trigger diamond with YES (≥2 met) and NO (<2 met) branches
-  - Scarcity mode diamond (30% threshold) in RC Phase 2
-  - Backup sub-warehouse contingency path in HM Phase 2
-  - Full delivery mode tier diamond (0–30/30–60/60–80/>80cm) in volunteer lane
-  - Cross-ward assignment noted as fairness safeguard
-  - All 20 cross-lane arrows with labels
-  - 4 coordination failure protocols (F1–F4) from Section D.10
-  - Full legend including cross-ward note and EMK-3 cold chain rule
-  - 169 cells, 53 arrows — all references validated ✅
-
-### Issues fixed from v3 audit (11 total)
-1. Added Health Facilities lane (critical structural gap)
-2. Activation trigger NO branch added
-3. rc2escalq moved to correct position (not downstream of reallocation)
-4. MoH EMK-3 request now fires from activation, not dispatch
-5. Scarcity mode diamond added (30% threshold)
-6. Backup sub-warehouse path added (hm2backupq diamond)
-7. Delivery mode tiers visible (4-branch decision diamond)
-8. Cross-ward assignment prominently noted
-9. YES/NO labels on all decision diamonds
-10. Volunteer safety escalation path back to HM
-11. Backup LP contractor node added in Phase 0
+- `V6-operating-protocol.pdf` — 8-page professional field reference document
+  - Cover page with classification notice, metadata, and contents table
+  - Section 1: Phase 1 Activation Checklist (Hours 0–3 / 3–8 / 8–16 / 16–24)
+    - 4 colour-coded time blocks with checkboxes and responsible roles
+    - Activation trigger highlighted in red alert box (2-of-3 conditions)
+  - Section 2: Phase 2 Adaptive Delivery Checklist
+    - Delivery mode table (water depth → transport → capacity)
+    - 4-band priority order table with colour coding
+    - Repeatable daily ops checklist (16 items)
+  - Section 3: Radio Check-In Script (08:00 / 12:00 / 16:00 / 20:00)
+    - Exact scripted dialogue for each slot
+    - Coordination failure quick reference (F1–F4 from Section D.10)
+  - Section 4: Delivery Runsheet Template
+    - 12-row household delivery log
+    - Run header, summary totals, team leader + hub manager sign-off
+  - Section 5: Incident Log Template
+    - 10-row incident log with type codes (RT/VS/SS/BF/OT)
+    - Contingency decisions log
+  - Section 6: Volunteer Household Assessment Form
+    - All 5 scoring categories with exact point values
+    - Total score box and priority band lookup
+    - EMK recommendation table
+    - Tiebreaker rules (3 steps)
+    - Volunteer notes field and signature block
 
 ### Key decisions made this chat
-- 6 lanes (not 5) — Health Facilities is a distinct actor group per Section D.7
-- Canvas: 2600×2100px for readable spacing
-- MoH placed in Logistics Partners lane (supply chain role); distinct from Health Facilities lane (clinical role)
-- Scarcity mode trigger: 30% of original allocation (Section C.9)
+- PDF built with reportlab (Python) — no external fonts, fully portable
+- 8 pages total — designed to print double-sided on A4
+- Every scoring value matches Section C exactly
+- Colour scheme consistent with REMA brand (dark red Phase 1, dark blue Phase 2, purple Assessment)
+- Assumes this PDF will be embedded in frontend as V6 static document
 
-### Files to create/update after this chat
-- `sections/visuals/V5-stakeholder-flowchart.drawio` — source file
-- `sections/visuals/V5-stakeholder-flowchart.png` — export at 150% scale
-- `frontend/public/visuals/V5-stakeholder-flowchart.png` — copy for frontend
-- `frontend/src/pages/StakeholderPage.tsx` — embed the exported PNG
+### Files to copy into repo
+- Copy `V6-operating-protocol.pdf` to `sections/visuals/V6-operating-protocol.pdf`
+- Copy `V6-operating-protocol.pdf` to `frontend/public/visuals/V6-operating-protocol.pdf`
+- Create `frontend/src/pages/ProtocolPage.tsx` to embed the PDF (iframe or object tag)
 
 ## Live URLs
 | Service | URL |
@@ -70,19 +63,21 @@ Chat 16 — V5 Stakeholder Flowchart (draw.io) — COMPLETE
 | volunteer1@rema.vn | VOLUNTEER | District 1 |
 | viewer@rema.vn | VIEWER | — |
 
-## Next Chat Goal — Chat 17: V6 Operating Protocol (PDF)
+## Next Chat Goal — Chat 18: Final Assembly + Submission Package
 
-### What Chat 17 builds
-A professional PDF document containing:
-1. Phase 1 + 2 activation checklist (step-by-step, timed)
-2. Radio check-in script (4 time slots: 08:00/12:00/16:00/20:00)
-3. Delivery runsheet template (volunteer use, per zone)
-4. Incident log template (Hub Manager use)
-5. Volunteer household assessment form (Vietnamese labels, scoring on reverse)
-6. Quick reference: delivery mode tiers, score bands, EMK types
+### What Chat 18 builds
+1. Verify all live URLs (Render + Vercel + Swagger)
+2. Wire V6 PDF into frontend ProtocolPage.tsx
+3. Compile all strategy sections into a master document (or confirm they're already separate)
+4. Write executive summary (1 page)
+5. Write system demo guide (test account walkthrough)
+6. Final assumptions log review
+7. Build presentation slide outline
+8. Final git tag: v1.0.0
+9. Package everything into submission folder README
 
-### First steps for Chat 17
-1. Read HANDOFF.md + PROJECT_SCOPE.md + section-A-response-design.md
-2. Read section-C-prioritization-framework.md + section-D-coordination-model.md
-3. Read the pdf SKILL.md at /mnt/skills/public/pdf/SKILL.md
-4. Produce the operating protocol PDF
+### First steps for Chat 18
+1. Read HANDOFF.md + PROJECT_SCOPE.md + PROJECT_PLAN.md
+2. Check all live URLs are responding
+3. Add ProtocolPage.tsx to frontend (embed PDF)
+4. Then proceed with submission package
