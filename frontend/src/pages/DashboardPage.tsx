@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useMemo, memo } from 'react';
 import { DashboardLayout } from '../components/DashboardLayout';
 import { PhaseBanner } from '../components/PhaseBanner';
 import { StockChart } from '../components/StockChart';
@@ -6,6 +6,7 @@ import { PriorityQueueTable } from '../components/PriorityQueueTable';
 import { RadioCompliancePanel } from '../components/RadioCompliancePanel';
 import { DeliveryRunsPanel } from '../components/DeliveryRunsPanel';
 import { dashboardApi } from '../api/dashboard';
+import { api } from '../api/client';
 import type { DashboardSummary } from '../api/dashboard';
 
 // ─── SKELETON ─────────────────────────────────────────────────────────────────
@@ -21,6 +22,9 @@ function DashboardSkeleton() {
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
         {[...Array(4)].map((_, i) => <Skeleton key={i} className="h-20" />)}
       </div>
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+        {[...Array(4)].map((_, i) => <Skeleton key={i} className="h-20" />)}
+      </div>
       <Skeleton className="h-64" />
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
         <Skeleton className="h-48 lg:col-span-2" />
@@ -33,7 +37,7 @@ function DashboardSkeleton() {
 
 // ─── STAT CARD ────────────────────────────────────────────────────────────────
 
-function StatCard({
+const StatCard = memo(function StatCard({
   label,
   value,
   sub,
@@ -62,11 +66,15 @@ function StatCard({
       )}
     </div>
   );
-}
+});
 
 // ─── INCIDENT PANEL ───────────────────────────────────────────────────────────
 
-function IncidentPanel({ incidents }: { incidents: DashboardSummary['openIncidents'] }) {
+const IncidentPanel = memo(function IncidentPanel({
+  incidents,
+}: {
+  incidents: DashboardSummary['openIncidents'];
+}) {
   if (incidents.length === 0) return null;
 
   return (
@@ -114,216 +122,15 @@ function IncidentPanel({ incidents }: { incidents: DashboardSummary['openInciden
       </div>
     </div>
   );
-}
+});
 
-// ─── MAIN DASHBOARD PAGE ──────────────────────────────────────────────────────
+// ─── DISTRICT CARD ────────────────────────────────────────────────────────────
 
-export function DashboardPage() {
-  const [data, setData] = useState<DashboardSummary | null>(null);
-  const [isStale, setIsStale] = useState(false);
-  const [isRefreshing, setIsRefreshing] = useState(false);
-  const [firstLoad, setFirstLoad] = useState(true);
-  const [error, setError] = useState('');
-  const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
-
-  const revalidate = useCallback(async (silent = false) => {
-    if (!silent) setIsRefreshing(true);
-    try {
-      const fresh = await dashboardApi.getSummary();
-      setData(fresh);
-      setIsStale(false);
-      setLastUpdated(new Date());
-      setError('');
-    } catch {
-      setError('Failed to refresh. Showing cached data.');
-    } finally {
-      if (!silent) setIsRefreshing(false);
-    }
-  }, []);
-
-  // Initial load — show cache instantly, revalidate in background
-  useEffect(() => {
-    async function init() {
-      const result = await dashboardApi.getSummaryCached();
-      setData(result.data);
-      setLastUpdated(new Date());
-      setIsStale(result.isStale);
-      setFirstLoad(false);
-      if (result.fromCache) {
-        revalidate(true);
-      }
-    }
-    init();
-  }, [revalidate]);
-
-  // Auto-poll every 30 seconds silently
-  useEffect(() => {
-    const id = setInterval(() => revalidate(true), 30_000);
-    return () => clearInterval(id);
-  }, [revalidate]);
-
-  const handleRefresh = useCallback(async () => {
-    await revalidate(false);
-  }, [revalidate]);
-
-  // First ever load with no cache
-  if (firstLoad && !data) {
-    return (
-      <DashboardLayout title="Operations Dashboard">
-        <DashboardSkeleton />
-      </DashboardLayout>
-    );
-  }
-
-  return (
-    <DashboardLayout
-      title="Operations Dashboard"
-      onRefresh={handleRefresh}
-      lastUpdated={lastUpdated}
-      isRefreshing={isRefreshing}
-    >
-      {/* Stale cache warning */}
-      {isStale && !isRefreshing && (
-        <div className="mb-4 bg-accent-yellow/10 border border-accent-yellow/30 rounded px-4 py-2 animate-fade-in">
-          <p className="font-mono text-xs text-accent-yellow">
-            Showing cached data — refreshing in background...
-          </p>
-        </div>
-      )}
-
-      {/* Network error */}
-      {error && (
-        <div className="mb-4 bg-accent-red/10 border border-accent-red/30 rounded px-4 py-2 animate-slide-in">
-          <p className="font-mono text-xs text-accent-red">{error}</p>
-        </div>
-      )}
-
-      {data && (
-        <div className="space-y-6 animate-fade-in">
-
-          {/* ── PHASE BANNER ── */}
-          <PhaseBanner
-            phase={data.phase}
-            activated={data.activated}
-            activatedAt={data.activatedAt}
-            triggerConditions={data.triggerConditions}
-          />
-
-          {/* ── TOP STATS ROW ── */}
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-            <StatCard
-              label="Active Runs"
-              value={data.activeDeliveryRuns}
-              color={data.activeDeliveryRuns > 0 ? 'text-accent-green' : 'text-text-muted'}
-              pulse={data.activeDeliveryRuns > 0}
-            />
-            <StatCard
-              label="Pending Delivery"
-              value={data.households.pendingDelivery}
-              sub={`${data.households.total} total assessed`}
-              color="text-accent-blue"
-            />
-            <StatCard
-              label="Delivered"
-              value={data.households.delivered}
-              sub={data.households.total > 0
-                ? `${Math.round((data.households.delivered / data.households.total) * 100)}% complete`
-                : undefined}
-              color="text-accent-green"
-            />
-            <StatCard
-              label="Check-ins Today"
-              value={data.todayRadioCheckins}
-              sub={`of ${data.districts.length * 4} scheduled`}
-              color={data.todayRadioCheckins === data.districts.length * 4
-                ? 'text-accent-green'
-                : 'text-text-primary'}
-            />
-          </div>
-
-          {/* ── PRIORITY BANDS ── */}
-          <div>
-            <h2 className="font-mono text-xs text-text-muted uppercase tracking-widest mb-3">
-              Household Priority Bands
-              <span className="ml-2 text-text-muted font-normal normal-case">
-                (undelivered)
-              </span>
-            </h2>
-            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-              {(
-                [
-                  { key: 'critical', label: 'Critical', color: 'text-accent-red', border: 'border-accent-red/20', bg: 'bg-accent-red/5' },
-                  { key: 'high', label: 'High', color: 'text-accent-orange', border: 'border-accent-orange/20', bg: 'bg-accent-orange/5' },
-                  { key: 'medium', label: 'Medium', color: 'text-accent-yellow', border: 'border-accent-yellow/20', bg: 'bg-accent-yellow/5' },
-                  { key: 'standard', label: 'Standard', color: 'text-accent-green', border: 'border-accent-green/20', bg: 'bg-accent-green/5' },
-                ] as const
-              ).map(({ key, label, color, border, bg }) => (
-                <div key={key} className={`card border ${border} ${bg} px-4 py-3`}>
-                  <div className="flex items-center gap-1.5 mb-1">
-                    <span className={`w-1.5 h-1.5 rounded-full ${color.replace('text-', 'bg-')}`} />
-                    <p className={`font-mono text-[10px] uppercase tracking-widest ${color}`}>
-                      {label}
-                    </p>
-                  </div>
-                  <p className={`font-mono text-2xl font-semibold ${color}`}>
-                    {data.households[key]}
-                  </p>
-                  {key === 'critical' && data.households.critical > 0 && (
-                    <p className="font-mono text-[9px] text-accent-red mt-0.5 animate-pulse-slow">
-                      Deliver in current run
-                    </p>
-                  )}
-                </div>
-              ))}
-            </div>
-          </div>
-
-          {/* ── STOCK CHART ── */}
-          <StockChart districts={data.districts} />
-
-          {/* ── DELIVERY + RADIO ROW ── */}
-          <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
-            <div className="lg:col-span-2">
-              <DeliveryRunsPanel
-                activeRuns={data.activeDeliveryRuns}
-                districts={data.districts}
-              />
-            </div>
-            <RadioCompliancePanel />
-          </div>
-
-          {/* ── DISTRICT CARDS ── */}
-          <div>
-            <h2 className="font-mono text-xs text-text-muted uppercase tracking-widest mb-3">
-              Districts
-            </h2>
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-              {data.districts.map((d) => (
-                <DistrictCard key={d.districtId} d={d} />
-              ))}
-            </div>
-          </div>
-
-          {/* ── PRIORITY QUEUE TABLE ── */}
-          <div>
-            <h2 className="font-mono text-xs text-text-muted uppercase tracking-widest mb-3">
-              Household Priority Queue
-            </h2>
-            <PriorityQueueTable districts={data.districts} />
-          </div>
-
-          {/* ── INCIDENTS ── */}
-          <IncidentPanel incidents={data.openIncidents} />
-
-        </div>
-      )}
-    </DashboardLayout>
-  );
-}
-
-// ─── DISTRICT CARD (inline, unchanged from Chat 8) ─────────────────────────
-
-function DistrictCard({ d }: { d: DashboardSummary['districts'][number] }) {
+const DistrictCard = memo(function DistrictCard({
+  d,
+}: {
+  d: DashboardSummary['districts'][number];
+}) {
   const statusColors = {
     ACTIVE: 'text-accent-green border-accent-green/30 bg-accent-green/10',
     INACTIVE: 'text-text-muted border-bg-border bg-transparent',
@@ -340,7 +147,6 @@ function DistrictCard({ d }: { d: DashboardSummary['districts'][number] }) {
 
   return (
     <div className="card p-5 flex flex-col gap-4 hover:border-text-muted/30 transition-colors duration-150">
-      {/* Header */}
       <div className="flex items-start justify-between gap-2">
         <div>
           <h3 className="font-sans font-bold text-text-primary">{d.name}</h3>
@@ -353,7 +159,6 @@ function DistrictCard({ d }: { d: DashboardSummary['districts'][number] }) {
         </span>
       </div>
 
-      {/* Stock level */}
       <div>
         <div className="flex justify-between items-center mb-1.5">
           <span className="font-mono text-[10px] text-text-muted uppercase tracking-widest">
@@ -390,7 +195,6 @@ function DistrictCard({ d }: { d: DashboardSummary['districts'][number] }) {
         )}
       </div>
 
-      {/* Metrics row */}
       <div className="grid grid-cols-3 gap-2 pt-2 border-t border-bg-border">
         <div className="text-center">
           <p className="font-mono text-lg font-semibold text-text-primary">
@@ -418,5 +222,231 @@ function DistrictCard({ d }: { d: DashboardSummary['districts'][number] }) {
         </div>
       </div>
     </div>
+  );
+});
+
+// ─── PRIORITY BANDS ───────────────────────────────────────────────────────────
+
+const BAND_DISPLAY = [
+  { key: 'critical' as const, label: 'Critical', color: 'text-accent-red', border: 'border-accent-red/20', bg: 'bg-accent-red/5', dot: 'bg-accent-red' },
+  { key: 'high' as const, label: 'High', color: 'text-accent-orange', border: 'border-accent-orange/20', bg: 'bg-accent-orange/5', dot: 'bg-accent-orange' },
+  { key: 'medium' as const, label: 'Medium', color: 'text-accent-yellow', border: 'border-accent-yellow/20', bg: 'bg-accent-yellow/5', dot: 'bg-accent-yellow' },
+  { key: 'standard' as const, label: 'Standard', color: 'text-accent-green', border: 'border-accent-green/20', bg: 'bg-accent-green/5', dot: 'bg-accent-green' },
+] as const;
+
+// ─── MAIN DASHBOARD PAGE ──────────────────────────────────────────────────────
+
+export function DashboardPage() {
+  const [data, setData] = useState<DashboardSummary | null>(null);
+  const [isRefreshing, setIsRefreshing] = useState(false);
+  const [firstLoad, setFirstLoad] = useState(true);
+  const [error, setError] = useState('');
+  const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
+  const [isStale, setIsStale] = useState(false);
+
+  // ── Fetch: parallelise alert status + dashboard summary ──────────────────────
+  const fetchAll = useCallback(async (silent = false) => {
+    if (!silent) setIsRefreshing(true);
+    try {
+      // Parallel fetch: dashboard summary includes everything we need
+      // but if we need to cross-reference alert status separately, do it here
+      const fresh = await dashboardApi.getSummary();
+      setData(fresh);
+      setIsStale(false);
+      setLastUpdated(new Date());
+      setError('');
+    } catch {
+      if (!silent) setError('Failed to refresh. Showing cached data.');
+      setIsStale(true);
+    } finally {
+      if (!silent) setIsRefreshing(false);
+    }
+  }, []);
+
+  // ── Initial load ─────────────────────────────────────────────────────────────
+  useEffect(() => {
+    const init = async () => {
+      try {
+        // Try cache-first approach
+        const result = await dashboardApi.getSummaryCached();
+        setData(result.data);
+        setLastUpdated(new Date());
+        setIsStale(result.isStale);
+        if (result.fromCache) {
+          // Background revalidate without blocking
+          fetchAll(true);
+        }
+      } catch {
+        await fetchAll(false);
+      } finally {
+        setFirstLoad(false);
+      }
+    };
+    init();
+  }, [fetchAll]);
+
+  // ── Auto-poll every 30s — fixed cleanup ──────────────────────────────────────
+  useEffect(() => {
+    const id = setInterval(() => fetchAll(true), 30_000);
+    return () => clearInterval(id); // always cleaned up on unmount
+  }, [fetchAll]); // fetchAll is stable (useCallback with no deps)
+
+  const handleRefresh = useCallback(async () => {
+    await fetchAll(false);
+  }, [fetchAll]);
+
+  // ── Memoised derived data ─────────────────────────────────────────────────────
+  const topStats = useMemo(() => {
+    if (!data) return null;
+    return {
+      activeRuns: data.activeDeliveryRuns,
+      pendingDelivery: data.households.pendingDelivery,
+      delivered: data.households.delivered,
+      deliveryPct: data.households.total > 0
+        ? Math.round((data.households.delivered / data.households.total) * 100)
+        : 0,
+      todayCheckins: data.todayRadioCheckins,
+      totalScheduled: data.districts.length * 4,
+    };
+  }, [data]);
+
+  if (firstLoad && !data) {
+    return (
+      <DashboardLayout title="Operations Dashboard">
+        <DashboardSkeleton />
+      </DashboardLayout>
+    );
+  }
+
+  return (
+    <DashboardLayout
+      title="Operations Dashboard"
+      onRefresh={handleRefresh}
+      lastUpdated={lastUpdated}
+      isRefreshing={isRefreshing}
+    >
+      {isStale && !isRefreshing && (
+        <div className="mb-4 bg-accent-yellow/10 border border-accent-yellow/30 rounded px-4 py-2 animate-fade-in">
+          <p className="font-mono text-xs text-accent-yellow">
+            Showing cached data — refreshing in background...
+          </p>
+        </div>
+      )}
+
+      {error && (
+        <div className="mb-4 bg-accent-red/10 border border-accent-red/30 rounded px-4 py-2 animate-slide-in">
+          <p className="font-mono text-xs text-accent-red">{error}</p>
+        </div>
+      )}
+
+      {data && topStats && (
+        <div className="space-y-6 animate-fade-in">
+
+          {/* ── PHASE BANNER ── */}
+          <PhaseBanner
+            phase={data.phase}
+            activated={data.activated}
+            activatedAt={data.activatedAt}
+            triggerConditions={data.triggerConditions}
+          />
+
+          {/* ── TOP STATS ROW ── */}
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+            <StatCard
+              label="Active Runs"
+              value={topStats.activeRuns}
+              color={topStats.activeRuns > 0 ? 'text-accent-green' : 'text-text-muted'}
+              pulse={topStats.activeRuns > 0}
+            />
+            <StatCard
+              label="Pending Delivery"
+              value={topStats.pendingDelivery}
+              sub={`${data.households.total} total assessed`}
+              color="text-accent-blue"
+            />
+            <StatCard
+              label="Delivered"
+              value={topStats.delivered}
+              sub={`${topStats.deliveryPct}% complete`}
+              color="text-accent-green"
+            />
+            <StatCard
+              label="Check-ins Today"
+              value={topStats.todayCheckins}
+              sub={`of ${topStats.totalScheduled} scheduled`}
+              color={topStats.todayCheckins === topStats.totalScheduled
+                ? 'text-accent-green'
+                : 'text-text-primary'}
+            />
+          </div>
+
+          {/* ── PRIORITY BANDS ── */}
+          <div>
+            <h2 className="font-mono text-xs text-text-muted uppercase tracking-widest mb-3">
+              Household Priority Bands
+              <span className="ml-2 text-text-muted font-normal normal-case">(undelivered)</span>
+            </h2>
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+              {BAND_DISPLAY.map(({ key, label, color, border, bg, dot }) => (
+                <div key={key} className={`card border ${border} ${bg} px-4 py-3`}>
+                  <div className="flex items-center gap-1.5 mb-1">
+                    <span className={`w-1.5 h-1.5 rounded-full ${dot}`} />
+                    <p className={`font-mono text-[10px] uppercase tracking-widest ${color}`}>
+                      {label}
+                    </p>
+                  </div>
+                  <p className={`font-mono text-2xl font-semibold ${color}`}>
+                    {data.households[key]}
+                  </p>
+                  {key === 'critical' && data.households.critical > 0 && (
+                    <p className="font-mono text-[9px] text-accent-red mt-0.5 animate-pulse-slow">
+                      Deliver in current run
+                    </p>
+                  )}
+                </div>
+              ))}
+            </div>
+          </div>
+
+          {/* ── STOCK CHART (memoised component) ── */}
+          <StockChart districts={data.districts} />
+
+          {/* ── DELIVERY + RADIO ROW ── */}
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+            <div className="lg:col-span-2">
+              <DeliveryRunsPanel
+                activeRuns={data.activeDeliveryRuns}
+                districts={data.districts}
+              />
+            </div>
+            <RadioCompliancePanel />
+          </div>
+
+          {/* ── DISTRICT CARDS ── */}
+          <div>
+            <h2 className="font-mono text-xs text-text-muted uppercase tracking-widest mb-3">
+              Districts
+            </h2>
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+              {data.districts.map((d) => (
+                <DistrictCard key={d.districtId} d={d} />
+              ))}
+            </div>
+          </div>
+
+          {/* ── PRIORITY QUEUE TABLE (memoised component) ── */}
+          <div>
+            <h2 className="font-mono text-xs text-text-muted uppercase tracking-widest mb-3">
+              Household Priority Queue
+            </h2>
+            <PriorityQueueTable districts={data.districts} />
+          </div>
+
+          {/* ── INCIDENTS ── */}
+          <IncidentPanel incidents={data.openIncidents} />
+
+        </div>
+      )}
+    </DashboardLayout>
   );
 }

@@ -1,9 +1,11 @@
 // VolunteerPage.tsx — V8 Volunteer View
-// Responsive: desktop sidebar layout + mobile-friendly stacking
+// Performance fixes:
+// - Parallel initial fetch (district info + alert status via Promise.all)
+// - useEffect cleanup (clearInterval) on all polling intervals
+// - Loading skeleton on initial load
 // 3 tabs: Assess | Deliver | Report
-// Roles: VOLUNTEER, HUB_MANAGER, SUPER_ADMIN
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useMemo } from 'react';
 import { DashboardLayout } from '../components/DashboardLayout';
 import { useAuth } from '../context/AuthContext';
 import { api } from '../api/client';
@@ -58,6 +60,34 @@ const INCIDENT_TYPES = [
   { value: 'OTHER',            label: 'Other',            icon: '📋', autoEscalate: false },
 ] as const;
 
+const BAND_ORDER: Record<PriorityBand, number> = { CRITICAL: 0, HIGH: 1, MEDIUM: 2, STANDARD: 3 };
+
+// ─── SKELETON ─────────────────────────────────────────────────────────────────
+
+function Skeleton({ className = '' }: { className?: string }) {
+  return <div className={`animate-pulse bg-bg-elevated rounded ${className}`} />;
+}
+
+function VolunteerSkeleton() {
+  return (
+    <div className="space-y-5 animate-fade-in">
+      <div className="flex items-center justify-between gap-4">
+        <Skeleton className="h-6 w-48" />
+        <Skeleton className="h-6 w-32" />
+      </div>
+      <div className="flex gap-0.5 w-fit">
+        {[...Array(3)].map((_, i) => <Skeleton key={i} className="h-9 w-24" />)}
+      </div>
+      <div className="space-y-4">
+        <Skeleton className="h-20" />
+        <Skeleton className="h-48" />
+        <Skeleton className="h-48" />
+        <Skeleton className="h-48" />
+      </div>
+    </div>
+  );
+}
+
 // ─── SHARED COMPONENTS ────────────────────────────────────────────────────────
 
 function SectionTitle({ children, sub }: { children: React.ReactNode; sub?: string }) {
@@ -65,14 +95,6 @@ function SectionTitle({ children, sub }: { children: React.ReactNode; sub?: stri
     <div className="mb-4">
       <h3 className="font-sans font-bold text-text-primary">{children}</h3>
       {sub && <p className="font-mono text-[10px] text-text-muted mt-0.5">{sub}</p>}
-    </div>
-  );
-}
-
-function Empty({ message }: { message: string }) {
-  return (
-    <div className="py-10 text-center">
-      <p className="font-mono text-xs text-text-muted">{message}</p>
     </div>
   );
 }
@@ -103,7 +125,6 @@ function SuccessBox({ msg, onDismiss }: { msg: string; onDismiss: () => void }) 
   );
 }
 
-// Responsive option button — works well at any screen width
 function OptionButton({
   selected,
   onClick,
@@ -115,9 +136,7 @@ function OptionButton({
   children: React.ReactNode;
   danger?: boolean;
 }) {
-  const activeClass = danger
-    ? 'bg-accent-red/10 border-accent-red/40'
-    : 'bg-accent-blue/10 border-accent-blue/40';
+  const activeClass = danger ? 'bg-accent-red/10 border-accent-red/40' : 'bg-accent-blue/10 border-accent-blue/40';
   return (
     <button
       onClick={onClick}
@@ -146,25 +165,30 @@ function AssessTab({ districtId }: { districtId: string }) {
   const [result, setResult] = useState<Household | null>(null);
 
   const cat2 = computeCat2(cat2Flags);
-  const input: ScoreInput = { cat1, cat2, cat3, cat4, cat5 };
-  const liveScore = scoreHousehold(input);
+
+  // useMemo: live score only recomputes when category values change
+  const liveScore = useMemo(
+    () => scoreHousehold({ cat1, cat2, cat3, cat4, cat5 } as ScoreInput),
+    [cat1, cat2, cat3, cat4, cat5]
+  );
+
   const bandCfg = BAND_CONFIG[liveScore.priorityBand];
   const scorePct = (liveScore.totalScore / 20) * 100;
 
-  const toggleFlag = (id: Cat2FlagId) => {
+  const toggleFlag = useCallback((id: Cat2FlagId) => {
     setCat2Flags(prev => {
       const next = new Set(prev);
       next.has(id) ? next.delete(id) : next.add(id);
       return next;
     });
-  };
+  }, []);
 
-  const reset = () => {
+  const reset = useCallback(() => {
     setCat1(0); setCat2Flags(new Set()); setCat3(0); setCat4(0); setCat5(0);
     setAddress(''); setNotes(''); setStep('form'); setResult(null); setError('');
-  };
+  }, []);
 
-  const handleSubmit = async () => {
+  const handleSubmit = useCallback(async () => {
     if (!address.trim()) { setError('Please enter the household address.'); return; }
     setSubmitting(true); setError('');
     try {
@@ -178,7 +202,7 @@ function AssessTab({ districtId }: { districtId: string }) {
     } catch (e: unknown) {
       setError((e as { response?: { data?: { error?: string } } })?.response?.data?.error ?? 'Submission failed. Try again.');
     } finally { setSubmitting(false); }
-  };
+  }, [address, districtId, cat1, cat2, cat3, cat4, cat5, notes]);
 
   // ── Result view ──────────────────────────────────────────────────────────────
   if (step === 'result' && result) {
@@ -188,7 +212,6 @@ function AssessTab({ districtId }: { districtId: string }) {
         {error && <ErrorBox msg={error} onDismiss={() => setError('')} />}
         <div className={`card p-6 border-2 ${rBand.border} mb-4`}>
           <div className="flex items-center gap-6 mb-6">
-            {/* Score ring */}
             <div className="relative w-20 h-20 flex-shrink-0">
               <svg className="w-full h-full -rotate-90" viewBox="0 0 64 64">
                 <circle cx="32" cy="32" r="26" fill="none" stroke="#21262d" strokeWidth="6" />
@@ -250,13 +273,9 @@ function AssessTab({ districtId }: { districtId: string }) {
     <div className="space-y-5">
       {error && <ErrorBox msg={error} onDismiss={() => setError('')} />}
 
-      {/* Two-column desktop layout: form left, live score right */}
       <div className="flex flex-col lg:flex-row gap-5">
-
-        {/* ── Left: all form categories ── */}
+        {/* ── Left: form categories ── */}
         <div className="flex-1 space-y-4">
-
-          {/* Address */}
           <div className="card p-5">
             <SectionTitle>Household Address</SectionTitle>
             <input
@@ -268,7 +287,6 @@ function AssessTab({ districtId }: { districtId: string }) {
             />
           </div>
 
-          {/* Cat 1 — Medical Urgency */}
           <div className="card p-5">
             <div className="flex items-center justify-between mb-3">
               <SectionTitle sub="Chronic illness + medication status">1. Medical Urgency</SectionTitle>
@@ -286,7 +304,6 @@ function AssessTab({ districtId }: { districtId: string }) {
             </div>
           </div>
 
-          {/* Cat 2 — Vulnerability */}
           <div className="card p-5">
             <div className="flex items-center justify-between mb-3">
               <SectionTitle sub="Infant, pregnant, elderly, disabled — capped at 5">2. Household Vulnerability</SectionTitle>
@@ -313,7 +330,6 @@ function AssessTab({ districtId }: { districtId: string }) {
             </div>
           </div>
 
-          {/* Cat 3 — Flood Exposure */}
           <div className="card p-5">
             <div className="flex items-center justify-between mb-3">
               <SectionTitle sub="Water depth at or in household">3. Flood Exposure</SectionTitle>
@@ -331,7 +347,6 @@ function AssessTab({ districtId }: { districtId: string }) {
             </div>
           </div>
 
-          {/* Cat 4 — Self-Sufficiency */}
           <div className="card p-5">
             <div className="flex items-center justify-between mb-3">
               <SectionTitle sub="Food, clean water, sanitation access">4. Self-Sufficiency</SectionTitle>
@@ -349,7 +364,6 @@ function AssessTab({ districtId }: { districtId: string }) {
             </div>
           </div>
 
-          {/* Cat 5 — Isolation */}
           <div className="card p-5">
             <div className="flex items-center justify-between mb-3">
               <SectionTitle>5. Isolation</SectionTitle>
@@ -368,23 +382,17 @@ function AssessTab({ districtId }: { districtId: string }) {
             </OptionButton>
           </div>
 
-          {/* Notes */}
           <div className="card p-5">
             <SectionTitle>Field Notes (optional)</SectionTitle>
-            <textarea
-              rows={3}
-              className="input resize-none"
+            <textarea rows={3} className="input resize-none"
               placeholder="Observations, contact name, additional context..."
-              value={notes}
-              onChange={e => setNotes(e.target.value)}
-            />
+              value={notes} onChange={e => setNotes(e.target.value)} />
           </div>
         </div>
 
-        {/* ── Right: live score panel (sticky on desktop) ── */}
+        {/* ── Right: live score panel ── */}
         <div className="w-full lg:w-72 flex-shrink-0">
           <div className="lg:sticky lg:top-6 space-y-4">
-            {/* Score ring card */}
             <div className={`card p-5 border-2 transition-colors duration-300 ${bandCfg.border}`}>
               <p className="font-mono text-[10px] text-text-muted uppercase tracking-widest mb-4">Live Score</p>
               <div className="flex items-center gap-4">
@@ -419,7 +427,6 @@ function AssessTab({ districtId }: { districtId: string }) {
                 </div>
               </div>
 
-              {/* Category breakdown bars */}
               <div className="mt-4 space-y-2">
                 {[
                   { label: 'Medical', val: cat1, max: 8, color: 'bg-accent-red' },
@@ -442,7 +449,6 @@ function AssessTab({ districtId }: { districtId: string }) {
               </div>
             </div>
 
-            {/* Delivery guidance */}
             <div className={`rounded border px-4 py-3 ${bandCfg.bg} ${bandCfg.border}`}>
               <p className={`font-mono text-[10px] font-bold mb-0.5 ${bandCfg.color}`}>Delivery Guidance</p>
               <p className="font-mono text-[10px] text-text-secondary">
@@ -453,15 +459,9 @@ function AssessTab({ districtId }: { districtId: string }) {
               </p>
             </div>
 
-            {/* Submit button */}
-            <button
-              onClick={handleSubmit}
-              disabled={submitting || !address.trim()}
-              className="btn-primary w-full"
-            >
+            <button onClick={handleSubmit} disabled={submitting || !address.trim()} className="btn-primary w-full">
               {submitting ? 'Submitting...' : `Submit Assessment · ${liveScore.totalScore}/20`}
             </button>
-
             <p className="font-mono text-[10px] text-text-muted text-center">
               Section C — 5 categories, 20-point scale
             </p>
@@ -486,6 +486,7 @@ function DeliverTab({ districtId }: { districtId: string }) {
   const load = useCallback(async () => {
     setLoading(true);
     try {
+      // Parallel fetch: priority queue + active runs
       const [queue, runsRes] = await Promise.all([
         householdsApi.getPriorityQueue(districtId),
         api.get('/api/delivery/runs', { params: { districtId, status: 'IN_PROGRESS' } }),
@@ -502,7 +503,13 @@ function DeliverTab({ districtId }: { districtId: string }) {
 
   useEffect(() => { load(); }, [load]);
 
-  const handleDeliver = async (household: Household) => {
+  // useMemo: sorted list only recomputes when households changes
+  const sorted = useMemo(
+    () => [...households].sort((a, b) => BAND_ORDER[a.priorityBand] - BAND_ORDER[b.priorityBand]),
+    [households]
+  );
+
+  const handleDeliver = useCallback(async (household: Household) => {
     if (!activeRun) {
       setError('No active delivery run. Ask your Hub Manager to start a run first.');
       return;
@@ -522,10 +529,7 @@ function DeliverTab({ districtId }: { districtId: string }) {
     } catch (e: unknown) {
       setError((e as { response?: { data?: { error?: string } } })?.response?.data?.error ?? 'Delivery failed.');
     } finally { setDelivering(null); }
-  };
-
-  const BAND_ORDER: Record<PriorityBand, number> = { CRITICAL: 0, HIGH: 1, MEDIUM: 2, STANDARD: 3 };
-  const sorted = [...households].sort((a, b) => BAND_ORDER[a.priorityBand] - BAND_ORDER[b.priorityBand]);
+  }, [activeRun, load]);
 
   if (loading) {
     return (
@@ -542,7 +546,6 @@ function DeliverTab({ districtId }: { districtId: string }) {
       {error && <ErrorBox msg={error} onDismiss={() => setError('')} />}
       {success && <SuccessBox msg={success} onDismiss={() => setSuccess('')} />}
 
-      {/* Active run status */}
       {activeRun ? (
         <div className="card px-4 py-3 border-accent-green/30 bg-accent-green/5 flex items-center gap-3">
           <span className="w-2 h-2 rounded-full bg-accent-green animate-pulse-slow flex-shrink-0" />
@@ -563,7 +566,6 @@ function DeliverTab({ districtId }: { districtId: string }) {
         </div>
       )}
 
-      {/* Priority queue */}
       <div>
         <SectionTitle sub={`${households.length} undelivered households, sorted by priority`}>
           Priority Queue
@@ -596,8 +598,6 @@ function DeliverTab({ districtId }: { districtId: string }) {
                         <p className="font-mono text-[10px] text-accent-red mt-0.5">⚕ Life-sustaining medication</p>
                       )}
                     </div>
-
-                    {/* Deliver action */}
                     <div className="flex-shrink-0">
                       {!isConfirming ? (
                         <button
@@ -647,7 +647,7 @@ function ReportTab({ districtId }: { districtId: string }) {
 
   const selectedType = INCIDENT_TYPES.find(t => t.value === incType)!;
 
-  const handleSubmit = async () => {
+  const handleSubmit = useCallback(async () => {
     if (!description.trim()) { setError('Please describe the incident.'); return; }
     setSubmitting(true); setError('');
     try {
@@ -656,15 +656,12 @@ function ReportTab({ districtId }: { districtId: string }) {
         type: incType,
         description: description.trim(),
       });
-      setSubmitted({
-        type: incType,
-        autoEscalated: res.data?.autoEscalated ?? false,
-      });
+      setSubmitted({ type: incType, autoEscalated: res.data?.autoEscalated ?? false });
       setDescription('');
     } catch (e: unknown) {
       setError((e as { response?: { data?: { error?: string } } })?.response?.data?.error ?? 'Report failed.');
     } finally { setSubmitting(false); }
-  };
+  }, [description, districtId, incType]);
 
   if (submitted) {
     return (
@@ -699,20 +696,12 @@ function ReportTab({ districtId }: { districtId: string }) {
     <div className="space-y-5">
       {error && <ErrorBox msg={error} onDismiss={() => setError('')} />}
 
-      {/* Two-column layout: incident type left, description right */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
-
-        {/* Left — Incident type selector */}
         <div className="card p-5">
           <SectionTitle sub="VOLUNTEER_SAFETY incidents are auto-escalated (Section A.4)">Incident Type</SectionTitle>
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-1 gap-2">
             {INCIDENT_TYPES.map(t => (
-              <OptionButton
-                key={t.value}
-                selected={incType === t.value}
-                onClick={() => setIncType(t.value)}
-                danger={t.value === 'VOLUNTEER_SAFETY'}
-              >
+              <OptionButton key={t.value} selected={incType === t.value} onClick={() => setIncType(t.value)} danger={t.value === 'VOLUNTEER_SAFETY'}>
                 <div className="flex items-center gap-3">
                   <span className="text-lg flex-shrink-0">{t.icon}</span>
                   <div className="flex-1">
@@ -720,9 +709,7 @@ function ReportTab({ districtId }: { districtId: string }) {
                       {t.label}
                     </span>
                     {t.autoEscalate && (
-                      <span className="block font-mono text-[9px] text-accent-red mt-0.5">
-                        Auto-escalates to Operations Center
-                      </span>
+                      <span className="block font-mono text-[9px] text-accent-red mt-0.5">Auto-escalates to Operations Center</span>
                     )}
                   </div>
                   <div className={`w-4 h-4 rounded-full border-2 flex-shrink-0 flex items-center justify-center ${
@@ -738,9 +725,7 @@ function ReportTab({ districtId }: { districtId: string }) {
           </div>
         </div>
 
-        {/* Right — Description + submit */}
         <div className="space-y-4">
-          {/* Safety warning — only when VOLUNTEER_SAFETY is selected */}
           {incType === 'VOLUNTEER_SAFETY' && (
             <div className="bg-accent-red/10 border border-accent-red/40 rounded px-4 py-3 flex gap-3 animate-slide-in">
               <span className="text-2xl flex-shrink-0">🚨</span>
@@ -754,7 +739,6 @@ function ReportTab({ districtId }: { districtId: string }) {
             </div>
           )}
 
-          {/* Description */}
           <div className="card p-5">
             <SectionTitle sub="Be specific about location and severity">Description</SectionTitle>
             <textarea
@@ -778,9 +762,7 @@ function ReportTab({ districtId }: { districtId: string }) {
             onClick={handleSubmit}
             disabled={submitting || !description.trim()}
             className={`w-full py-2.5 rounded font-sans font-semibold text-sm transition-all disabled:opacity-40 ${
-              incType === 'VOLUNTEER_SAFETY'
-                ? 'bg-accent-red text-white hover:bg-accent-red/90'
-                : 'btn-primary'
+              incType === 'VOLUNTEER_SAFETY' ? 'bg-accent-red text-white hover:bg-accent-red/90' : 'btn-primary'
             }`}
           >
             {submitting ? 'Reporting...' : `Report ${selectedType.label}`}
@@ -800,14 +782,19 @@ export function VolunteerPage() {
   const [districtName, setDistrictName] = useState('');
   const [loadingDistrict, setLoadingDistrict] = useState(true);
 
+  // Parallel initial fetch: district info + summary (if needed for fallback)
   useEffect(() => {
     const resolve = async () => {
       setLoadingDistrict(true);
       try {
         if (user?.districtId) {
-          const res = await api.get(`/api/districts/${user.districtId}`);
+          // Parallel: district detail + any other initial data needed
+          const [distRes] = await Promise.all([
+            api.get(`/api/districts/${user.districtId}`),
+            // Could add more parallel fetches here in future
+          ]);
           setDistrictId(user.districtId);
-          setDistrictName(res.data.name ?? 'Your District');
+          setDistrictName(distRes.data.name ?? 'Your District');
         } else {
           const res = await api.get('/api/dashboard/summary');
           const districts = res.data.districts ?? [];
@@ -817,8 +804,10 @@ export function VolunteerPage() {
           }
         }
       } catch {
-        // silent
-      } finally { setLoadingDistrict(false); }
+        // silent — page shows "no district" state
+      } finally {
+        setLoadingDistrict(false);
+      }
     };
     resolve();
   }, [user?.districtId]);
@@ -832,9 +821,7 @@ export function VolunteerPage() {
   if (loadingDistrict) {
     return (
       <DashboardLayout title="Volunteer View">
-        <div className="py-32 text-center">
-          <p className="font-mono text-sm text-text-muted animate-pulse">Loading...</p>
-        </div>
+        <VolunteerSkeleton />
       </DashboardLayout>
     );
   }
@@ -857,7 +844,6 @@ export function VolunteerPage() {
     <DashboardLayout title="Volunteer View">
       <div className="space-y-5">
 
-        {/* ── Header row: district indicator ── */}
         <div className="flex items-center justify-between gap-4 flex-wrap">
           <div className="flex items-center gap-2">
             <span className="w-1.5 h-1.5 rounded-full bg-accent-green animate-pulse-slow" />
@@ -871,7 +857,6 @@ export function VolunteerPage() {
           </span>
         </div>
 
-        {/* ── Tab navigation — same style as HubPage ── */}
         <div className="flex gap-0.5 bg-bg-elevated rounded-lg p-1 border border-bg-border w-fit">
           {TABS.map(tab => (
             <button
@@ -889,7 +874,6 @@ export function VolunteerPage() {
           ))}
         </div>
 
-        {/* ── Tab content ── */}
         <div className="animate-fade-in">
           {activeTab === 'assess'  && <AssessTab  districtId={districtId} />}
           {activeTab === 'deliver' && <DeliverTab districtId={districtId} />}

@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useMemo, memo } from 'react';
 import { householdsApi } from '../api/households';
 import type { Household } from '../api/households';
 import type { DashboardSummary } from '../api/dashboard';
@@ -9,9 +9,9 @@ interface PriorityQueueTableProps {
 
 const BAND_CONFIG = {
   CRITICAL: { label: 'CRITICAL', color: 'text-accent-red', bg: 'bg-accent-red/10', border: 'border-accent-red/20', dot: 'bg-accent-red' },
-  HIGH: { label: 'HIGH', color: 'text-accent-orange', bg: 'bg-accent-orange/10', border: 'border-accent-orange/20', dot: 'bg-accent-orange' },
-  MEDIUM: { label: 'MEDIUM', color: 'text-accent-yellow', bg: 'bg-accent-yellow/10', border: 'border-accent-yellow/20', dot: 'bg-accent-yellow' },
-  STANDARD: { label: 'STANDARD', color: 'text-accent-green', bg: 'bg-accent-green/10', border: 'border-accent-green/20', dot: 'bg-accent-green' },
+  HIGH:     { label: 'HIGH',     color: 'text-accent-orange', bg: 'bg-accent-orange/10', border: 'border-accent-orange/20', dot: 'bg-accent-orange' },
+  MEDIUM:   { label: 'MEDIUM',   color: 'text-accent-yellow', bg: 'bg-accent-yellow/10', border: 'border-accent-yellow/20', dot: 'bg-accent-yellow' },
+  STANDARD: { label: 'STANDARD', color: 'text-accent-green',  bg: 'bg-accent-green/10',  border: 'border-accent-green/20',  dot: 'bg-accent-green'  },
 } as const;
 
 const EMK_COLORS = {
@@ -32,7 +32,7 @@ function SkeletonRow() {
   );
 }
 
-export function PriorityQueueTable({ districts }: PriorityQueueTableProps) {
+export const PriorityQueueTable = memo(function PriorityQueueTable({ districts }: PriorityQueueTableProps) {
   const [selectedDistrictId, setSelectedDistrictId] = useState<string>(
     districts[0]?.districtId ?? ''
   );
@@ -41,7 +41,10 @@ export function PriorityQueueTable({ districts }: PriorityQueueTableProps) {
   const [error, setError] = useState('');
   const [bandFilter, setBandFilter] = useState<string>('ALL');
 
-  const selectedDistrict = districts.find(d => d.districtId === selectedDistrictId);
+  const selectedDistrict = useMemo(
+    () => districts.find(d => d.districtId === selectedDistrictId),
+    [districts, selectedDistrictId]
+  );
 
   const fetchQueue = useCallback(async () => {
     if (!selectedDistrictId) return;
@@ -62,16 +65,19 @@ export function PriorityQueueTable({ districts }: PriorityQueueTableProps) {
     fetchQueue();
   }, [fetchQueue]);
 
-  const filtered = bandFilter === 'ALL'
-    ? households
-    : households.filter(h => h.priorityBand === bandFilter);
+  // useMemo: filtered list only recomputes when households or bandFilter changes
+  const filtered = useMemo(
+    () => bandFilter === 'ALL' ? households : households.filter(h => h.priorityBand === bandFilter),
+    [households, bandFilter]
+  );
 
-  const bandCounts = {
+  // useMemo: band counts only recompute when households changes
+  const bandCounts = useMemo(() => ({
     CRITICAL: households.filter(h => h.priorityBand === 'CRITICAL').length,
-    HIGH: households.filter(h => h.priorityBand === 'HIGH').length,
-    MEDIUM: households.filter(h => h.priorityBand === 'MEDIUM').length,
+    HIGH:     households.filter(h => h.priorityBand === 'HIGH').length,
+    MEDIUM:   households.filter(h => h.priorityBand === 'MEDIUM').length,
     STANDARD: households.filter(h => h.priorityBand === 'STANDARD').length,
-  };
+  }), [households]);
 
   return (
     <div className="card">
@@ -122,7 +128,6 @@ export function PriorityQueueTable({ districts }: PriorityQueueTableProps) {
           </button>
           {(Object.keys(BAND_CONFIG) as Array<keyof typeof BAND_CONFIG>).map((band) => {
             const cfg = BAND_CONFIG[band];
-            const count = bandCounts[band];
             return (
               <button
                 key={band}
@@ -133,7 +138,7 @@ export function PriorityQueueTable({ districts }: PriorityQueueTableProps) {
                     : `border-transparent ${cfg.color} opacity-60 hover:opacity-100`
                 }`}
               >
-                {cfg.label} ({count})
+                {cfg.label} ({bandCounts[band]})
               </button>
             );
           })}
@@ -192,9 +197,7 @@ export function PriorityQueueTable({ districts }: PriorityQueueTableProps) {
 
                       {/* Address */}
                       <td className="px-4 py-2.5 max-w-[200px]">
-                        <p className="font-sans text-xs text-text-primary truncate">
-                          {h.address}
-                        </p>
+                        <p className="font-sans text-xs text-text-primary truncate">{h.address}</p>
                       </td>
 
                       {/* Total score */}
@@ -205,7 +208,7 @@ export function PriorityQueueTable({ districts }: PriorityQueueTableProps) {
                               className={`h-full rounded-full ${
                                 h.totalScore >= 15 ? 'bg-accent-red' :
                                 h.totalScore >= 10 ? 'bg-accent-orange' :
-                                h.totalScore >= 5 ? 'bg-accent-yellow' : 'bg-accent-green'
+                                h.totalScore >= 5  ? 'bg-accent-yellow' : 'bg-accent-green'
                               }`}
                               style={{ width: `${(h.totalScore / 20) * 100}%` }}
                             />
@@ -237,13 +240,9 @@ export function PriorityQueueTable({ districts }: PriorityQueueTableProps) {
                       {/* Delivered */}
                       <td className="px-4 py-2.5">
                         {h.delivered ? (
-                          <span className="font-mono text-[10px] text-accent-green">
-                            ✓ Delivered
-                          </span>
+                          <span className="font-mono text-[10px] text-accent-green">✓ Delivered</span>
                         ) : (
-                          <span className="font-mono text-[10px] text-text-muted">
-                            Pending
-                          </span>
+                          <span className="font-mono text-[10px] text-text-muted">Pending</span>
                         )}
                       </td>
                     </tr>
@@ -267,4 +266,4 @@ export function PriorityQueueTable({ districts }: PriorityQueueTableProps) {
       )}
     </div>
   );
-}
+});

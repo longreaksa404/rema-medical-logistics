@@ -1,3 +1,4 @@
+import { memo, useMemo } from 'react';
 import {
   BarChart,
   Bar,
@@ -14,7 +15,6 @@ interface StockChartProps {
   districts: DashboardSummary['districts'];
 }
 
-// Custom tooltip styled to match the dark industrial theme
 function CustomTooltip({ active, payload, label }: {
   active?: boolean;
   payload?: Array<{ name: string; value: number; color: string; payload: Record<string, number> }>;
@@ -43,7 +43,6 @@ function CustomTooltip({ active, payload, label }: {
   );
 }
 
-// EMK bar colors — distinct, readable on dark background
 const EMK_COLORS = {
   emk1: { normal: '#58a6ff', scarce: '#f85149' },
   emk2: { normal: '#3fb950', scarce: '#f0883e' },
@@ -54,8 +53,11 @@ function getColor(type: 'emk1' | 'emk2' | 'emk3', scarce: boolean): string {
   return scarce ? EMK_COLORS[type].scarce : EMK_COLORS[type].normal;
 }
 
-export function StockChart({ districts }: StockChartProps) {
-  const chartData = districts.map((d) => {
+const SCARCITY_THRESHOLD = 30;
+
+export const StockChart = memo(function StockChart({ districts }: StockChartProps) {
+  // useMemo: only recomputes when districts reference changes
+  const chartData = useMemo(() => districts.map((d) => {
     const emk1Pct = d.stock && d.stock.emk1Total > 0
       ? Math.round((d.stock.emk1Remaining / d.stock.emk1Total) * 100)
       : 0;
@@ -75,15 +77,12 @@ export function StockChart({ districts }: StockChartProps) {
       emk1Remaining: d.stock?.emk1Remaining ?? 0,
       emk2Remaining: d.stock?.emk2Remaining ?? 0,
       emk3Remaining: d.stock?.emk3Remaining ?? 0,
-      emk1Scarce: emk1Pct < 30 && (d.stock?.emk1Total ?? 0) > 0,
-      emk2Scarce: emk2Pct < 30 && (d.stock?.emk2Total ?? 0) > 0,
-      emk3Scarce: emk3Pct < 30 && (d.stock?.emk3Total ?? 0) > 0,
+      emk1Scarce: emk1Pct < SCARCITY_THRESHOLD && (d.stock?.emk1Total ?? 0) > 0,
+      emk2Scarce: emk2Pct < SCARCITY_THRESHOLD && (d.stock?.emk2Total ?? 0) > 0,
+      emk3Scarce: emk3Pct < SCARCITY_THRESHOLD && (d.stock?.emk3Total ?? 0) > 0,
       anyScarce: d.anyScarce,
     };
-  });
-
-  // Reference line at 30% (scarcity threshold)
-  const SCARCITY_THRESHOLD = 30;
+  }), [districts]);
 
   return (
     <div className="card p-5">
@@ -118,11 +117,7 @@ export function StockChart({ districts }: StockChartProps) {
             barCategoryGap="30%"
             barGap={2}
           >
-            <CartesianGrid
-              strokeDasharray="3 3"
-              stroke="#21262d"
-              vertical={false}
-            />
+            <CartesianGrid strokeDasharray="3 3" stroke="#21262d" vertical={false} />
             <XAxis
               dataKey="name"
               tick={{ fill: '#8b949e', fontSize: 11, fontFamily: 'JetBrains Mono' }}
@@ -137,49 +132,32 @@ export function StockChart({ districts }: StockChartProps) {
               tickFormatter={(v) => `${v}%`}
               ticks={[0, 30, 60, 100]}
             />
-            <Tooltip
-              content={<CustomTooltip />}
-              cursor={{ fill: '#ffffff08' }}
-            />
+            <Tooltip content={<CustomTooltip />} cursor={{ fill: '#ffffff08' }} />
             <Bar dataKey="EMK-1 %" radius={[2, 2, 0, 0]} maxBarSize={28}>
               {chartData.map((entry, i) => (
-                <Cell
-                  key={i}
-                  fill={getColor('emk1', entry.emk1Scarce)}
-                  opacity={entry.emk1Scarce ? 1 : 0.85}
-                />
+                <Cell key={i} fill={getColor('emk1', entry.emk1Scarce)} opacity={entry.emk1Scarce ? 1 : 0.85} />
               ))}
             </Bar>
             <Bar dataKey="EMK-2 %" radius={[2, 2, 0, 0]} maxBarSize={28}>
               {chartData.map((entry, i) => (
-                <Cell
-                  key={i}
-                  fill={getColor('emk2', entry.emk2Scarce)}
-                  opacity={entry.emk2Scarce ? 1 : 0.85}
-                />
+                <Cell key={i} fill={getColor('emk2', entry.emk2Scarce)} opacity={entry.emk2Scarce ? 1 : 0.85} />
               ))}
             </Bar>
             <Bar dataKey="EMK-3 %" radius={[2, 2, 0, 0]} maxBarSize={28}>
               {chartData.map((entry, i) => (
-                <Cell
-                  key={i}
-                  fill={getColor('emk3', entry.emk3Scarce)}
-                  opacity={entry.emk3Scarce ? 1 : 0.85}
-                />
+                <Cell key={i} fill={getColor('emk3', entry.emk3Scarce)} opacity={entry.emk3Scarce ? 1 : 0.85} />
               ))}
             </Bar>
           </BarChart>
         </ResponsiveContainer>
       </div>
 
-      {/* Scarcity threshold label */}
       <div className="flex items-center gap-2 mt-2">
         <div className="h-px flex-1 bg-accent-red/30" style={{ backgroundImage: 'repeating-linear-gradient(90deg, #f85149 0, #f85149 6px, transparent 6px, transparent 8px)' }} />
         <span className="font-mono text-[9px] text-accent-red/60 flex-shrink-0">30% scarcity threshold</span>
         <div className="h-px flex-1 bg-accent-red/30" style={{ backgroundImage: 'repeating-linear-gradient(90deg, #f85149 0, #f85149 6px, transparent 6px, transparent 8px)' }} />
       </div>
 
-      {/* Raw numbers row */}
       <div className="mt-3 grid grid-cols-3 gap-2">
         {districts.map((d) => (
           <div key={d.districtId} className="bg-bg-elevated rounded px-3 py-2">
@@ -214,4 +192,4 @@ export function StockChart({ districts }: StockChartProps) {
       </div>
     </div>
   );
-}
+});
