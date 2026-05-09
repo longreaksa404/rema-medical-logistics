@@ -340,160 +340,198 @@
 rema-medical-logistics/
 ├── .gitignore
 ├── Dockerfile
-├── HANDOFF.md
-├── PROJECT_PLAN.md
-├── PROJECT_SCOPE.md
-├── README.md
 ├── docker-compose.yml
 ├── package.json
 ├── package-lock.json
-│
-├── frontend/
-│   ├── .env.example
-│   ├── .gitignore
-│   ├── README.md
-│   ├── eslint.config.js
-│   ├── index.html
-│   ├── package.json
-│   ├── package-lock.json
-│   ├── postcss.config.js
-│   ├── tailwind.config.js
-│   ├── tsconfig.json
-│   ├── tsconfig.app.json
-│   ├── tsconfig.node.json
-│   ├── tsconfig.node.tsbuildinfo
-│   ├── tsconfig.tsbuildinfo
-│   ├── vite.config.d.ts
-│   ├── vite.config.js
-│   ├── vite.config.ts
-│   ├── vercel.json
-│   ├── public/
-│   │   ├── favicon.svg
-│   │   ├── icons.svg
-│   │   └── rema_logo_new.svg
-│   └── src/
-│       ├── App.css
-│       ├── App.tsx
-│       ├── index.css
-│       ├── main.tsx
-│       ├── vite-env.d.ts
-│       ├── api/
-│       │   ├── auth.ts
-│       │   ├── cache.ts
-│       │   ├── client.ts
-│       │   ├── dashboard.ts
-│       │   ├── dashboard.types.ts
-│       │   ├── households.ts
-│       │   ├── hub.ts
-│       │   ├── radio.ts
-│       │   └── routes.ts
-│       ├── assets/
-│       │   ├── hero.png
-│       │   ├── react.svg
-│       │   └── vite.svg
-│       ├── components/
-│       │   ├── AppShell.tsx
-│       │   ├── DashboardLayout.tsx
-│       │   ├── DeliveryRunsPanel.tsx
-│       │   ├── PhaseBanner.tsx
-│       │   ├── PriorityQueueTable.tsx
-│       │   ├── ProtectedRoute.tsx
-│       │   ├── RadioCompliancePanel.tsx
-│       │   ├── Sidebar.tsx
-│       │   └── StockChart.tsx
-│       ├── context/
-│       │   └── AuthContext.tsx
-│       ├── pages/
-│       │   ├── ChangePasswordPage.tsx
-│       │   ├── DashboardPage.tsx
-│       │   ├── HubPage.tsx
-│       │   ├── LoginPage.tsx
-│       │   ├── PlaceholderPages.tsx
-│       │   ├── PrioritizePage.tsx
-│       │   ├── RoutingPage.tsx
-│       │   └── VolunteerPage.tsx
-│       └── utils/
-│           └── scoring.ts
+├── README.md
+├── PROJECT_PLAN.md
+├── PROJECT_SCOPE.md
+├── HANDOFF.md
 │
 ├── backend/
 │   ├── .env.example
 │   ├── .gitignore
 │   ├── package.json
 │   ├── package-lock.json
-│   ├── render.yaml
-│   ├── swagger.yaml
 │   ├── tsconfig.json
+│   ├── swagger.yaml
+│   ├── render.yaml
+│   │
+│   ├── src/
+│   │   ├── index.ts
+│   │   ├── app.ts
+│   │   ├── seed.ts
+│   │   │
+│   │   ├── controllers/
+│   │   │   ├── alert.controller.ts
+│   │   │   ├── auth.controller.ts
+│   │   │   ├── dashboard.controller.ts
+│   │   │   ├── delivery.controller.ts
+│   │   │   ├── district.controller.ts
+│   │   │   ├── household.controller.ts
+│   │   │   ├── incident.controller.ts
+│   │   │   ├── notification.controller.ts
+│   │   │   ├── radio.controller.ts
+│   │   │   ├── route.controller.ts
+│   │   │   ├── stock.controller.ts
+│   │   │   ├── user.controller.ts
+│   │   │   └── volunteer.controller.ts
+│   │   │
+│   │   ├── services/
+│   │   │   ├── alert.service.ts
+│   │   │   ├── auth.service.ts
+│   │   │   ├── dashboard.service.ts
+│   │   │   ├── delivery.service.ts
+│   │   │   ├── district.service.ts
+│   │   │   ├── household.service.ts
+│   │   │   ├── incident.service.ts
+│   │   │   ├── notification.service.ts
+│   │   │   ├── radio.service.ts
+│   │   │   ├── route.service.ts
+│   │   │   ├── stock.service.ts
+│   │   │   ├── user.service.ts
+│   │   │   └── volunteer.service.ts
+│   │   │
+│   │   ├── routes/
+│   │   │   ├── alert.routes.ts
+│   │   │   ├── auth.routes.ts
+│   │   │   ├── dashboard.routes.ts
+│   │   │   ├── delivery.routes.ts
+│   │   │   ├── district.routes.ts
+│   │   │   ├── household.routes.ts
+│   │   │   ├── incident.routes.ts
+│   │   │   ├── notification.routes.ts
+│   │   │   ├── radio.routes.ts
+│   │   │   ├── route.routes.ts
+│   │   │   ├── stock.routes.ts
+│   │   │   ├── test.routes.ts
+│   │   │   ├── user.routes.ts
+│   │   │   └── volunteer.routes.ts
+│   │   │
+│   │   ├── middleware/
+│   │   │   └── auth.ts
+│   │   │
+│   │   ├── types/
+│   │   │   └── auth.ts
+│   │   │
+│   │   ├── lib/
+│   │   │   └── prisma.ts
+│   │   │
+│   │   └── utils/
+│   │       ├── cache.ts
+│   │       ├── scoring.ts
+│   │       └── stock.utils.ts
+│   │
 │   ├── prisma/
-│   │   ├── prisma.config.ts
 │   │   ├── schema.prisma
 │   │   └── migrations/
-│   ├── supabase/
-│   │   ├── migrations/
-│   │   └── .temp/
-│   └── src/
-│       ├── app.ts
-│       ├── index.ts
-│       ├── seed.ts
-│       ├── controllers/
-│       │   ├── alert.controller.ts
-│       │   ├── auth.controller.ts
-│       │   ├── dashboard.controller.ts
-│       │   ├── delivery.controller.ts
-│       │   ├── district.controller.ts
-│       │   ├── household.controller.ts
-│       │   ├── incident.controller.ts
-│       │   ├── notification.controller.ts
-│       │   ├── radio.controller.ts
-│       │   ├── route.controller.ts
-│       │   ├── stock.controller.ts
-│       │   ├── user.controller.ts
-│       │   └── volunteer.controller.ts
-│       ├── routes/
-│       │   ├── alert.routes.ts
-│       │   ├── auth.routes.ts
-│       │   ├── dashboard.routes.ts
-│       │   ├── delivery.routes.ts
-│       │   ├── district.routes.ts
-│       │   ├── household.routes.ts
-│       │   ├── incident.routes.ts
-│       │   ├── notification.routes.ts
-│       │   ├── radio.routes.ts
-│       │   ├── route.routes.ts
-│       │   ├── stock.routes.ts
-│       │   ├── test.routes.ts
-│       │   ├── user.routes.ts
-│       │   └── volunteer.routes.ts
-│       ├── services/
-│       │   ├── alert.service.ts
-│       │   ├── auth.service.ts
-│       │   ├── dashboard.service.ts
-│       │   ├── delivery.service.ts
-│       │   ├── district.service.ts
-│       │   ├── household.service.ts
-│       │   ├── incident.service.ts
-│       │   ├── notification.service.ts
-│       │   ├── radio.service.ts
-│       │   ├── route.service.ts
-│       │   ├── stock.service.ts
-│       │   ├── user.service.ts
-│       │   └── volunteer.service.ts
-│       ├── middleware/
-│       │   └── auth.ts
-│       ├── types/
-│       │   └── auth.ts
-│       └── utils/
-│           ├── scoring.ts
-│           └── stock.utils.ts
+│   │
+│   └── supabase/
+│       ├── migrations/
+│       └── .temp/
 │
-└── docs/
-    ├── Assumptions-log.md
-    ├── section-0-core-concept.md
-    ├── section-A-response-design.md
-    ├── section-B-logistics-model.md
-    ├── section-C-prioritization-framework.md
-    ├── section-D-coordination-model.md
-    ├── section-E-scalability-sustainability.md
-    └── section-F-financial-plan.md
+├── frontend/
+│   ├── .env.example
+│   ├── .gitignore
+│   ├── index.html
+│   ├── package.json
+│   ├── package-lock.json
+│   ├── README.md
+│   ├── eslint.config.js
+│   ├── tailwind.config.js
+│   ├── postcss.config.js
+│   ├── tsconfig.json
+│   ├── tsconfig.app.json
+│   ├── tsconfig.node.json
+│   ├── tsconfig.node.tsbuildinfo
+│   ├── tsconfig.tsbuildinfo
+│   ├── vite.config.ts
+│   ├── vite.config.js
+│   ├── vite.config.d.ts
+│   ├── vercel.json
+│   │
+│   ├── src/
+│   │   ├── main.tsx
+│   │   ├── App.tsx
+│   │   ├── App.css
+│   │   ├── index.css
+│   │   ├── vite-env.d.ts
+│   │   │
+│   │   ├── components/
+│   │   │   ├── AppShell.tsx
+│   │   │   ├── DashboardLayout.tsx
+│   │   │   ├── DeliveryRunsPanel.tsx
+│   │   │   ├── PhaseBanner.tsx
+│   │   │   ├── PriorityQueueTable.tsx
+│   │   │   ├── ProtectedRoute.tsx
+│   │   │   ├── RadioCompliancePanel.tsx
+│   │   │   ├── Sidebar.tsx
+│   │   │   └── StockChart.tsx
+│   │   │
+│   │   ├── pages/
+│   │   │   ├── ChangePasswordPage.tsx
+│   │   │   ├── DashboardPage.tsx
+│   │   │   ├── HubPage.tsx
+│   │   │   ├── LoginPage.tsx
+│   │   │   ├── PlaceholderPages.tsx
+│   │   │   ├── PrioritizePage.tsx
+│   │   │   ├── RoutingPage.tsx
+│   │   │   ├── StakeholderPage.tsx
+│   │   │   ├── UsersPage.tsx
+│   │   │   └── VolunteerPage.tsx
+│   │   │
+│   │   ├── context/
+│   │   │   └── AuthContext.tsx
+│   │   │
+│   │   ├── api/
+│   │   │   ├── auth.ts
+│   │   │   ├── cache.ts
+│   │   │   ├── client.ts
+│   │   │   ├── dashboard.ts
+│   │   │   ├── dashboard.types.ts
+│   │   │   ├── households.ts
+│   │   │   ├── hub.ts
+│   │   │   ├── radio.ts
+│   │   │   └── routes.ts
+│   │   │
+│   │   ├── utils/
+│   │   │   └── scoring.ts
+│   │   │
+│   │   └── assets/
+│   │       ├── hero.png
+│   │       ├── react.svg
+│   │       └── vite.svg
+│   │
+│   ├── public/
+│   │   ├── favicon.svg
+│   │   ├── icons.svg
+│   │   ├── rema_logo_new.svg
+│   │   │
+│   │   └── visuals/
+│   │       ├── REMA-stakeholder-flowchart.drawio.png
+│   │       ├── central-warehouse.drawio.png
+│   │       └── sub-warehouse.drawio.png
+│
+├── docs/
+│   ├── Assumptions-log.md
+│   ├── section-0-core-concept.md
+│   ├── section-A-response-design.md
+│   ├── section-B-logistics-model.md
+│   ├── section-C-prioritization-framework.md
+│   ├── section-D-coordination-model.md
+│   ├── section-E-scalability-sustainability.md
+│   └── section-F-financial-plan.md
+│
+└── sections/
+    ├── documents/
+    │   ├── V6-operating-protocol.docx
+    │   └── node-explanations.docx
+    │
+    └── visuals/
+        ├── REMA-stakeholder-flowchart.drawio.png
+        ├── central-warehouse.drawio.png
+        ├── sub-warehouse.drawio.png
+        └── operating-protocol.pdf
 ```
 
 ---
