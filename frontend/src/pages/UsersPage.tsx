@@ -431,16 +431,15 @@ function EditUserPanel({ user, districts, currentUserId, onSuccess, onError, onC
                 if (isSelf) { onError("You cannot deactivate your own account."); return; }
                 setActive(v => !v);
               }}
-              className={`relative w-11 h-6 rounded-full border transition-all duration-200 flex-shrink-0 ${
+              // Use flex and items-center to vertically center the dot automatically
+              className={`relative w-11 h-6 rounded-full border transition-all duration-200 flex-shrink-0 flex items-center px-0.5 ${
                 active
-                  ? 'bg-accent-green/20 border-accent-green/40'
-                  : 'bg-bg-primary border-bg-border'
+                  ? 'bg-accent-green/20 border-accent-green/40 justify-end'
+                  : 'bg-bg-primary border-bg-border justify-start'
               }`}
             >
-              <span className={`absolute top-0.5 w-5 h-5 rounded-full transition-all duration-200 ${
-                active
-                  ? 'translate-x-5 bg-accent-green'
-                  : 'translate-x-0.5 bg-text-muted'
+              <span className={`w-5 h-5 rounded-full transition-all duration-200 ${
+                active ? 'bg-accent-green' : 'bg-text-muted'
               }`} />
             </button>
           </div>
