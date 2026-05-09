@@ -38,7 +38,7 @@ export function App() {
             <Route element={<AppShell />}>
 
               {/* V1 — Operations Dashboard */}
-              <Route element={<ProtectedRoute roles={['EMERGENCY_COORDINATOR', 'SUPER_ADMIN', 'VIEWER', 'HUB_MANAGER']} />}>
+              <Route element={<ProtectedRoute roles={['EMERGENCY_COORDINATOR', 'SUPER_ADMIN', 'VIEWER', 'HUB_MANAGER', 'VOLUNTEER']} />}>
                 <Route path="/dashboard" element={<DashboardPage />} />
               </Route>
 
