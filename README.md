@@ -14,7 +14,6 @@
 | Backend API | https://rema-medical-logistics.onrender.com |
 | API Documentation (Swagger) | https://rema-medical-logistics.onrender.com/api/docs |
 
-> ⚠️ **Note for evaluators:** The backend runs on Render free tier. First request after inactivity may take 30–60 seconds to respond. Subsequent requests are fast. If the frontend shows errors on first load, wait 60 seconds and refresh.
 
 ### Test Accounts
 
@@ -49,73 +48,6 @@ REMA is a pre-positioned, vulnerability-scored medical logistics system designed
 - EMK-3 Chronic Illness: 3-day medication supply — MoH cold storage only, never pre-stored at sub-warehouses
 
 **Prioritization:** 20-point vulnerability score across 5 categories. Critical households (15–20 points) delivered in current run. Every score is documented and auditable.
-
----
-
-## Repository Structure
-
-```
-rema/
-├── backend/                  # Node.js + TypeScript + Express + Prisma
-│   ├── src/
-│   │   ├── controllers/      # Route handlers (13 controllers)
-│   │   ├── services/         # Business logic (13 services)
-│   │   ├── routes/           # Express routers
-│   │   ├── middleware/        # JWT auth + role guards
-│   │   └── utils/            # Scoring engine, cache, stock utils
-│   ├── prisma/
-│   │   ├── schema.prisma     # 15-table schema
-│   │   └── migrations/       # Full migration history
-│   └── swagger.yaml          # API documentation
-│
-├── frontend/                 # React + Vite + TypeScript + Tailwind
-│   ├── src/
-│   │   ├── pages/            # 9 role-adaptive views
-│   │   ├── components/       # Shared components
-│   │   ├── api/              # Typed API client layer
-│   │   ├── context/          # Auth context (JWT + RBAC)
-│   │   └── utils/            # Scoring engine (mirrors backend exactly)
-│   └── public/
-│       └── visuals/          # Static diagrams + PDF
-│
-├── docs/                     # All strategy documentation
-│   ├── section-0-core-concept.md
-│   ├── section-A-response-design.md
-│   ├── section-B-logistics-model.md
-│   ├── section-C-prioritization-framework.md
-│   ├── section-D-coordination-model.md
-│   ├── section-E-scalability-sustainability.md
-│   ├── section-F-financial-plan.md
-│   ├── Assumptions-log.md    # 53 documented assumptions
-│   ├── executive-summary.md
-│   ├── demo-guide.md
-│   └── presentation-outline.md
-│
-├── sections/
-│   ├── documents/            # V6 Operating Protocol (PDF + DOCX)
-│   └── visuals/              # V3 Warehouse Layout + V5 Stakeholder Flowchart
-│
-├── PROJECT_SCOPE.md          # Complete system definition
-├── PROJECT_PLAN.md           # Build progress tracker (18 chats)
-└── README.md                 # This file
-```
-
----
-
-## Strategy Documentation
-
-All 7 strategy sections are in `/docs`:
-
-| File | Contents |
-|---|---|
-| `section-0-core-concept.md` | System name, architecture, 5 operating principles |
-| `section-A-response-design.md` | 3 phases, activation trigger, decision authority map, information flow |
-| `section-B-logistics-model.md` | EMK contents, sourcing model, 3-layer storage, transport, contingency, cold chain |
-| `section-C-prioritization-framework.md` | 20-point scoring system, score bands, tiebreakers, fairness safeguards, scarcity mode |
-| `section-D-coordination-model.md` | 5 actor groups, communication protocols, 4 coordination failure protocols |
-| `section-E-scalability-sustainability.md` | 12-month annual cycle, 11-template standard package, scale-up model, sustainability limits |
-| `section-F-financial-plan.md` | 3-bucket budget, cost per beneficiary, funding strategy, risk register |
-| `Assumptions-log.md` | 53 documented assumptions, numbered and sourced |
 
 ---
 
@@ -225,9 +157,4 @@ See `docs/demo-guide.md` for a full 9-step walkthrough:
 
 All visuals are also served via the frontend at `/visuals/`.
 
----
-
-*Built solo by one CSE student for a 4-person team challenge.*
-*Every assumption is documented. Every decision is auditable. Every endpoint is live.*
-
-> "Get the right supplies to the right people, through the right route, at the right time — even when the city stops working."
+--- 
