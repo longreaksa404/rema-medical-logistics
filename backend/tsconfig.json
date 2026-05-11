@@ -10,8 +10,10 @@
     "skipLibCheck": true,
     "forceConsistentCasingInFileNames": true,
     "resolveJsonModule": true,
-    "types": ["node"]
+    "types": ["jest", "node"]
   },
-  "include": ["src/**/*"],
+  "include": ["src/**/*",
+    "**/*.test.ts",
+    "**/*.spec.ts"],
   "exclude": ["node_modules", "dist"]
 }

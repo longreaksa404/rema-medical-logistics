@@ -8,7 +8,9 @@
     "start": "node dist/index.js",
     "migrate": "prisma migrate dev",
     "generate": "prisma generate",
-    "seed": "npx ts-node --transpile-only src/seed.ts"
+    "seed": "npx ts-node --transpile-only src/seed.ts",
+    "test": "jest",
+    "test:coverage": "jest --coverage"
   },
   "dependencies": {
     "@prisma/client": "^5.10.0",
