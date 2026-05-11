@@ -37,7 +37,7 @@
 | Chat 15 | V3 Warehouse Layout (draw.io) | ✅ Complete |
 | Chat 16 | V5 Stakeholder Flowchart (draw.io) | ✅ Complete |
 | Chat 17 | V6 Operating Protocol (PDF) | ✅ Complete |
-| Chat 18 | Unit Tests (Jest — backend utility functions) | ⬜ Not started |
+| Chat 18 | Unit Tests (Jest — backend utility functions) | ✅ Complete |
 | Chat 19 | CI/CD Pipeline (GitHub Actions) | ⬜ Not started |
 | Chat 20 | AI Integration (REMA AI Brief) | ⬜ Not started |
 | Chat 21 | Final Assembly + Submission Package | ⬜ Not started |
@@ -313,7 +313,7 @@
 
 ---
 
-## CHAT 18 — Unit Tests (Jest — Backend Utility Functions) ⬜ Not started
+## CHAT 18 — Unit Tests (Jest — Backend Utility Functions) ✅ Complete
 
 **Goal:** Prove the scoring engine, activation trigger, scarcity check, and routing
 logic are correct using automated tests. Pure utility functions only — no database,
@@ -324,26 +324,26 @@ If they are wrong, judges can check against the strategy documents. Tests prove
 correctness without requiring a test database setup.
 
 ### Setup
-- [ ] Install Jest + ts-jest + @types/jest in `backend/`
-- [ ] Create `jest.config.ts` with ts-jest preset
-- [ ] Add `"test": "jest"` script to `backend/package.json`
-- [ ] Create `backend/src/utils/__tests__/` directory
+- [x] Install Jest + ts-jest + @types/jest in `backend/`
+- [x] Create `jest.config.ts` with ts-jest preset
+- [x] Add `"test": "jest"` script to `backend/package.json`
+- [x] Create `backend/src/utils/__tests__/` directory
 
 ### scoring.test.ts
-- [ ] Category 1: life-sustaining medication run out → 8 pts
-- [ ] Category 1: medication low (1–2 days) → 5 pts
-- [ ] Category 1: medication adequate → 2 pts
-- [ ] Category 1: no chronic illness → 0 pts
-- [ ] Category 2: infant + pregnant → capped at 5 pts (not 4)
-- [ ] Category 2: single vulnerable person → correct pts
-- [ ] Category 3: water inside household → 4 pts
-- [ ] Category 3: water at doorstep → 3 pts
-- [ ] Category 3: household dry → 0 pts
-- [ ] Category 4: no access → 2 pts, partial → 1 pt, adequate → 0 pts
-- [ ] Category 5: isolated → 1 pt, not isolated → 0 pts
-- [ ] Total score = sum of all 5 categories (respecting cat 2 cap)
-- [ ] Score band: 15–20 → CRITICAL, 10–14 → HIGH, 5–9 → MEDIUM, 0–4 → STANDARD
-- [ ] Section C worked example — all 6 households score correctly:
+- [x] Category 1: life-sustaining medication run out → 8 pts
+- [x] Category 1: medication low (1–2 days) → 5 pts
+- [x] Category 1: medication adequate → 2 pts
+- [x] Category 1: no chronic illness → 0 pts
+- [x] Category 2: infant + pregnant → capped at 5 pts (not 4)
+- [x] Category 2: single vulnerable person → correct pts
+- [x] Category 3: water inside household → 4 pts
+- [x] Category 3: water at doorstep → 3 pts
+- [x] Category 3: household dry → 0 pts
+- [x] Category 4: no access → 2 pts, partial → 1 pt, adequate → 0 pts
+- [x] Category 5: isolated → 1 pt, not isolated → 0 pts
+- [x] Total score = sum of all 5 categories (respecting cat 2 cap)
+- [x] Score band: 15–20 → CRITICAL, 10–14 → HIGH, 5–9 → MEDIUM, 0–4 → STANDARD
+- [x] Section C worked example — all 6 households score correctly:
   - Household A: 0+2+3+2+1 = 8 → MEDIUM
   - Household B: 0+2+3+1+0 = 6 → MEDIUM
   - Household C: 8+0+1+0+0 = 9 → MEDIUM
@@ -352,38 +352,38 @@ correctness without requiring a test database setup.
   - Household F: 5+2+1+1+1 = 10 → HIGH
 
 ### stock.utils.test.ts
-- [ ] isInScarcity(): 0 remaining of 100 total → true
-- [ ] isInScarcity(): 29 remaining of 100 total → true (below 30%)
-- [ ] isInScarcity(): 30 remaining of 100 total → true (at threshold, inclusive)
-- [ ] isInScarcity(): 31 remaining of 100 total → false (above threshold)
-- [ ] isInScarcity(): 100 remaining of 100 total → false (full stock)
-- [ ] isInScarcity(): handles zero total gracefully (no divide-by-zero)
+- [x] isInScarcity(): 0 remaining of 100 total → true
+- [x] isInScarcity(): 29 remaining of 100 total → true (below 30%)
+- [x] isInScarcity(): 30 remaining of 100 total → true (at threshold, inclusive)
+- [x] isInScarcity(): 31 remaining of 100 total → false (above threshold)
+- [x] isInScarcity(): 100 remaining of 100 total → false (full stock)
+- [x] isInScarcity(): handles zero total gracefully (no divide-by-zero)
 
 ### alert.test.ts
-- [ ] shouldActivate(): all 3 false → false
-- [ ] shouldActivate(): only warningLevelTwo true → false
-- [ ] shouldActivate(): only rainfallExceeds100mm true → false
-- [ ] shouldActivate(): only streetFloodingReport true → false
-- [ ] shouldActivate(): warningLevelTwo + rainfallExceeds100mm → true
-- [ ] shouldActivate(): warningLevelTwo + streetFloodingReport → true
-- [ ] shouldActivate(): rainfallExceeds100mm + streetFloodingReport → true
-- [ ] shouldActivate(): all 3 true → true
+- [x] shouldActivate(): all 3 false → false
+- [x] shouldActivate(): only warningLevelTwo true → false
+- [x] shouldActivate(): only rainfallExceeds100mm true → false
+- [x] shouldActivate(): only streetFloodingReport true → false
+- [x] shouldActivate(): warningLevelTwo + rainfallExceeds100mm → true
+- [x] shouldActivate(): warningLevelTwo + streetFloodingReport → true
+- [x] shouldActivate(): rainfallExceeds100mm + streetFloodingReport → true
+- [x] shouldActivate(): all 3 true → true
 
 ### route.test.ts
-- [ ] getDeliveryMode(0) → MOTORBIKE
-- [ ] getDeliveryMode(29) → MOTORBIKE
-- [ ] getDeliveryMode(30) → BICYCLE_OR_FOOT
-- [ ] getDeliveryMode(59) → BICYCLE_OR_FOOT
-- [ ] getDeliveryMode(60) → BOAT
-- [ ] getDeliveryMode(79) → BOAT
-- [ ] getDeliveryMode(80) → SUSPENDED (hard safety rule — at limit, suspend)
-- [ ] getDeliveryMode(81) → SUSPENDED
-- [ ] getDeliveryMode(120) → SUSPENDED
+- [x] getDeliveryMode(0) → MOTORBIKE
+- [x] getDeliveryMode(29) → MOTORBIKE
+- [x] getDeliveryMode(30) → BICYCLE_OR_FOOT
+- [x] getDeliveryMode(59) → BICYCLE_OR_FOOT
+- [x] getDeliveryMode(60) → BOAT
+- [x] getDeliveryMode(79) → BOAT
+- [x] getDeliveryMode(80) → SUSPENDED (hard safety rule — at limit, suspend)
+- [x] getDeliveryMode(81) → SUSPENDED
+- [x] getDeliveryMode(120) → SUSPENDED
 
 ### Final steps
-- [ ] `npm test` passes with all tests green in `backend/`
-- [ ] Screenshot or copy of test output saved (for submission package)
-- [ ] Verify no tests import Prisma or make HTTP calls
+- [x] `npm test` passes with all tests green in `backend/`
+- [x] Screenshot or copy of test output saved (for submission package)
+- [x] Verify no tests import Prisma or make HTTP calls
 
 ---
 
@@ -591,6 +591,7 @@ rema-medical-logistics/
 │   │       │   └── route.test.ts
 │   │       ├── cache.ts
 │   │       ├── scoring.ts
+|   |       ├── route.utils.ts 
 │   │       └── stock.utils.ts
 │   │
 │   ├── prisma/

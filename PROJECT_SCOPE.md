@@ -435,10 +435,10 @@ judges can verify against the strategy documents. Tests prove correctness.
 
 | Test File | Functions Tested | What It Verifies |
 |---|---|---|
-| `scoring.test.ts` | `calculateScore()`, all 5 category scorers | All scoring rules from Section C including the 6-household worked example |
-| `stock.utils.test.ts` | `isInScarcity()` | 30% threshold: 29% → true, 30% → true, 31% → false |
-| `alert.test.ts` | `shouldActivate()` | All 8 combinations of 3 boolean flags — only ≥2 true triggers activation |
-| `route.test.ts` | `getDeliveryMode()` | Correct mode at 0, 30, 60, 80cm; SUSPENDED above 80cm (hard safety rule) |
+| `scoring.test.ts` | `scoreHousehold(), assignBand(), recommendEmk(), validateScoreInput()`, All scoring rules — 59 tests |
+| `stock.utils.test.ts` | `isInScarcity()` | 30% threshold, zero-total guard, real REMA values — 18 tests |
+| `alert.test.ts` | `shouldActivate()` | All 8 boolean combinations — 13 tests |
+| `route.test.ts` | `getDeliveryModeForDepth()` | All 4 tiers, all 3 boundaries — 23 tests |
 
 **Run command:** `npm test` inside `backend/`
 
@@ -579,3 +579,4 @@ These continue from assumption #49 in Assumptions-log.md:
 | 53 | Chat 20 | AI Brief prompt contains aggregate counts only — no household-level data, no addresses, no personal information | Humanitarian data protection principle; aggregate data is sufficient for an operational summary |
 | 54 | Chat 20 | ANTHROPIC_API_KEY is stored as a Render environment variable only — never committed to the repository or exposed to the frontend browser bundle | Standard secret management; .env.example documents the key name with a placeholder value |
 | 55 | Chat 20 | AI Brief feature is advisory only and cannot trigger any database write or system state change | Matches REMA Operating Principle 4: technology augments human judgment, does not replace it |
+| 56 | Chat 18 | route.utils.ts extracted as a pure utility file to allow unit testing of delivery mode logic without importing PrismaClient | route.service.ts imports Prisma at module level; pure test files cannot import it |
