@@ -38,7 +38,7 @@
 | Chat 16 | V5 Stakeholder Flowchart (draw.io) | ✅ Complete |
 | Chat 17 | V6 Operating Protocol (PDF) | ✅ Complete |
 | Chat 18 | Unit Tests (Jest — backend utility functions) | ✅ Complete |
-| Chat 19 | CI/CD Pipeline (GitHub Actions) | ⬜ Not started |
+| Chat 19 | CI/CD Pipeline (GitHub Actions) | ✅ Complete |
 | Chat 20 | AI Integration (REMA AI Brief) | ⬜ Not started |
 | Chat 21 | Final Assembly + Submission Package | ⬜ Not started |
 
@@ -387,38 +387,38 @@ correctness without requiring a test database setup.
 
 ---
 
-## CHAT 19 — CI/CD Pipeline (GitHub Actions) ⬜ Not started
+## CHAT 19 — CI/CD Pipeline (GitHub Actions) ✅ Complete
 
 **Goal:** Automate test-then-deploy. Every push to main runs tests first. If tests
 fail, Render does not redeploy. PRs are gated by tests.
 
 ### GitHub Actions workflow
-- [ ] Create `.github/workflows/ci.yml`
-- [ ] Configure trigger: `on: push: branches: [main]` and `on: pull_request`
-- [ ] Step 1: `actions/checkout@v4`
-- [ ] Step 2: `actions/setup-node@v4` with `node-version: '20'`
-- [ ] Step 3: `npm ci` inside `backend/` (clean install from lockfile)
-- [ ] Step 4: `npm test` inside `backend/` (runs all Jest tests)
-- [ ] Step 5 (main branch only): `curl -X POST ${{ secrets.RENDER_DEPLOY_HOOK_URL }}` to trigger Render redeploy
-- [ ] Confirm Vercel autodeploy is already connected to GitHub main (no extra step needed)
+- [x] Create `.github/workflows/ci.yml`
+- [x] Configure trigger: `on: push: branches: [main]` and `on: pull_request`
+- [x] Step 1: `actions/checkout@v4`
+- [x] Step 2: `actions/setup-node@v4` with `node-version: '20'`
+- [x] Step 3: `npm ci` inside `backend/` (clean install from lockfile)
+- [x] Step 4: `npm test` inside `backend/` (runs all Jest tests)
+- [x] Step 5 (main branch only): `curl -X POST ${{ secrets.RENDER_DEPLOY_HOOK_URL }}` to trigger Render redeploy
+- [x] Confirm Vercel autodeploy is already connected to GitHub main (no extra step needed)
 
 ### GitHub repository setup (manual steps — document in README)
-- [ ] Go to GitHub repo → Settings → Secrets and variables → Actions
-- [ ] Add secret: `RENDER_DEPLOY_HOOK_URL`
+- [x] Go to GitHub repo → Settings → Secrets and variables → Actions
+- [x] Add secret: `RENDER_DEPLOY_HOOK_URL`
   - Get value from: Render dashboard → your backend service → Settings → Deploy Hook → Generate
   - Format: `https://api.render.com/deploy/srv-xxxxx?key=yyyy`
-- [ ] Confirm Vercel project is connected to GitHub repo (Settings → Git)
+- [x] Confirm Vercel project is connected to GitHub repo (Settings → Git)
 
 ### Verify pipeline works
-- [ ] Push a small change to main → check GitHub Actions tab → all steps green
-- [ ] Check Render dashboard → new deploy triggered automatically
-- [ ] Make a PR with a deliberate test failure → confirm PR shows red status check
-- [ ] Fix the failure → confirm PR shows green
+- [x] Push a small change to main → check GitHub Actions tab → all steps green
+- [x] Check Render dashboard → new deploy triggered automatically
+- [x] Make a PR with a deliberate test failure → confirm PR shows red status check
+- [x] Fix the failure → confirm PR shows green
 
 ### README update
-- [ ] Add "CI/CD" section to README.md explaining the pipeline
-- [ ] Add badge: `![CI](https://github.com/<username>/<repo>/actions/workflows/ci.yml/badge.svg)`
-- [ ] Document the two manual setup steps (Render hook, Vercel connection)
+- [x] Add "CI/CD" section to README.md explaining the pipeline
+- [x] Add badge: `![CI](https://github.com/<username>/<repo>/actions/workflows/ci.yml/badge.svg)`
+- [x] Document the two manual setup steps (Render hook, Vercel connection)
 
 ---
 

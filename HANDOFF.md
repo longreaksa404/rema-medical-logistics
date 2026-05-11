@@ -1,49 +1,32 @@
 # REMA Handoff Document
-Last updated: Chat 18 complete
+Last updated: Chat 19 complete
 
 ---
 
 ## Current Status
 
-Chat 18 is complete. Unit tests pass: 4 suites, 113 tests, all green.
+Chat 19 is complete. GitHub Actions CI/CD pipeline is live.
 
-**Total remaining chats: 3** — Chat 19, Chat 20, Chat 21.
+**Total remaining chats: 2** — Chat 20, Chat 21.
 
 ---
 
-## What Was Completed in Chat 18
+## What Was Completed in Chat 19
 
 ### Files created
-- `backend/jest.config.ts` — ts-jest config, types: ['jest', 'node']
-- `backend/src/utils/route.utils.ts` — NEW pure helper (extracted from route.service.ts to avoid Prisma import in tests)
-- `backend/src/utils/__tests__/scoring.test.ts` — 59 tests covering all 5 categories, all 3 score bands, EMK logic, 6 worked examples
-- `backend/src/utils/__tests__/stock.utils.test.ts` — 18 tests covering scarcity threshold, zero-total guard, real REMA stock values
-- `backend/src/utils/__tests__/alert.test.ts` — 13 tests covering all 8 boolean combinations of the 2-of-3 activation rule
-- `backend/src/utils/__tests__/route.test.ts` — 23 tests covering all 4 delivery tiers and all 3 tier boundaries
+- `.github/workflows/ci.yml` — GitHub Actions workflow: runs tests on push/PR, triggers Render deploy on main merge only
+- README.md updated — CI badge added, CI/CD setup section documented
 
-### package.json change needed
-Add to `backend/package.json` scripts:
+### Pipeline behavior
+- **Pull requests:** test job runs (Node 20, npm ci, npm test) — PR blocked if tests fail
+- **Push to main:** test job runs first, then deploy job curls Render hook — only if tests pass
+- **Vercel:** autodeploys from GitHub main — no extra CI step needed
 
-```bash
-"test": "jest",
-"test:coverage": "jest --coverage"
-```
+### GitHub secret required
+- `RENDER_DEPLOY_HOOK_URL` — must be set manually in GitHub → Settings → Secrets → Actions
 
-### devDependencies installed
-```bash
-npm install --save-dev jest ts-jest @types/jest
-```
-
-### Bug found in scoring.ts (minor)
-`WORKED_EXAMPLE_CASES` has Household A with `expectedEmk: 'EMK1'` — should be `'EMK2'`. The scoring engine is correct; the constant has a documentation error. Fix in `scoring.ts` line for Household A.
-
-### Test results (verified in CI-like environment)
-
-```bash
-Test Suites: 4 passed, 4 total
-Tests:       113 passed, 113 total
-Snapshots:   0 total
-```
+### Key constraint verified
+- No DATABASE_URL or JWT_SECRET needed in GitHub — tests are pure functions (no Prisma, no HTTP)
 
 ---
 
@@ -70,55 +53,52 @@ Snapshots:   0 total
 
 ---
 
-## Next Chat Goal — Chat 19: CI/CD Pipeline
-
-### What Chat 19 builds
-One GitHub Actions workflow file: runs backend tests on every push/PR, triggers Render redeploy on merge to main.
-
-### Manual steps needed BEFORE Chat 19 (do these now)
-1. Go to Render dashboard → your backend service → Settings → Deploy Hook
-2. Click "Generate Deploy Hook" — copy the URL
-3. Go to GitHub repo → Settings → Secrets and variables → Actions → New secret
-4. Name: `RENDER_DEPLOY_HOOK_URL` — paste the URL
-5. Confirm Vercel project is connected to GitHub (Vercel dashboard → Settings → Git)
-
-### First steps for Chat 19
-1. Read HANDOFF.md + PROJECT_SCOPE.md Section 13.2 + PROJECT_PLAN.md Chat 19 checklist
-2. Create `.github/workflows/` directory
-3. Write `ci.yml` — trigger on push/PR, node setup, npm ci, npm test, Render curl
-4. Push to main → verify pipeline green in GitHub Actions tab
-5. Add CI badge to README.md
-
-### Critical notes for Chat 19
-- The workflow must `cd backend` before `npm ci` and `npm test` — the lockfile is in backend/, not root
-- The Render deploy hook curl should only run on `push` to main, NOT on pull_request
-- No DATABASE_URL or JWT_SECRET needed in GitHub secrets — tests are pure functions
-- Vercel autodeploys from GitHub automatically — no extra CI step needed for frontend
-
----
-
-## Chat 20 Preview — AI Integration
+## Next Chat Goal — Chat 20: AI Integration (REMA AI Brief)
 
 ### What Chat 20 builds
-Backend: `POST /api/ai/brief` (EMERGENCY_COORDINATOR+ only). Reads dashboard state, calls Anthropic Claude API server-side, returns 3-part brief.
-Frontend: "Generate AI Brief" button on V1 Dashboard (EC + SUPER_ADMIN only), modal with advisory label.
+**Backend:** `POST /api/ai/brief` (EMERGENCY_COORDINATOR+ only). Reads dashboard aggregate state (no PII), calls Anthropic Claude API server-side, returns 3-part operational brief.
+**Frontend:** "Generate AI Brief" button on V1 Dashboard (EC + SUPER_ADMIN only), modal with mandatory "Advisory only" label.
 
-### Manual step needed before Chat 20
-- Add `ANTHROPIC_API_KEY` to Render environment variables
+### Manual step needed BEFORE Chat 20
+- Add `ANTHROPIC_API_KEY` to Render environment variables (Render dashboard → your service → Environment)
+
+### First steps for Chat 20
+1. Read HANDOFF.md + PROJECT_SCOPE.md Section 13.3 + PROJECT_PLAN.md Chat 20 checklist
+2. `npm install @anthropic-ai/sdk` inside `backend/`
+3. Add `ANTHROPIC_API_KEY=` placeholder to `backend/.env.example`
+4. Create `backend/src/services/ai.service.ts`
+5. Create `backend/src/controllers/ai.controller.ts`
+6. Create `backend/src/routes/ai.routes.ts`
+7. Register routes in `app.ts`
+8. Update Swagger
+9. Deploy and test endpoint via Swagger as coordinator@rema.vn
+10. Frontend: add button to DashboardPage.tsx + create AiBriefModal.tsx
+11. Deploy frontend and test end-to-end
+
+### Critical notes for Chat 20
+- Model: `claude-sonnet-4-20250514` — exactly as specified in PROJECT_SCOPE.md
+- No PII in prompt — aggregate counts only (phase, stock totals, band counts, incident counts, radio %)
+- max_tokens: 400 (as per scope)
+- HTTP 503 with clear message if Anthropic API unavailable — frontend shows fallback, does not crash
+- "Advisory only — human decision required" label must always be visible in the modal (red/amber)
+- Button visible ONLY to EMERGENCY_COORDINATOR and SUPER_ADMIN — not HUB_MANAGER, not VIEWER
 
 ---
 
 ## Chat 21 Preview — Final Assembly
 
-Submission package: executive summary, demo guide, v1.0.0 tag.
+Submission package: executive summary, demo guide, strategy sections compiled, v1.0.0 tag.
 
 ---
 
-## Key Decisions Log (Chat 18 additions)
+## Key Decisions Log
 
 | Chat | Decision | Choice |
 |---|---|---|
 | 18 | Test scope | Backend utility functions only — no Prisma, no HTTP, no database |
 | 18 | Route test strategy | Extracted `route.utils.ts` pure helper to avoid Prisma import in tests |
-| 18 | Household A EMK | Scoring engine correctly returns EMK2 (cat2=2 triggers vulnerability rule); `WORKED_EXAMPLE_CASES` constant has a minor documentation error (EMK1) — fix recommended |
 | 18 | Scarcity boundary | `isInScarcity` uses strict `< 0.3` — exactly 30% is NOT scarce; 29.9% IS scarce |
+| 19 | Two-job pipeline | `test` and `deploy` as separate jobs with `needs: test` — deploy never runs if tests fail |
+| 19 | PR guard | `if: github.event_name == 'push'` on deploy job — Render hook only fires on main merge, not PR |
+| 19 | curl -f flag | Non-zero exit if Render rejects request — pipeline goes red, not silent green |
+| 19 | No DB secrets in CI | Unit tests are pure functions — DATABASE_URL and JWT_SECRET not needed in GitHub |
