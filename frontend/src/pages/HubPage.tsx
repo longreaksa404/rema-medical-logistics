@@ -1,49 +1,23 @@
 // HubPage.tsx — V7 Hub Manager Portal
-// Performance fixes:
-// - Parallel initial fetch (districts + alert status via Promise.all)
-// - Tab data has 30s staleness guard before refetching
-// - useEffect cleanup (clearInterval) on unmount
-// - Loading skeleton on initial load
-// 5 tabs: Stock | Volunteers | Deliveries | Incidents | Radio
+// Fully migrated to React Query.
+// - useQuery per tab: cached, deduplicated, survives navigation
+// - useMutation for all writes: auto-invalidates relevant queries on success
+// - No cacheRef, no setInterval, no manual staleness checks
 
-import { useState, useEffect, useCallback, useRef } from 'react';
+import { useState, useCallback, useMemo } from 'react';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { DashboardLayout } from '../components/DashboardLayout';
 import { useAuth } from '../context/AuthContext';
 import { api } from '../api/client';
 import { hubApi } from '../api/hub';
+import { queryKeys } from '../api/queryKeys';
 import type {
-  StockLevel,
-  StockMovement,
-  DistrictRoster,
-  Volunteer,
-  DeliveryRun,
-  Incident,
-  RadioCheckin,
+  StockLevel, StockMovement, DistrictRoster,
+  Volunteer, DeliveryRun, Incident, RadioCheckin,
 } from '../api/hub';
 import type { DistrictCard } from '../api/dashboard.types';
 
-// ─── TYPES ────────────────────────────────────────────────────────────────────
-
 type TabId = 'stock' | 'volunteers' | 'deliveries' | 'incidents' | 'radio';
-
-interface AlertStatus {
-  id: string;
-  activated: boolean;
-  phase: number;
-}
-
-// Cache entry with timestamp for staleness check
-interface CacheEntry<T> {
-  data: T;
-  fetchedAt: number; // Date.now()
-}
-
-const STALE_MS = 30_000; // 30 seconds
-
-function isStale<T>(entry: CacheEntry<T> | null): boolean {
-  if (!entry) return true;
-  return Date.now() - entry.fetchedAt > STALE_MS;
-}
 
 // ─── HELPERS ──────────────────────────────────────────────────────────────────
 
@@ -72,9 +46,7 @@ function HubSkeleton() {
     <div className="space-y-5 animate-fade-in">
       <div className="flex items-start justify-between gap-4 flex-wrap">
         <div className="flex gap-2">
-          <Skeleton className="h-8 w-24" />
-          <Skeleton className="h-8 w-24" />
-          <Skeleton className="h-8 w-24" />
+          <Skeleton className="h-8 w-24" /><Skeleton className="h-8 w-24" /><Skeleton className="h-8 w-24" />
         </div>
         <Skeleton className="h-8 w-32" />
       </div>
@@ -99,23 +71,12 @@ function SectionTitle({ children, sub }: { children: React.ReactNode; sub?: stri
     </div>
   );
 }
-
 function Empty({ message }: { message: string }) {
-  return (
-    <div className="py-10 text-center">
-      <p className="font-mono text-xs text-text-muted">{message}</p>
-    </div>
-  );
+  return <div className="py-10 text-center"><p className="font-mono text-xs text-text-muted">{message}</p></div>;
 }
-
 function Badge({ label, color }: { label: string; color: string }) {
-  return (
-    <span className={`font-mono text-[10px] px-2 py-0.5 rounded border ${color}`}>
-      {label}
-    </span>
-  );
+  return <span className={`font-mono text-[10px] px-2 py-0.5 rounded border ${color}`}>{label}</span>;
 }
-
 function ErrorBox({ msg, onDismiss }: { msg: string; onDismiss: () => void }) {
   return (
     <div className="bg-accent-red/10 border border-accent-red/30 rounded px-3 py-2 flex items-start justify-between gap-2 animate-slide-in">
@@ -124,7 +85,6 @@ function ErrorBox({ msg, onDismiss }: { msg: string; onDismiss: () => void }) {
     </div>
   );
 }
-
 function SuccessBox({ msg, onDismiss }: { msg: string; onDismiss: () => void }) {
   return (
     <div className="bg-accent-green/10 border border-accent-green/30 rounded px-3 py-2 flex items-start justify-between gap-2 animate-slide-in">
@@ -136,89 +96,55 @@ function SuccessBox({ msg, onDismiss }: { msg: string; onDismiss: () => void }) 
 
 // ─── TAB: STOCK ───────────────────────────────────────────────────────────────
 
-function StockTab({
-  districtId,
-  subWarehouseId,
-  cacheRef,
-}: {
-  districtId: string;
-  subWarehouseId: string | null;
-  cacheRef: React.MutableRefObject<Map<string, CacheEntry<unknown>>>;
-}) {
-  const [stock, setStock] = useState<StockLevel | null>(null);
-  const [movements, setMovements] = useState<StockMovement[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState('');
+function StockTab({ districtId, subWarehouseId }: { districtId: string; subWarehouseId: string | null }) {
+  const queryClient = useQueryClient();
   const [success, setSuccess] = useState('');
-
   const [dispEmkType, setDispEmkType] = useState<'EMK1' | 'EMK2' | 'EMK3'>('EMK1');
   const [dispQty, setDispQty] = useState('');
   const [dispReason, setDispReason] = useState('');
-  const [dispLoading, setDispLoading] = useState(false);
-
   const [adjEmkType, setAdjEmkType] = useState<'EMK1' | 'EMK2' | 'EMK3'>('EMK1');
   const [adjQty, setAdjQty] = useState('');
   const [adjReason, setAdjReason] = useState('');
-  const [adjLoading, setAdjLoading] = useState(false);
 
-  const cacheKey = `stock:${districtId}`;
+  // Parallel fetch stock + movements
+  const { data: stock, isLoading: stockLoading } = useQuery({
+    queryKey: queryKeys.hub.stock(districtId),
+    queryFn: () => hubApi.getDistrictStock(districtId),
+    enabled: !!districtId,
+  });
+  const { data: movements = [], isLoading: movementsLoading } = useQuery({
+    queryKey: queryKeys.hub.movements(districtId),
+    queryFn: () => hubApi.getMovements(districtId),
+    enabled: !!districtId,
+    select: (data: StockMovement[]) => data.slice(0, 50),
+  });
 
-  const load = useCallback(async (force = false) => {
-    if (!districtId) return;
-    const cached = cacheRef.current.get(cacheKey) as CacheEntry<{ stock: StockLevel; movements: StockMovement[] }> | undefined;
-    if (!force && cached && !isStale(cached)) {
-      setStock(cached.data.stock);
-      setMovements(cached.data.movements);
-      setLoading(false);
-      return;
-    }
-    setLoading(true);
-    try {
-      // Parallel fetch stock + movements
-      const [s, m] = await Promise.all([
-        hubApi.getDistrictStock(districtId),
-        hubApi.getMovements(districtId),
-      ]);
-      setStock(s);
-      const slicedMovements = m.slice(0, 50);
-      setMovements(slicedMovements);
-      cacheRef.current.set(cacheKey, { data: { stock: s, movements: slicedMovements }, fetchedAt: Date.now() });
-    } catch {
-      setError('Failed to load stock data.');
-    } finally {
-      setLoading(false);
-    }
-  }, [districtId, cacheKey, cacheRef]);
+  const isLoading = stockLoading || movementsLoading;
 
-  useEffect(() => { load(); }, [load]);
+  // Invalidate both stock + movements + dashboard summary on any write
+  const invalidateStock = useCallback(() => {
+    queryClient.invalidateQueries({ queryKey: queryKeys.hub.stock(districtId) });
+    queryClient.invalidateQueries({ queryKey: queryKeys.hub.movements(districtId) });
+    queryClient.invalidateQueries({ queryKey: queryKeys.dashboard.summary() });
+  }, [queryClient, districtId]);
 
-  const handleDispatch = async () => {
-    if (!subWarehouseId || !dispQty) { setError('Missing fields.'); return; }
-    setDispLoading(true);
-    try {
-      await hubApi.dispatch({ subWarehouseId, emkType: dispEmkType, quantity: Number(dispQty), reason: dispReason || undefined });
-      setSuccess(`Dispatched ${dispQty}× ${dispEmkType} to sub-warehouse.`);
+  const dispatchMutation = useMutation({
+    mutationFn: hubApi.dispatch,
+    onSuccess: (_, vars) => {
+      setSuccess(`Dispatched ${vars.quantity}× ${vars.emkType} to sub-warehouse.`);
       setDispQty(''); setDispReason('');
-      cacheRef.current.delete(cacheKey); // invalidate cache
-      load(true);
-    } catch (e: unknown) {
-      setError((e as { response?: { data?: { error?: string } } })?.response?.data?.error ?? 'Dispatch failed.');
-    } finally { setDispLoading(false); }
-  };
+      invalidateStock();
+    },
+  });
 
-  const handleAdjust = async () => {
-    if (!subWarehouseId || !adjQty || !adjReason.trim()) { setError('All adjustment fields required.'); return; }
-    setAdjLoading(true);
-    try {
-      await hubApi.adjust({ subWarehouseId, emkType: adjEmkType, quantity: Number(adjQty), reason: adjReason });
-      setSuccess(`Adjustment recorded: ${Number(adjQty) > 0 ? '+' : ''}${adjQty}× ${adjEmkType}.`);
+  const adjustMutation = useMutation({
+    mutationFn: hubApi.adjust,
+    onSuccess: (_, vars) => {
+      setSuccess(`Adjustment recorded: ${Number(vars.quantity) > 0 ? '+' : ''}${vars.quantity}× ${vars.emkType}.`);
       setAdjQty(''); setAdjReason('');
-      cacheRef.current.delete(cacheKey);
-      load(true);
-    } catch (e: unknown) {
-      setError((e as { response?: { data?: { error?: string } } })?.response?.data?.error ?? 'Adjustment failed.');
-    } finally { setAdjLoading(false); }
-  };
+      invalidateStock();
+    },
+  });
 
   const EMK_TYPES: Array<'EMK1' | 'EMK2' | 'EMK3'> = ['EMK1', 'EMK2', 'EMK3'];
   const EMK_COLORS = { EMK1: 'text-accent-blue', EMK2: 'text-accent-green', EMK3: 'text-accent-yellow' };
@@ -230,24 +156,23 @@ function StockTab({
     ADJUSTMENT: 'text-accent-orange border-accent-orange/30 bg-accent-orange/5',
   };
 
-  if (loading) {
+  if (isLoading) {
     return (
       <div className="space-y-4">
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-          {[...Array(3)].map((_, i) => <Skeleton key={i} className="h-28" />)}
-        </div>
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
-          <Skeleton className="h-48" />
-          <Skeleton className="h-48" />
-        </div>
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">{[...Array(3)].map((_, i) => <Skeleton key={i} className="h-28" />)}</div>
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-5"><Skeleton className="h-48" /><Skeleton className="h-48" /></div>
         <Skeleton className="h-64" />
       </div>
     );
   }
 
+  const dispatchError = dispatchMutation.error as { response?: { data?: { error?: string } } } | null;
+  const adjustError = adjustMutation.error as { response?: { data?: { error?: string } } } | null;
+  const mutationError = dispatchError?.response?.data?.error ?? adjustError?.response?.data?.error ?? '';
+
   return (
     <div className="space-y-6">
-      {error && <ErrorBox msg={error} onDismiss={() => setError('')} />}
+      {mutationError && <ErrorBox msg={mutationError} onDismiss={() => { dispatchMutation.reset(); adjustMutation.reset(); }} />}
       {success && <SuccessBox msg={success} onDismiss={() => setSuccess('')} />}
 
       <div>
@@ -294,17 +219,16 @@ function StockTab({
               </div>
               <div>
                 <label className="label">Quantity</label>
-                <input type="number" min="1" className="input" placeholder="e.g. 200"
-                  value={dispQty} onChange={e => setDispQty(e.target.value)} />
+                <input type="number" min="1" className="input" placeholder="e.g. 200" value={dispQty} onChange={e => setDispQty(e.target.value)} />
               </div>
             </div>
             <div>
               <label className="label">Reason (optional)</label>
-              <input type="text" className="input" placeholder="Phase 1 resupply..."
-                value={dispReason} onChange={e => setDispReason(e.target.value)} />
+              <input type="text" className="input" placeholder="Phase 1 resupply..." value={dispReason} onChange={e => setDispReason(e.target.value)} />
             </div>
-            <button onClick={handleDispatch} disabled={dispLoading || !dispQty || !subWarehouseId} className="btn-primary w-full">
-              {dispLoading ? 'Recording...' : 'Record Dispatch'}
+            <button onClick={() => subWarehouseId && dispQty && dispatchMutation.mutate({ subWarehouseId, emkType: dispEmkType, quantity: Number(dispQty), reason: dispReason || undefined })}
+              disabled={dispatchMutation.isPending || !dispQty || !subWarehouseId} className="btn-primary w-full">
+              {dispatchMutation.isPending ? 'Recording...' : 'Record Dispatch'}
             </button>
             {!subWarehouseId && <p className="font-mono text-[10px] text-accent-orange">No sub-warehouse assigned to this district.</p>}
           </div>
@@ -322,17 +246,16 @@ function StockTab({
               </div>
               <div>
                 <label className="label">Quantity (+/−)</label>
-                <input type="number" className="input" placeholder="-5 or +10"
-                  value={adjQty} onChange={e => setAdjQty(e.target.value)} />
+                <input type="number" className="input" placeholder="-5 or +10" value={adjQty} onChange={e => setAdjQty(e.target.value)} />
               </div>
             </div>
             <div>
               <label className="label">Reason (required)</label>
-              <input type="text" className="input" placeholder="e.g. Water-damaged kits removed"
-                value={adjReason} onChange={e => setAdjReason(e.target.value)} />
+              <input type="text" className="input" placeholder="e.g. Water-damaged kits removed" value={adjReason} onChange={e => setAdjReason(e.target.value)} />
             </div>
-            <button onClick={handleAdjust} disabled={adjLoading || !adjQty || !adjReason.trim() || !subWarehouseId} className="btn-ghost w-full">
-              {adjLoading ? 'Adjusting...' : 'Record Adjustment'}
+            <button onClick={() => subWarehouseId && adjQty && adjReason.trim() && adjustMutation.mutate({ subWarehouseId, emkType: adjEmkType, quantity: Number(adjQty), reason: adjReason })}
+              disabled={adjustMutation.isPending || !adjQty || !adjReason.trim() || !subWarehouseId} className="btn-ghost w-full">
+              {adjustMutation.isPending ? 'Adjusting...' : 'Record Adjustment'}
             </button>
           </div>
         </div>
@@ -341,13 +264,11 @@ function StockTab({
       <div>
         <SectionTitle sub="Last 50 stock movements for this district">Audit Log</SectionTitle>
         <div className="card divide-y divide-bg-border">
-          {movements.length === 0 ? <Empty message="No movements yet." /> : movements.map((m) => (
+          {movements.length === 0 ? <Empty message="No movements yet." /> : movements.map((m: StockMovement) => (
             <div key={m.id} className="px-4 py-3 flex items-start justify-between gap-3">
               <div className="min-w-0 flex-1">
                 <div className="flex items-center gap-2 flex-wrap mb-0.5">
-                  <span className={`font-mono text-[10px] px-1.5 py-0.5 rounded border ${MOVE_COLORS[m.movementType] ?? 'text-text-muted border-bg-border'}`}>
-                    {m.movementType}
-                  </span>
+                  <span className={`font-mono text-[10px] px-1.5 py-0.5 rounded border ${MOVE_COLORS[m.movementType] ?? 'text-text-muted border-bg-border'}`}>{m.movementType}</span>
                   <span className={`font-mono text-xs font-semibold ${EMK_COLORS[m.emkType]}`}>{m.emkType}</span>
                   <span className={`font-mono text-sm font-bold ${m.quantity > 0 ? 'text-accent-green' : 'text-accent-red'}`}>
                     {m.quantity > 0 ? '+' : ''}{fmt(m.quantity)}
@@ -367,101 +288,59 @@ function StockTab({
 
 // ─── TAB: VOLUNTEERS ──────────────────────────────────────────────────────────
 
-function VolunteersTab({
-  districtId,
-  subWarehouseId,
-  cacheRef,
-}: {
-  districtId: string;
-  subWarehouseId: string | null;
-  cacheRef: React.MutableRefObject<Map<string, CacheEntry<unknown>>>;
-}) {
-  const [roster, setRoster] = useState<DistrictRoster | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState('');
+function VolunteersTab({ districtId, subWarehouseId }: { districtId: string; subWarehouseId: string | null }) {
+  const queryClient = useQueryClient();
   const [success, setSuccess] = useState('');
-
   const [addName, setAddName] = useState('');
   const [addPhone, setAddPhone] = useState('');
   const [addRole, setAddRole] = useState<'VOLUNTEER' | 'TEAM_LEADER'>('VOLUNTEER');
-  const [addLoading, setAddLoading] = useState(false);
-
   const [assignVolId, setAssignVolId] = useState('');
   const [assignZone, setAssignZone] = useState('Zone A');
   const [assignTeam, setAssignTeam] = useState(1);
-  const [alertId, setAlertId] = useState('');
-  const [assignLoading, setAssignLoading] = useState(false);
 
-  const cacheKey = `volunteers:${districtId}`;
+  // Parallel: roster + alert status
+  const { data: roster, isLoading: rosterLoading } = useQuery({
+    queryKey: queryKeys.hub.volunteers(districtId),
+    queryFn: () => hubApi.getRoster(districtId),
+    enabled: !!districtId,
+  });
+  const { data: alertData } = useQuery({
+    queryKey: queryKeys.alert.status(),
+    queryFn: () => api.get('/api/alert/status').then(r => r.data),
+  });
+  const alertId = alertData?.id ?? '';
 
-  const load = useCallback(async (force = false) => {
-    if (!districtId) return;
-    const cached = cacheRef.current.get(cacheKey) as CacheEntry<{ roster: DistrictRoster; alertId: string }> | undefined;
-    if (!force && cached && !isStale(cached)) {
-      setRoster(cached.data.roster);
-      setAlertId(cached.data.alertId);
-      setLoading(false);
-      return;
-    }
-    setLoading(true);
-    try {
-      // Parallel fetch roster + alert status
-      const [r, alertRes] = await Promise.all([
-        hubApi.getRoster(districtId),
-        api.get('/api/alert/status'),
-      ]);
-      const aid = alertRes.data?.id ?? '';
-      setRoster(r);
-      setAlertId(aid);
-      cacheRef.current.set(cacheKey, { data: { roster: r, alertId: aid }, fetchedAt: Date.now() });
-    } catch {
-      setError('Failed to load roster.');
-    } finally {
-      setLoading(false);
-    }
-  }, [districtId, cacheKey, cacheRef]);
+  const invalidateRoster = useCallback(() => {
+    queryClient.invalidateQueries({ queryKey: queryKeys.hub.volunteers(districtId) });
+  }, [queryClient, districtId]);
 
-  useEffect(() => { load(); }, [load]);
-
-  const handleAdd = async () => {
-    if (!addName.trim() || !addPhone.trim()) { setError('Name and phone required.'); return; }
-    setAddLoading(true);
-    try {
-      await hubApi.createVolunteer({ districtId, name: addName.trim(), phone: addPhone.trim(), role: addRole });
-      setSuccess(`${addName} added to roster.`);
+  const addMutation = useMutation({
+    mutationFn: (vars: { districtId: string; name: string; phone: string; role: 'VOLUNTEER' | 'TEAM_LEADER' }) =>
+      hubApi.createVolunteer(vars),
+    onSuccess: (_, vars) => {
+      setSuccess(`${vars.name} added to roster.`);
       setAddName(''); setAddPhone('');
-      cacheRef.current.delete(cacheKey);
-      load(true);
-    } catch (e: unknown) {
-      setError((e as { response?: { data?: { error?: string } } })?.response?.data?.error ?? 'Failed to add volunteer.');
-    } finally { setAddLoading(false); }
-  };
+      invalidateRoster();
+    },
+  });
 
-  const handleAssign = async () => {
-    if (!assignVolId || !subWarehouseId || !alertId) { setError('Select volunteer and ensure REMA is activated.'); return; }
-    setAssignLoading(true);
-    try {
-      await hubApi.assignVolunteer({ volunteerId: assignVolId, subWarehouseId, alertId, zone: assignZone, teamNumber: assignTeam });
+  const assignMutation = useMutation({
+    mutationFn: hubApi.assignVolunteer,
+    onSuccess: () => {
       setSuccess('Volunteer assigned and marked DEPLOYED.');
       setAssignVolId('');
-      cacheRef.current.delete(cacheKey);
-      load(true);
-    } catch (e: unknown) {
-      setError((e as { response?: { data?: { error?: string } } })?.response?.data?.error ?? 'Assignment failed.');
-    } finally { setAssignLoading(false); }
-  };
+      invalidateRoster();
+    },
+  });
 
-  const handleStatusToggle = async (v: Volunteer) => {
-    const newStatus = v.status === 'AVAILABLE' ? 'INACTIVE' : 'AVAILABLE';
-    try {
-      await hubApi.updateVolunteer(v.id, { status: newStatus });
-      setSuccess(`${v.name} → ${newStatus}`);
-      cacheRef.current.delete(cacheKey);
-      load(true);
-    } catch {
-      setError('Status update failed.');
-    }
-  };
+  const statusMutation = useMutation({
+  mutationFn: ({ id, status }: { id: string; status: 'AVAILABLE' | 'INACTIVE' }) => 
+    hubApi.updateVolunteer(id, { status }),
+  onSuccess: (_, vars) => {
+    setSuccess(`Volunteer → ${vars.status}`);
+    invalidateRoster();
+  },
+  });
 
   const STATUS_COLORS: Record<string, string> = {
     AVAILABLE: 'text-accent-green border-accent-green/30 bg-accent-green/5',
@@ -469,18 +348,19 @@ function VolunteersTab({
     INACTIVE: 'text-text-muted border-bg-border bg-bg-elevated',
   };
 
-  const availableVols = roster?.volunteers.filter(v => v.status === 'AVAILABLE') ?? [];
+  const availableVols = roster?.volunteers.filter((v: Volunteer) => v.status === 'AVAILABLE') ?? [];
 
-  if (loading) {
+  const addError = (addMutation.error as any)?.response?.data?.error ?? '';
+  const assignError = (assignMutation.error as any)?.response?.data?.error ?? '';
+  const statusError = (statusMutation.error as any)?.response?.data?.error ?? '';
+
+  const mutationError = addError || assignError || statusError;
+
+  if (rosterLoading) {
     return (
       <div className="space-y-4">
-        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-          {[...Array(4)].map((_, i) => <Skeleton key={i} className="h-20" />)}
-        </div>
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
-          <Skeleton className="h-48" />
-          <Skeleton className="h-48" />
-        </div>
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">{[...Array(4)].map((_, i) => <Skeleton key={i} className="h-20" />)}</div>
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-5"><Skeleton className="h-48" /><Skeleton className="h-48" /></div>
         <Skeleton className="h-64" />
       </div>
     );
@@ -488,7 +368,7 @@ function VolunteersTab({
 
   return (
     <div className="space-y-6">
-      {error && <ErrorBox msg={error} onDismiss={() => setError('')} />}
+      {mutationError && <ErrorBox msg={mutationError} onDismiss={() => { addMutation.reset(); assignMutation.reset(); statusMutation.reset(); }} />}
       {success && <SuccessBox msg={success} onDismiss={() => setSuccess('')} />}
 
       {roster && (
@@ -509,7 +389,7 @@ function VolunteersTab({
           <div className="card px-4 py-3">
             <p className="font-mono text-[10px] text-text-muted uppercase tracking-widest mb-1">Deployed</p>
             <p className="font-mono text-2xl font-bold text-accent-orange">
-              {roster.volunteers.filter(v => v.status === 'DEPLOYED').length}
+              {roster.volunteers.filter((v: Volunteer) => v.status === 'DEPLOYED').length}
             </p>
           </div>
         </div>
@@ -525,16 +405,10 @@ function VolunteersTab({
         <div className="card p-5">
           <SectionTitle sub="Add to district roster">Add Volunteer</SectionTitle>
           <div className="space-y-3">
-            <div>
-              <label className="label">Full Name</label>
-              <input type="text" className="input" placeholder="Nguyen Van A"
-                value={addName} onChange={e => setAddName(e.target.value)} />
-            </div>
-            <div>
-              <label className="label">Phone</label>
-              <input type="tel" className="input" placeholder="+84901234567"
-                value={addPhone} onChange={e => setAddPhone(e.target.value)} />
-            </div>
+            <div><label className="label">Full Name</label>
+              <input type="text" className="input" placeholder="Nguyen Van A" value={addName} onChange={e => setAddName(e.target.value)} /></div>
+            <div><label className="label">Phone</label>
+              <input type="tel" className="input" placeholder="+84901234567" value={addPhone} onChange={e => setAddPhone(e.target.value)} /></div>
             <div>
               <label className="label">Role</label>
               <div className="flex gap-2">
@@ -546,8 +420,9 @@ function VolunteersTab({
                 ))}
               </div>
             </div>
-            <button onClick={handleAdd} disabled={addLoading || !addName.trim() || !addPhone.trim()} className="btn-primary w-full">
-              {addLoading ? 'Adding...' : 'Add to Roster'}
+            <button onClick={() => addName.trim() && addPhone.trim() && addMutation.mutate({ districtId, name: addName.trim(), phone: addPhone.trim(), role: addRole })}
+              disabled={addMutation.isPending || !addName.trim() || !addPhone.trim()} className="btn-primary w-full">
+              {addMutation.isPending ? 'Adding...' : 'Add to Roster'}
             </button>
           </div>
         </div>
@@ -560,31 +435,27 @@ function VolunteersTab({
             </div>
           ) : (
             <div className="space-y-3">
-              <div>
-                <label className="label">Volunteer</label>
+              <div><label className="label">Volunteer</label>
                 <select value={assignVolId} onChange={e => setAssignVolId(e.target.value)} className="input">
                   <option value="">Select available volunteer...</option>
-                  {availableVols.map(v => (
-                    <option key={v.id} value={v.id}>{v.name} ({v.role === 'TEAM_LEADER' ? 'TL' : 'V'})</option>
-                  ))}
+                  {availableVols.map((v: Volunteer) => <option key={v.id} value={v.id}>{v.name} ({v.role === 'TEAM_LEADER' ? 'TL' : 'V'})</option>)}
                 </select>
               </div>
               <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="label">Zone</label>
+                <div><label className="label">Zone</label>
                   <select value={assignZone} onChange={e => setAssignZone(e.target.value)} className="input">
                     {['Zone A', 'Zone B', 'Zone C'].map(z => <option key={z}>{z}</option>)}
                   </select>
                 </div>
-                <div>
-                  <label className="label">Team #</label>
+                <div><label className="label">Team #</label>
                   <select value={assignTeam} onChange={e => setAssignTeam(Number(e.target.value))} className="input">
                     {[1, 2, 3].map(n => <option key={n} value={n}>Team {n}</option>)}
                   </select>
                 </div>
               </div>
-              <button onClick={handleAssign} disabled={assignLoading || !assignVolId || !subWarehouseId} className="btn-primary w-full">
-                {assignLoading ? 'Assigning...' : 'Assign & Deploy'}
+              <button onClick={() => assignVolId && subWarehouseId && assignMutation.mutate({ volunteerId: assignVolId, subWarehouseId, alertId, zone: assignZone, teamNumber: assignTeam })}
+                disabled={assignMutation.isPending || !assignVolId || !subWarehouseId} className="btn-primary w-full">
+                {assignMutation.isPending ? 'Assigning...' : 'Assign & Deploy'}
               </button>
             </div>
           )}
@@ -605,25 +476,24 @@ function VolunteersTab({
             <tbody>
               {!roster || roster.volunteers.length === 0 ? (
                 <tr><td colSpan={6} className="px-4 py-8 text-center"><p className="font-mono text-xs text-text-muted">No volunteers in roster.</p></td></tr>
-              ) : roster.volunteers.map(v => (
+              ) : roster.volunteers.map((v: Volunteer) => (
                 <tr key={v.id} className="border-b border-bg-border hover:bg-bg-elevated/40 transition-colors">
                   <td className="px-4 py-3 font-sans text-sm text-text-primary">{v.name}</td>
                   <td className="px-4 py-3 font-mono text-xs text-text-secondary">{v.phone}</td>
-                  <td className="px-4 py-3">
-                    <span className={`font-mono text-[10px] ${v.role === 'TEAM_LEADER' ? 'text-accent-blue' : 'text-text-muted'}`}>
-                      {v.role === 'TEAM_LEADER' ? 'TL' : 'V'}
-                    </span>
-                  </td>
-                  <td className="px-4 py-3">
-                    <Badge label={v.status} color={STATUS_COLORS[v.status]} />
-                  </td>
+                  <td className="px-4 py-3"><span className={`font-mono text-[10px] ${v.role === 'TEAM_LEADER' ? 'text-accent-blue' : 'text-text-muted'}`}>{v.role === 'TEAM_LEADER' ? 'TL' : 'V'}</span></td>
+                  <td className="px-4 py-3"><Badge label={v.status} color={STATUS_COLORS[v.status]} /></td>
                   <td className="px-4 py-3 font-mono text-[10px] text-text-muted">
                     {v.assignments?.[0] ? `${v.assignments[0].zone} · T${v.assignments[0].teamNumber}` : '—'}
                   </td>
                   <td className="px-4 py-3">
                     {v.status !== 'DEPLOYED' && (
-                      <button onClick={() => handleStatusToggle(v)}
-                        className="font-mono text-[10px] text-text-muted hover:text-text-primary transition-colors">
+                      <button
+                        onClick={() => {
+                          const newStatus = v.status === 'AVAILABLE' ? 'INACTIVE' : 'AVAILABLE';
+                          statusMutation.mutate({ id: v.id, status: newStatus });
+                        }}
+                        className="font-mono text-[10px] text-text-muted hover:text-text-primary transition-colors"
+                      >
                         {v.status === 'AVAILABLE' ? 'Deactivate' : 'Reactivate'}
                       </button>
                     )}
@@ -640,96 +510,61 @@ function VolunteersTab({
 
 // ─── TAB: DELIVERIES ──────────────────────────────────────────────────────────
 
-function DeliveriesTab({
-  districtId,
-  subWarehouseId,
-  cacheRef,
-}: {
-  districtId: string;
-  subWarehouseId: string | null;
-  cacheRef: React.MutableRefObject<Map<string, CacheEntry<unknown>>>;
-}) {
-  const [runs, setRuns] = useState<DeliveryRun[]>([]);
-  const [volunteers, setVolunteers] = useState<Volunteer[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState('');
+function DeliveriesTab({ districtId, subWarehouseId }: { districtId: string; subWarehouseId: string | null }) {
+  const queryClient = useQueryClient();
   const [success, setSuccess] = useState('');
-
   const [zone, setZone] = useState('Zone A');
   const [team, setTeam] = useState(1);
   const [leadId, setLeadId] = useState('');
-  const [startLoading, setStartLoading] = useState(false);
   const [abortId, setAbortId] = useState('');
   const [abortReason, setAbortReason] = useState('');
 
-  const cacheKey = `deliveries:${districtId}`;
+  // Parallel: runs + roster
+  const { data: runs = [], isLoading: runsLoading } = useQuery({
+    queryKey: queryKeys.hub.deliveries(districtId),
+    queryFn: () => hubApi.getDeliveryRuns(districtId),
+    enabled: !!districtId,
+    refetchInterval: 30_000, // delivery runs change frequently
+  });
+  const { data: roster } = useQuery({
+    queryKey: queryKeys.hub.volunteers(districtId),
+    queryFn: () => hubApi.getRoster(districtId),
+    enabled: !!districtId,
+  });
 
-  const load = useCallback(async (force = false) => {
-    if (!districtId) return;
-    const cached = cacheRef.current.get(cacheKey) as CacheEntry<{ runs: DeliveryRun[]; volunteers: Volunteer[] }> | undefined;
-    if (!force && cached && !isStale(cached)) {
-      setRuns(cached.data.runs);
-      setVolunteers(cached.data.volunteers);
-      setLoading(false);
-      return;
-    }
-    setLoading(true);
-    try {
-      // Parallel fetch runs + roster
-      const [r, rosterData] = await Promise.all([
-        hubApi.getDeliveryRuns(districtId),
-        hubApi.getRoster(districtId),
-      ]);
-      const vols = rosterData.volunteers.filter(v => v.status === 'AVAILABLE' || v.status === 'DEPLOYED');
-      setRuns(r);
-      setVolunteers(vols);
-      cacheRef.current.set(cacheKey, { data: { runs: r, volunteers: vols }, fetchedAt: Date.now() });
-    } catch {
-      setError('Failed to load delivery runs.');
-    } finally {
-      setLoading(false);
-    }
-  }, [districtId, cacheKey, cacheRef]);
+  const volunteers = useMemo(
+    () => (roster?.volunteers ?? []).filter((v: Volunteer) => v.status === 'AVAILABLE' || v.status === 'DEPLOYED'),
+    [roster]
+  );
 
-  useEffect(() => { load(); }, [load]);
+  const invalidateDeliveries = useCallback(() => {
+    queryClient.invalidateQueries({ queryKey: queryKeys.hub.deliveries(districtId) });
+    queryClient.invalidateQueries({ queryKey: queryKeys.dashboard.summary() });
+  }, [queryClient, districtId]);
 
-  const handleStart = async () => {
-    if (!subWarehouseId || !leadId) { setError('Sub-warehouse and team lead required.'); return; }
-    setStartLoading(true);
-    try {
-      await hubApi.startRun({ subWarehouseId, teamNumber: team, zone, leadVolunteerId: leadId });
-      setSuccess(`Team ${team} departed for ${zone}.`);
+  const startMutation = useMutation({
+    mutationFn: hubApi.startRun,
+    onSuccess: (_, vars) => {
+      setSuccess(`Team ${vars.teamNumber} departed for ${vars.zone}.`);
       setLeadId('');
-      cacheRef.current.delete(cacheKey);
-      load(true);
-    } catch (e: unknown) {
-      setError((e as { response?: { data?: { error?: string } } })?.response?.data?.error ?? 'Failed to start run.');
-    } finally { setStartLoading(false); }
-  };
-
-  const handleComplete = async (id: string) => {
-    try {
-      await hubApi.completeRun(id);
-      setSuccess('Run marked complete.');
-      cacheRef.current.delete(cacheKey);
-      load(true);
-    } catch (e: unknown) {
-      setError((e as { response?: { data?: { error?: string } } })?.response?.data?.error ?? 'Failed to complete run.');
-    }
-  };
-
-  const handleAbort = async (id: string) => {
-    if (!abortReason.trim()) { setError('Abort reason required.'); return; }
-    try {
-      await hubApi.abortRun(id, abortReason);
+      invalidateDeliveries();
+    },
+  });
+  const completeMutation = useMutation({
+    mutationFn: hubApi.completeRun,
+    onSuccess: () => { setSuccess('Run marked complete.'); invalidateDeliveries(); },
+  });
+  const abortMutation = useMutation({
+    mutationFn: ({ id, reason }: { id: string; reason: string }) => hubApi.abortRun(id, reason),
+    onSuccess: () => {
       setSuccess('Run aborted. Volunteers standing down.');
       setAbortId(''); setAbortReason('');
-      cacheRef.current.delete(cacheKey);
-      load(true);
-    } catch (e: unknown) {
-      setError((e as { response?: { data?: { error?: string } } })?.response?.data?.error ?? 'Abort failed.');
-    }
-  };
+      invalidateDeliveries();
+    },
+  });
+
+  const activeRuns = useMemo(() => runs.filter((r: DeliveryRun) => r.status === 'IN_PROGRESS'), [runs]);
+  const pastRuns = useMemo(() => runs.filter((r: DeliveryRun) => r.status !== 'IN_PROGRESS'), [runs]);
 
   const STATUS_COLORS: Record<string, string> = {
     IN_PROGRESS: 'text-accent-green border-accent-green/30 bg-accent-green/5',
@@ -737,16 +572,15 @@ function DeliveriesTab({
     ABORTED: 'text-accent-red border-accent-red/30 bg-accent-red/5',
   };
 
-  const activeRuns = runs.filter(r => r.status === 'IN_PROGRESS');
-  const pastRuns = runs.filter(r => r.status !== 'IN_PROGRESS');
+  const mutationError =
+    (startMutation.error as { response?: { data?: { error?: string } } })?.response?.data?.error ??
+    (completeMutation.error as { response?: { data?: { error?: string } } })?.response?.data?.error ??
+    (abortMutation.error as { response?: { data?: { error?: string } } })?.response?.data?.error ?? '';
 
-  if (loading) {
+  if (runsLoading) {
     return (
       <div className="space-y-4">
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
-          <Skeleton className="h-48" />
-          <Skeleton className="h-48" />
-        </div>
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-5"><Skeleton className="h-48" /><Skeleton className="h-48" /></div>
         <Skeleton className="h-64" />
       </div>
     );
@@ -754,7 +588,7 @@ function DeliveriesTab({
 
   return (
     <div className="space-y-6">
-      {error && <ErrorBox msg={error} onDismiss={() => setError('')} />}
+      {mutationError && <ErrorBox msg={mutationError} onDismiss={() => { startMutation.reset(); completeMutation.reset(); abortMutation.reset(); }} />}
       {success && <SuccessBox msg={success} onDismiss={() => setSuccess('')} />}
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
@@ -762,56 +596,46 @@ function DeliveriesTab({
           <SectionTitle sub="Fixed departure times: 07:00 / 11:00 / 15:00 (Section B.4)">Start Delivery Run</SectionTitle>
           <div className="space-y-3">
             <div className="grid grid-cols-2 gap-3">
-              <div>
-                <label className="label">Zone</label>
+              <div><label className="label">Zone</label>
                 <select value={zone} onChange={e => setZone(e.target.value)} className="input">
                   {['Zone A', 'Zone B', 'Zone C'].map(z => <option key={z}>{z}</option>)}
                 </select>
               </div>
-              <div>
-                <label className="label">Team #</label>
+              <div><label className="label">Team #</label>
                 <select value={team} onChange={e => setTeam(Number(e.target.value))} className="input">
                   {[1, 2, 3].map(n => <option key={n} value={n}>Team {n}</option>)}
                 </select>
               </div>
             </div>
-            <div>
-              <label className="label">Team Lead</label>
+            <div><label className="label">Team Lead</label>
               <select value={leadId} onChange={e => setLeadId(e.target.value)} className="input">
                 <option value="">Select team lead...</option>
-                {volunteers.map(v => (
-                  <option key={v.id} value={v.id}>{v.name} · {v.status}</option>
-                ))}
+                {volunteers.map((v: Volunteer) => <option key={v.id} value={v.id}>{v.name} · {v.status}</option>)}
               </select>
             </div>
-            <button onClick={handleStart} disabled={startLoading || !leadId || !subWarehouseId} className="btn-primary w-full">
-              {startLoading ? 'Departing...' : '▶ Start Run'}
+            <button onClick={() => subWarehouseId && leadId && startMutation.mutate({ subWarehouseId, teamNumber: team, zone, leadVolunteerId: leadId })}
+              disabled={startMutation.isPending || !leadId || !subWarehouseId} className="btn-primary w-full">
+              {startMutation.isPending ? 'Departing...' : '▶ Start Run'}
             </button>
           </div>
         </div>
 
         <div className="card p-5">
           <SectionTitle sub={`${activeRuns.length} teams currently in field`}>Active Runs</SectionTitle>
-          {activeRuns.length === 0 ? (
-            <Empty message="No active delivery runs." />
-          ) : (
+          {activeRuns.length === 0 ? <Empty message="No active delivery runs." /> : (
             <div className="space-y-3">
-              {activeRuns.map(r => (
+              {activeRuns.map((r: DeliveryRun) => (
                 <div key={r.id} className="bg-bg-elevated rounded-lg border border-accent-green/20 p-3">
                   <div className="flex items-start justify-between gap-2 mb-2">
                     <div>
-                      <p className="font-sans text-sm font-semibold text-text-primary">
-                        Team {r.teamNumber} · {r.zone}
-                      </p>
-                      <p className="font-mono text-[10px] text-text-muted">
-                        Lead: {r.leadVolunteer?.name ?? '—'} · Departed {fmtTime(r.departedAt)}
-                      </p>
+                      <p className="font-sans text-sm font-semibold text-text-primary">Team {r.teamNumber} · {r.zone}</p>
+                      <p className="font-mono text-[10px] text-text-muted">Lead: {r.leadVolunteer?.name ?? '—'} · Departed {fmtTime(r.departedAt)}</p>
                     </div>
                     <Badge label="IN PROGRESS" color="text-accent-green border-accent-green/30 bg-accent-green/5" />
                   </div>
                   <p className="font-mono text-[10px] text-text-muted mb-2">{r.receipts?.length ?? 0} deliveries recorded</p>
                   <div className="flex gap-2">
-                    <button onClick={() => handleComplete(r.id)}
+                    <button onClick={() => completeMutation.mutate(r.id)} disabled={completeMutation.isPending}
                       className="flex-1 font-mono text-xs py-1.5 rounded border border-accent-green/40 text-accent-green hover:bg-accent-green/10 transition-colors">
                       ✓ Mark Complete
                     </button>
@@ -825,10 +649,11 @@ function DeliveriesTab({
                       <input type="text" className="input text-xs" placeholder="Abort reason (required — e.g. water >80cm)"
                         value={abortReason} onChange={e => setAbortReason(e.target.value)} />
                       <div className="flex gap-2">
-                        <button onClick={() => handleAbort(r.id)} disabled={!abortReason.trim()}
-                          className="flex-1 btn-danger text-xs py-1.5">Confirm Abort</button>
-                        <button onClick={() => { setAbortId(''); setAbortReason(''); }}
-                          className="btn-ghost text-xs py-1.5 px-3">Cancel</button>
+                        <button onClick={() => abortReason.trim() && abortMutation.mutate({ id: r.id, reason: abortReason })}
+                          disabled={!abortReason.trim() || abortMutation.isPending} className="flex-1 btn-danger text-xs py-1.5">
+                          Confirm Abort
+                        </button>
+                        <button onClick={() => { setAbortId(''); setAbortReason(''); }} className="btn-ghost text-xs py-1.5 px-3">Cancel</button>
                       </div>
                     </div>
                   )}
@@ -843,7 +668,7 @@ function DeliveriesTab({
         <div>
           <SectionTitle sub="Completed and aborted runs">Run History</SectionTitle>
           <div className="card divide-y divide-bg-border">
-            {pastRuns.map(r => (
+            {pastRuns.map((r: DeliveryRun) => (
               <div key={r.id} className="px-4 py-3 flex items-start justify-between gap-3">
                 <div>
                   <p className="font-sans text-sm text-text-primary">Team {r.teamNumber} · {r.zone}</p>
@@ -864,95 +689,58 @@ function DeliveriesTab({
 
 // ─── TAB: INCIDENTS ───────────────────────────────────────────────────────────
 
-function IncidentsTab({
-  districtId,
-  cacheRef,
-}: {
-  districtId: string;
-  cacheRef: React.MutableRefObject<Map<string, CacheEntry<unknown>>>;
-}) {
-  const [incidents, setIncidents] = useState<Incident[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState('');
+function IncidentsTab({ districtId }: { districtId: string }) {
+  const queryClient = useQueryClient();
   const [success, setSuccess] = useState('');
-
   const [incType, setIncType] = useState<Incident['type']>('ROUTE_BLOCKED');
   const [incDesc, setIncDesc] = useState('');
-  const [incLoading, setIncLoading] = useState(false);
 
-  const cacheKey = `incidents:${districtId}`;
+  const { data: incidents = [], isLoading } = useQuery({
+    queryKey: queryKeys.hub.incidents(districtId),
+    queryFn: () => hubApi.getIncidents(districtId),
+    enabled: !!districtId,
+  });
 
-  const load = useCallback(async (force = false) => {
-    if (!districtId) return;
-    const cached = cacheRef.current.get(cacheKey) as CacheEntry<Incident[]> | undefined;
-    if (!force && cached && !isStale(cached)) {
-      setIncidents(cached.data);
-      setLoading(false);
-      return;
-    }
-    setLoading(true);
-    try {
-      const data = await hubApi.getIncidents(districtId);
-      setIncidents(data);
-      cacheRef.current.set(cacheKey, { data, fetchedAt: Date.now() });
-    } catch {
-      setError('Failed to load incidents.');
-    } finally {
-      setLoading(false);
-    }
-  }, [districtId, cacheKey, cacheRef]);
+  const invalidateIncidents = useCallback(() => {
+    queryClient.invalidateQueries({ queryKey: queryKeys.hub.incidents(districtId) });
+    queryClient.invalidateQueries({ queryKey: queryKeys.dashboard.summary() });
+  }, [queryClient, districtId]);
 
-  useEffect(() => { load(); }, [load]);
-
-  const handleReport = async () => {
-    if (!incDesc.trim()) { setError('Description required.'); return; }
-    setIncLoading(true);
-    try {
-      const result = await hubApi.reportIncident({ districtId, type: incType, description: incDesc.trim() });
-      const autoMsg = (result as Incident).autoEscalated ? ' Auto-escalated to ESCALATED (volunteer safety).' : '';
+  const reportMutation = useMutation({
+    mutationFn: hubApi.reportIncident,
+    onSuccess: (result) => {
+      const autoMsg = (result as Incident).autoEscalated ? ' Auto-escalated (volunteer safety).' : '';
       setSuccess(`Incident reported.${autoMsg}`);
       setIncDesc('');
-      cacheRef.current.delete(cacheKey);
-      load(true);
-    } catch (e: unknown) {
-      setError((e as { response?: { data?: { error?: string } } })?.response?.data?.error ?? 'Report failed.');
-    } finally { setIncLoading(false); }
-  };
+      invalidateIncidents();
+    },
+  });
 
-  const handleResolve = async (id: string) => {
-    try {
-      await hubApi.resolveIncident(id);
-      setSuccess('Incident marked resolved.');
-      cacheRef.current.delete(cacheKey);
-      load(true);
-    } catch (e: unknown) {
-      setError((e as { response?: { data?: { error?: string } } })?.response?.data?.error ?? 'Resolve failed.');
-    }
-  };
+  const resolveMutation = useMutation({
+    mutationFn: hubApi.resolveIncident,
+    onSuccess: () => { setSuccess('Incident marked resolved.'); invalidateIncidents(); },
+  });
 
   const STATUS_COLORS: Record<string, string> = {
     OPEN: 'text-accent-orange border-accent-orange/30 bg-accent-orange/5',
     ESCALATED: 'text-accent-red border-accent-red/30 bg-accent-red/5',
     RESOLVED: 'text-text-muted border-bg-border bg-bg-elevated',
   };
-
   const INCIDENT_TYPES: Incident['type'][] = ['ROUTE_BLOCKED', 'VOLUNTEER_SAFETY', 'STOCK_SCARCITY', 'BUILDING_FLOODED', 'OTHER'];
+  const open = useMemo(() => incidents.filter((i: Incident) => i.status !== 'RESOLVED'), [incidents]);
+  const resolved = useMemo(() => incidents.filter((i: Incident) => i.status === 'RESOLVED'), [incidents]);
 
-  const open = incidents.filter(i => i.status !== 'RESOLVED');
-  const resolved = incidents.filter(i => i.status === 'RESOLVED');
+  const mutationError =
+    (reportMutation.error as { response?: { data?: { error?: string } } })?.response?.data?.error ??
+    (resolveMutation.error as { response?: { data?: { error?: string } } })?.response?.data?.error ?? '';
 
-  if (loading) {
-    return (
-      <div className="space-y-4">
-        <Skeleton className="h-48" />
-        <Skeleton className="h-64" />
-      </div>
-    );
+  if (isLoading) {
+    return <div className="space-y-4"><Skeleton className="h-48" /><Skeleton className="h-64" /></div>;
   }
 
   return (
     <div className="space-y-6">
-      {error && <ErrorBox msg={error} onDismiss={() => setError('')} />}
+      {mutationError && <ErrorBox msg={mutationError} onDismiss={() => { reportMutation.reset(); resolveMutation.reset(); }} />}
       {success && <SuccessBox msg={success} onDismiss={() => setSuccess('')} />}
 
       <div className="card p-5">
@@ -965,8 +753,7 @@ function IncidentsTab({
                 <button key={t} onClick={() => setIncType(t)}
                   className={`font-mono text-[10px] py-2 px-2 rounded border transition-all text-left ${
                     incType === t
-                      ? t === 'VOLUNTEER_SAFETY' ? 'bg-accent-red/10 border-accent-red/40 text-accent-red'
-                        : 'bg-accent-blue/10 border-accent-blue/40 text-accent-blue'
+                      ? t === 'VOLUNTEER_SAFETY' ? 'bg-accent-red/10 border-accent-red/40 text-accent-red' : 'bg-accent-blue/10 border-accent-blue/40 text-accent-blue'
                       : 'bg-bg-elevated border-bg-border text-text-secondary hover:text-text-primary'
                   }`}>
                   {t.replace(/_/g, ' ')}
@@ -980,8 +767,9 @@ function IncidentsTab({
             <textarea rows={3} className="input resize-none" placeholder="Describe the incident clearly..."
               value={incDesc} onChange={e => setIncDesc(e.target.value)} />
           </div>
-          <button onClick={handleReport} disabled={incLoading || !incDesc.trim()} className="btn-primary w-full">
-            {incLoading ? 'Reporting...' : 'Report Incident'}
+          <button onClick={() => incDesc.trim() && reportMutation.mutate({ districtId, type: incType, description: incDesc.trim() })}
+            disabled={reportMutation.isPending || !incDesc.trim()} className="btn-primary w-full">
+            {reportMutation.isPending ? 'Reporting...' : 'Report Incident'}
           </button>
         </div>
       </div>
@@ -989,7 +777,7 @@ function IncidentsTab({
       <div>
         <SectionTitle sub={`${open.length} open or escalated`}>Active Incidents</SectionTitle>
         <div className="card divide-y divide-bg-border">
-          {open.length === 0 ? <Empty message="No open incidents." /> : open.map(inc => (
+          {open.length === 0 ? <Empty message="No open incidents." /> : open.map((inc: Incident) => (
             <div key={inc.id} className="px-4 py-4">
               <div className="flex items-start justify-between gap-3 mb-2">
                 <div className="min-w-0 flex-1">
@@ -1001,7 +789,7 @@ function IncidentsTab({
                   <p className="font-sans text-sm text-text-primary">{inc.description}</p>
                   <p className="font-mono text-[10px] text-text-muted mt-1">Reported by {inc.reportedBy?.name ?? '—'}</p>
                 </div>
-                <button onClick={() => handleResolve(inc.id)}
+                <button onClick={() => resolveMutation.mutate(inc.id)} disabled={resolveMutation.isPending}
                   className="flex-shrink-0 font-mono text-xs py-1.5 px-3 rounded border border-accent-green/40 text-accent-green hover:bg-accent-green/10 transition-colors">
                   ✓ Resolve
                 </button>
@@ -1020,16 +808,14 @@ function IncidentsTab({
         <div>
           <SectionTitle sub={`${resolved.length} resolved`}>Resolved Incidents</SectionTitle>
           <div className="card divide-y divide-bg-border">
-            {resolved.slice(0, 10).map(inc => (
+            {resolved.slice(0, 10).map((inc: Incident) => (
               <div key={inc.id} className="px-4 py-3 opacity-60">
                 <div className="flex items-center gap-2 mb-0.5">
                   <Badge label="RESOLVED" color={STATUS_COLORS.RESOLVED} />
                   <span className="font-mono text-[10px] text-text-muted">{inc.type.replace(/_/g, ' ')}</span>
                 </div>
                 <p className="font-sans text-xs text-text-secondary">{inc.description}</p>
-                <p className="font-mono text-[10px] text-text-muted mt-0.5">
-                  Resolved {inc.resolvedAt ? timeAgo(inc.resolvedAt) : '—'} by {inc.resolvedBy?.name ?? '—'}
-                </p>
+                <p className="font-mono text-[10px] text-text-muted mt-0.5">Resolved {inc.resolvedAt ? timeAgo(inc.resolvedAt) : '—'} by {inc.resolvedBy?.name ?? '—'}</p>
               </div>
             ))}
           </div>
@@ -1041,75 +827,43 @@ function IncidentsTab({
 
 // ─── TAB: RADIO ───────────────────────────────────────────────────────────────
 
-function RadioTab({
-  districtId,
-  cacheRef,
-}: {
-  districtId: string;
-  cacheRef: React.MutableRefObject<Map<string, CacheEntry<unknown>>>;
-}) {
-  const [checkins, setCheckins] = useState<RadioCheckin[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState('');
+function RadioTab({ districtId }: { districtId: string }) {
+  const queryClient = useQueryClient();
   const [success, setSuccess] = useState('');
-
   const [slot, setSlot] = useState<'T0800' | 'T1200' | 'T1600' | 'T2000'>('T0800');
   const [status, setStatus] = useState<'OK' | 'ISSUE_REPORTED'>('OK');
   const [notes, setNotes] = useState('');
-  const [submitLoading, setSubmitLoading] = useState(false);
 
-  const SLOTS: Array<{ value: 'T0800' | 'T1200' | 'T1600' | 'T2000'; label: string; desc: string }> = [
-    { value: 'T0800', label: '08:00', desc: 'Stock levels, overnight incidents, morning plan' },
-    { value: 'T1200', label: '12:00', desc: 'Delivery progress, new critical cases, route issues' },
-    { value: 'T1600', label: '16:00', desc: 'Afternoon delivery summary, resupply needs' },
-    { value: 'T2000', label: '20:00', desc: 'End-of-day stock count, next-day plan' },
+  const SLOTS = [
+    { value: 'T0800' as const, label: '08:00', desc: 'Stock levels, overnight incidents, morning plan' },
+    { value: 'T1200' as const, label: '12:00', desc: 'Delivery progress, new critical cases, route issues' },
+    { value: 'T1600' as const, label: '16:00', desc: 'Afternoon delivery summary, resupply needs' },
+    { value: 'T2000' as const, label: '20:00', desc: 'End-of-day stock count, next-day plan' },
   ];
 
-  const cacheKey = `radio:${districtId}`;
+  const { data: checkins = [], isLoading } = useQuery({
+    queryKey: queryKeys.hub.radio(districtId),
+    queryFn: () => hubApi.getCheckins(districtId),
+    enabled: !!districtId,
+  });
 
-  const load = useCallback(async (force = false) => {
-    if (!districtId) return;
-    const cached = cacheRef.current.get(cacheKey) as CacheEntry<RadioCheckin[]> | undefined;
-    if (!force && cached && !isStale(cached)) {
-      setCheckins(cached.data);
-      setLoading(false);
-      return;
-    }
-    setLoading(true);
-    try {
-      const data = await hubApi.getCheckins(districtId);
-      setCheckins(data);
-      cacheRef.current.set(cacheKey, { data, fetchedAt: Date.now() });
-    } catch {
-      setError('Failed to load check-ins.');
-    } finally {
-      setLoading(false);
-    }
-  }, [districtId, cacheKey, cacheRef]);
-
-  useEffect(() => { load(); }, [load]);
-
-  const handleSubmit = async () => {
-    setSubmitLoading(true);
-    try {
-      await hubApi.submitCheckin({ districtId, scheduledTime: slot, status, notes: notes.trim() || undefined });
-      setSuccess(`${SLOTS.find(s => s.value === slot)?.label} check-in recorded — ${status}.`);
+  const submitMutation = useMutation({
+    mutationFn: hubApi.submitCheckin,
+    onSuccess: (_, vars) => {
+      setSuccess(`${SLOTS.find(s => s.value === vars.scheduledTime)?.label} check-in recorded — ${vars.status}.`);
       setNotes('');
-      cacheRef.current.delete(cacheKey);
-      load(true);
-    } catch (e: unknown) {
-      setError((e as { response?: { data?: { error?: string } } })?.response?.data?.error ?? 'Check-in failed.');
-    } finally { setSubmitLoading(false); }
-  };
+      queryClient.invalidateQueries({ queryKey: queryKeys.hub.radio(districtId) });
+      queryClient.invalidateQueries({ queryKey: queryKeys.radio.compliance() });
+    },
+  });
 
-  const completedSlots = checkins.map(c => c.scheduledTime);
+  const completedSlots = useMemo(() => checkins.map((c: RadioCheckin) => c.scheduledTime), [checkins]);
+  const mutationError = (submitMutation.error as { response?: { data?: { error?: string } } })?.response?.data?.error ?? '';
 
-  if (loading) {
+  if (isLoading) {
     return (
       <div className="space-y-4">
-        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-          {[...Array(4)].map((_, i) => <Skeleton key={i} className="h-20" />)}
-        </div>
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">{[...Array(4)].map((_, i) => <Skeleton key={i} className="h-20" />)}</div>
         <Skeleton className="h-64" />
       </div>
     );
@@ -1117,7 +871,7 @@ function RadioTab({
 
   return (
     <div className="space-y-6">
-      {error && <ErrorBox msg={error} onDismiss={() => setError('')} />}
+      {mutationError && <ErrorBox msg={mutationError} onDismiss={() => submitMutation.reset()} />}
       {success && <SuccessBox msg={success} onDismiss={() => setSuccess('')} />}
 
       <div>
@@ -1125,14 +879,12 @@ function RadioTab({
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
           {SLOTS.map(s => {
             const done = completedSlots.includes(s.value);
-            const checkin = checkins.find(c => c.scheduledTime === s.value);
+            const checkin = checkins.find((c: RadioCheckin) => c.scheduledTime === s.value);
             return (
               <div key={s.value} className={`card p-4 transition-colors ${done ? 'border-accent-green/30 bg-accent-green/5' : 'border-bg-border'}`}>
                 <div className="flex items-center justify-between mb-2">
                   <span className="font-mono text-base font-bold text-text-primary">{s.label}</span>
-                  <span className={`font-mono text-sm ${done ? 'text-accent-green' : 'text-text-muted'}`}>
-                    {done ? '✓' : '○'}
-                  </span>
+                  <span className={`font-mono text-sm ${done ? 'text-accent-green' : 'text-text-muted'}`}>{done ? '✓' : '○'}</span>
                 </div>
                 {done && checkin ? (
                   <>
@@ -1163,14 +915,12 @@ function RadioTab({
                       done ? 'bg-accent-green/5 border-accent-green/20 text-accent-green' :
                       'bg-bg-elevated border-bg-border text-text-secondary hover:text-text-primary'
                     }`}>
-                    {s.label}
-                    {done && <span className="block text-[9px]">✓ done</span>}
+                    {s.label}{done && <span className="block text-[9px]">✓ done</span>}
                   </button>
                 );
               })}
             </div>
           </div>
-
           <div>
             <label className="label">Status</label>
             <div className="flex gap-2">
@@ -1186,20 +936,16 @@ function RadioTab({
               ))}
             </div>
           </div>
-
           <div>
             <label className="label">Notes {status === 'ISSUE_REPORTED' && <span className="text-accent-red">(describe issue)</span>}</label>
             <textarea rows={3} className="input resize-none"
-              placeholder={status === 'OK'
-                ? 'e.g. EMK1: 4,800 remaining. 3 teams deployed. No overnight incidents.'
-                : 'Describe the issue clearly for Operations Center...'}
+              placeholder={status === 'OK' ? 'e.g. EMK1: 4,800 remaining. 3 teams deployed. No overnight incidents.' : 'Describe the issue clearly for Operations Center...'}
               value={notes} onChange={e => setNotes(e.target.value)} />
           </div>
-
-          <button onClick={handleSubmit} disabled={submitLoading} className="btn-primary w-full">
-            {submitLoading ? 'Submitting...' : `Submit ${SLOTS.find(s => s.value === slot)?.label} Check-in`}
+          <button onClick={() => submitMutation.mutate({ districtId, scheduledTime: slot, status, notes: notes.trim() || undefined })}
+            disabled={submitMutation.isPending} className="btn-primary w-full">
+            {submitMutation.isPending ? 'Submitting...' : `Submit ${SLOTS.find(s => s.value === slot)?.label} Check-in`}
           </button>
-
           <p className="font-mono text-[10px] text-text-muted text-center">
             Section D.9: If internet/phone fails, submit retroactively when contact restored.
           </p>
@@ -1210,7 +956,7 @@ function RadioTab({
         <div>
           <SectionTitle>Today's Submissions</SectionTitle>
           <div className="card divide-y divide-bg-border">
-            {checkins.map(c => (
+            {checkins.map((c: RadioCheckin) => (
               <div key={c.id} className="px-4 py-3 flex items-start justify-between gap-3">
                 <div>
                   <div className="flex items-center gap-2 mb-0.5">
@@ -1236,52 +982,34 @@ function RadioTab({
 export function HubPage() {
   const { user, isRole } = useAuth();
   const [activeTab, setActiveTab] = useState<TabId>('stock');
-  const [districts, setDistricts] = useState<DistrictCard[]>([]);
   const [selectedDistrictId, setSelectedDistrictId] = useState('');
-  const [alertStatus, setAlertStatus] = useState<AlertStatus | null>(null);
-  const [loadingDistricts, setLoadingDistricts] = useState(true);
-
-  // Shared tab-level cache to enforce 30s staleness guard
-  // Map key: `${tabName}:${districtId}` → CacheEntry
-  const tabCacheRef = useRef<Map<string, CacheEntry<unknown>>>(new Map());
 
   const isManager = isRole('HUB_MANAGER');
   const canSelectDistrict = !isManager;
 
-  // ── Parallel initial fetch: districts + alert status ────────────────────────
-  useEffect(() => {
-    const load = async () => {
-      setLoadingDistricts(true);
-      try {
-        const [summaryRes, alertRes] = await Promise.all([
-          api.get('/api/dashboard/summary'),
-          api.get('/api/alert/status'),
-        ]);
-        const dList: DistrictCard[] = summaryRes.data.districts ?? [];
-        setDistricts(dList);
-        setAlertStatus(alertRes.data);
+  // Parallel: summary (for districts list) + alert status
+  const { data: summaryData, isLoading: summaryLoading } = useQuery({
+    queryKey: queryKeys.dashboard.summary(),
+    queryFn: () => import('../api/dashboard').then(m => m.dashboardApi.getSummary()),
+  });
+  const { data: alertStatus } = useQuery({
+    queryKey: queryKeys.alert.status(),
+    queryFn: () => api.get('/api/alert/status').then(r => r.data),
+  });
 
-        if (isManager && user?.districtId) {
-          setSelectedDistrictId(user.districtId);
-        } else if (dList.length > 0) {
-          setSelectedDistrictId(dList[0].districtId);
-        }
-      } catch {
-        // silent — tabs handle their own errors
-      } finally {
-        setLoadingDistricts(false);
-      }
-    };
-    load();
-  }, [isManager, user?.districtId]);
+  const districts: DistrictCard[] = summaryData?.districts ?? [];
 
-  // Clear tab cache when district changes so we always fetch fresh on switch
-  const handleDistrictChange = useCallback((id: string) => {
-    setSelectedDistrictId(id);
-    // Don't clear the whole cache — new district's tabs just won't have entries
-  }, []);
+  // Set default district once data loads
+  const resolvedDistrictId = useMemo(() => {
+    if (selectedDistrictId) return selectedDistrictId;
+    if (isManager && user?.districtId) return user.districtId;
+    return districts[0]?.districtId ?? '';
+  }, [selectedDistrictId, isManager, user?.districtId, districts]);
 
-  const selectedDistrict = districts.find(d => d.districtId === selectedDistrictId);
+  const selectedDistrict = useMemo(
+    () => districts.find(d => d.districtId === resolvedDistrictId),
+    [districts, resolvedDistrictId]
+  );
   const subWarehouseId = selectedDistrict?.subWarehouseId ?? null;
 
   const TABS: Array<{ id: TabId; label: string; icon: string }> = [
@@ -1292,12 +1020,8 @@ export function HubPage() {
     { id: 'radio', label: 'Radio', icon: '◈' },
   ];
 
-  if (loadingDistricts) {
-    return (
-      <DashboardLayout title="Hub Manager Portal">
-        <HubSkeleton />
-      </DashboardLayout>
-    );
+  if (summaryLoading && districts.length === 0) {
+    return <DashboardLayout title="Hub Manager Portal"><HubSkeleton /></DashboardLayout>;
   }
 
   return (
@@ -1311,9 +1035,9 @@ export function HubPage() {
                 <span className="font-mono text-[10px] text-text-muted uppercase tracking-widest">District</span>
                 <div className="flex gap-1.5">
                   {districts.map(d => (
-                    <button key={d.districtId} onClick={() => handleDistrictChange(d.districtId)}
+                    <button key={d.districtId} onClick={() => setSelectedDistrictId(d.districtId)}
                       className={`font-mono text-xs px-3 py-1.5 rounded border transition-all ${
-                        selectedDistrictId === d.districtId
+                        resolvedDistrictId === d.districtId
                           ? 'bg-accent-blue/10 border-accent-blue/40 text-accent-blue'
                           : 'bg-bg-elevated border-bg-border text-text-secondary hover:text-text-primary'
                       }`}>
@@ -1333,8 +1057,7 @@ export function HubPage() {
           {alertStatus && (
             <div className={`flex items-center gap-2 px-3 py-1.5 rounded border font-mono text-xs ${
               alertStatus.activated
-                ? alertStatus.phase === 2 ? 'bg-accent-red/10 border-accent-red/30 text-accent-red'
-                  : 'bg-accent-orange/10 border-accent-orange/30 text-accent-orange'
+                ? alertStatus.phase === 2 ? 'bg-accent-red/10 border-accent-red/30 text-accent-red' : 'bg-accent-orange/10 border-accent-orange/30 text-accent-orange'
                 : 'bg-bg-elevated border-bg-border text-text-muted'
             }`}>
               <span className={`w-1.5 h-1.5 rounded-full ${alertStatus.activated ? 'bg-accent-orange animate-pulse-slow' : 'bg-text-muted'}`} />
@@ -1343,7 +1066,7 @@ export function HubPage() {
           )}
         </div>
 
-        {!subWarehouseId && selectedDistrictId && (
+        {!subWarehouseId && resolvedDistrictId && (
           <div className="bg-accent-orange/10 border border-accent-orange/30 rounded px-4 py-2">
             <p className="font-mono text-xs text-accent-orange">No sub-warehouse found for this district. Stock and delivery operations require a sub-warehouse record.</p>
           </div>
@@ -1363,23 +1086,13 @@ export function HubPage() {
           ))}
         </div>
 
-        {selectedDistrictId ? (
+        {resolvedDistrictId ? (
           <div className="animate-fade-in">
-            {activeTab === 'stock' && (
-              <StockTab districtId={selectedDistrictId} subWarehouseId={subWarehouseId} cacheRef={tabCacheRef} />
-            )}
-            {activeTab === 'volunteers' && (
-              <VolunteersTab districtId={selectedDistrictId} subWarehouseId={subWarehouseId} cacheRef={tabCacheRef} />
-            )}
-            {activeTab === 'deliveries' && (
-              <DeliveriesTab districtId={selectedDistrictId} subWarehouseId={subWarehouseId} cacheRef={tabCacheRef} />
-            )}
-            {activeTab === 'incidents' && (
-              <IncidentsTab districtId={selectedDistrictId} cacheRef={tabCacheRef} />
-            )}
-            {activeTab === 'radio' && (
-              <RadioTab districtId={selectedDistrictId} cacheRef={tabCacheRef} />
-            )}
+            {activeTab === 'stock'       && <StockTab       districtId={resolvedDistrictId} subWarehouseId={subWarehouseId} />}
+            {activeTab === 'volunteers'  && <VolunteersTab  districtId={resolvedDistrictId} subWarehouseId={subWarehouseId} />}
+            {activeTab === 'deliveries'  && <DeliveriesTab  districtId={resolvedDistrictId} subWarehouseId={subWarehouseId} />}
+            {activeTab === 'incidents'   && <IncidentsTab   districtId={resolvedDistrictId} />}
+            {activeTab === 'radio'       && <RadioTab       districtId={resolvedDistrictId} />}
           </div>
         ) : (
           <div className="py-20 text-center">

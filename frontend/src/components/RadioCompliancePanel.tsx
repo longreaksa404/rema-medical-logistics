@@ -1,26 +1,19 @@
-import { useState, useEffect } from 'react';
+import { useQuery } from '@tanstack/react-query';
 import { radioApi } from '../api/radio';
+import { queryKeys } from '../api/queryKeys';
 import type { RadioComplianceEntry } from '../api/radio';
 
 const SLOT_LABELS: Record<string, string> = {
-  T0800: '08:00',
-  T1200: '12:00',
-  T1600: '16:00',
-  T2000: '20:00',
+  T0800: '08:00', T1200: '12:00', T1600: '16:00', T2000: '20:00',
 };
-
 const ALL_SLOTS = ['T0800', 'T1200', 'T1600', 'T2000'];
 
 export function RadioCompliancePanel() {
-  const [data, setData] = useState<RadioComplianceEntry[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
-
-  useEffect(() => {
-    radioApi.getCompliance()
-      .then(setData)
-      .catch(() => setData([]))
-      .finally(() => setIsLoading(false));
-  }, []);
+  const { data = [], isLoading } = useQuery({
+    queryKey: queryKeys.radio.compliance(),
+    queryFn: () => radioApi.getCompliance(),
+    refetchInterval: 60_000,
+  });
 
   if (isLoading) {
     return (
@@ -36,8 +29,8 @@ export function RadioCompliancePanel() {
   }
 
   const totalSlots = data.length * 4;
-  const completedSlots = data.reduce((acc, d) => acc + d.completedSlots.length, 0);
-  const hasIssues = data.some(d => d.issuesReported);
+  const completedSlots = data.reduce((acc: number, d: RadioComplianceEntry) => acc + d.completedSlots.length, 0);
+  const hasIssues = data.some((d: RadioComplianceEntry) => d.issuesReported);
 
   return (
     <div className="card p-5">
@@ -52,68 +45,43 @@ export function RadioCompliancePanel() {
           <p className={`font-mono text-lg font-semibold ${
             completedSlots === totalSlots ? 'text-accent-green' :
             completedSlots > 0 ? 'text-accent-yellow' : 'text-text-muted'
-          }`}>
-            {completedSlots}/{totalSlots}
-          </p>
+          }`}>{completedSlots}/{totalSlots}</p>
           <p className="font-mono text-[9px] text-text-muted">slots filled</p>
         </div>
       </div>
 
       {hasIssues && (
         <div className="mb-3 bg-accent-red/10 border border-accent-red/20 rounded px-3 py-2">
-          <p className="font-mono text-[10px] text-accent-red">
-            ⚠ Issues reported in one or more check-ins today
-          </p>
+          <p className="font-mono text-[10px] text-accent-red">⚠ Issues reported in one or more check-ins today</p>
         </div>
       )}
 
       <div className="space-y-2">
-        {data.map((entry) => {
+        {data.map((entry: RadioComplianceEntry) => {
           const completed = entry.completedSlots.length;
-          const total = 4;
-          const pct = Math.round((completed / total) * 100);
-
           return (
             <div key={entry.districtId} className="bg-bg-elevated rounded-lg px-3 py-2.5">
               <div className="flex items-center justify-between mb-2">
                 <div className="flex items-center gap-2">
+                  {entry.issuesReported && <span className="w-1.5 h-1.5 rounded-full bg-accent-red flex-shrink-0" />}
+                  <span className="font-sans text-sm text-text-primary">{entry.districtName}</span>
                   {entry.issuesReported && (
-                    <span className="w-1.5 h-1.5 rounded-full bg-accent-red flex-shrink-0" />
-                  )}
-                  <span className="font-sans text-sm text-text-primary">
-                    {entry.districtName}
-                  </span>
-                  {entry.issuesReported && (
-                    <span className="font-mono text-[9px] text-accent-red bg-accent-red/10 px-1.5 py-0.5 rounded border border-accent-red/20">
-                      ISSUE
-                    </span>
+                    <span className="font-mono text-[9px] text-accent-red bg-accent-red/10 px-1.5 py-0.5 rounded border border-accent-red/20">ISSUE</span>
                   )}
                 </div>
                 <span className={`font-mono text-xs font-semibold ${
-                  completed === total ? 'text-accent-green' :
-                  completed > 0 ? 'text-accent-yellow' : 'text-text-muted'
-                }`}>
-                  {entry.compliance}
-                </span>
+                  completed === 4 ? 'text-accent-green' : completed > 0 ? 'text-accent-yellow' : 'text-text-muted'
+                }`}>{entry.compliance}</span>
               </div>
-
-              {/* Slot grid */}
               <div className="flex gap-1.5">
                 {ALL_SLOTS.map((slot) => {
                   const done = entry.completedSlots.includes(slot);
                   return (
-                    <div
-                      key={slot}
-                      title={SLOT_LABELS[slot]}
+                    <div key={slot} title={SLOT_LABELS[slot]}
                       className={`flex-1 rounded text-center py-1 transition-colors ${
-                        done
-                          ? 'bg-accent-green/20 border border-accent-green/30'
-                          : 'bg-bg-border/50 border border-bg-border'
-                      }`}
-                    >
-                      <span className={`font-mono text-[9px] ${
-                        done ? 'text-accent-green' : 'text-text-muted'
+                        done ? 'bg-accent-green/20 border border-accent-green/30' : 'bg-bg-border/50 border border-bg-border'
                       }`}>
+                      <span className={`font-mono text-[9px] ${done ? 'text-accent-green' : 'text-text-muted'}`}>
                         {SLOT_LABELS[slot]}
                       </span>
                     </div>
@@ -123,11 +91,8 @@ export function RadioCompliancePanel() {
             </div>
           );
         })}
-
         {data.length === 0 && (
-          <p className="font-mono text-xs text-text-muted text-center py-4">
-            No check-in data available.
-          </p>
+          <p className="font-mono text-xs text-text-muted text-center py-4">No check-in data available.</p>
         )}
       </div>
     </div>

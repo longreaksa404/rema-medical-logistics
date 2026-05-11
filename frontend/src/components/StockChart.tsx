@@ -1,14 +1,5 @@
 import { memo, useMemo } from 'react';
-import {
-  BarChart,
-  Bar,
-  XAxis,
-  YAxis,
-  CartesianGrid,
-  Tooltip,
-  ResponsiveContainer,
-  Cell,
-} from 'recharts';
+import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell } from 'recharts';
 import type { DashboardSummary } from '../api/dashboard';
 
 interface StockChartProps {
@@ -17,26 +8,18 @@ interface StockChartProps {
 
 function CustomTooltip({ active, payload, label }: {
   active?: boolean;
-  payload?: Array<{ name: string; value: number; color: string; payload: Record<string, number> }>;
+  payload?: Array<{ name: string; value: number; color: string }>;
   label?: string;
 }) {
   if (!active || !payload?.length) return null;
-
   return (
     <div className="bg-bg-elevated border border-bg-border rounded-lg px-4 py-3 shadow-2xl">
-      <p className="font-mono text-xs text-text-muted uppercase tracking-widest mb-2">
-        {label}
-      </p>
+      <p className="font-mono text-xs text-text-muted uppercase tracking-widest mb-2">{label}</p>
       {payload.map((entry) => (
         <div key={entry.name} className="flex items-center gap-2 mb-1">
-          <span
-            className="w-2 h-2 rounded-full flex-shrink-0"
-            style={{ background: entry.color }}
-          />
+          <span className="w-2 h-2 rounded-full flex-shrink-0" style={{ background: entry.color }} />
           <span className="font-mono text-xs text-text-secondary">{entry.name}:</span>
-          <span className="font-mono text-xs text-text-primary font-semibold">
-            {entry.value.toLocaleString()}
-          </span>
+          <span className="font-mono text-xs text-text-primary font-semibold">{entry.value.toLocaleString()}</span>
         </div>
       ))}
     </div>
@@ -49,38 +32,19 @@ const EMK_COLORS = {
   emk3: { normal: '#d29922', scarce: '#f85149' },
 } as const;
 
-function getColor(type: 'emk1' | 'emk2' | 'emk3', scarce: boolean): string {
-  return scarce ? EMK_COLORS[type].scarce : EMK_COLORS[type].normal;
-}
-
 const SCARCITY_THRESHOLD = 30;
 
 export const StockChart = memo(function StockChart({ districts }: StockChartProps) {
-  // useMemo: only recomputes when districts reference changes
   const chartData = useMemo(() => districts.map((d) => {
-    const emk1Pct = d.stock && d.stock.emk1Total > 0
-      ? Math.round((d.stock.emk1Remaining / d.stock.emk1Total) * 100)
-      : 0;
-    const emk2Pct = d.stock && d.stock.emk2Total > 0
-      ? Math.round((d.stock.emk2Remaining / d.stock.emk2Total) * 100)
-      : 0;
-    const emk3Pct = d.stock && d.stock.emk3Total > 0
-      ? Math.round((d.stock.emk3Remaining / d.stock.emk3Total) * 100)
-      : 0;
-
+    const emk1Pct = d.stock && d.stock.emk1Total > 0 ? Math.round((d.stock.emk1Remaining / d.stock.emk1Total) * 100) : 0;
+    const emk2Pct = d.stock && d.stock.emk2Total > 0 ? Math.round((d.stock.emk2Remaining / d.stock.emk2Total) * 100) : 0;
+    const emk3Pct = d.stock && d.stock.emk3Total > 0 ? Math.round((d.stock.emk3Remaining / d.stock.emk3Total) * 100) : 0;
     return {
       name: d.name.replace('District ', 'D'),
-      fullName: d.name,
-      'EMK-1 %': emk1Pct,
-      'EMK-2 %': emk2Pct,
-      'EMK-3 %': emk3Pct,
-      emk1Remaining: d.stock?.emk1Remaining ?? 0,
-      emk2Remaining: d.stock?.emk2Remaining ?? 0,
-      emk3Remaining: d.stock?.emk3Remaining ?? 0,
+      'EMK-1 %': emk1Pct, 'EMK-2 %': emk2Pct, 'EMK-3 %': emk3Pct,
       emk1Scarce: emk1Pct < SCARCITY_THRESHOLD && (d.stock?.emk1Total ?? 0) > 0,
       emk2Scarce: emk2Pct < SCARCITY_THRESHOLD && (d.stock?.emk2Total ?? 0) > 0,
       emk3Scarce: emk3Pct < SCARCITY_THRESHOLD && (d.stock?.emk3Total ?? 0) > 0,
-      anyScarce: d.anyScarce,
     };
   }), [districts]);
 
@@ -89,64 +53,33 @@ export const StockChart = memo(function StockChart({ districts }: StockChartProp
       <div className="flex items-center justify-between mb-4">
         <div>
           <h2 className="font-sans font-bold uppercase text-text-primary">Stock Levels</h2>
-          <p className="font-mono text-[10px] text-text-muted mt-0.5">
-            % remaining per EMK type — red bars below 30% scarcity threshold
-          </p>
+          <p className="font-mono text-[10px] text-text-muted mt-0.5">% remaining per EMK type — red bars below 30% scarcity threshold</p>
         </div>
         <div className="flex items-center gap-3">
-          <div className="flex items-center gap-1.5">
-            <span className="w-1.5 h-3 rounded-sm bg-accent-blue inline-block" />
-            <span className="font-mono text-[10px] text-text-muted">EMK-1</span>
-          </div>
-          <div className="flex items-center gap-1.5">
-            <span className="w-1.5 h-3 rounded-sm bg-accent-green inline-block" />
-            <span className="font-mono text-[10px] text-text-muted">EMK-2</span>
-          </div>
-          <div className="flex items-center gap-1.5">
-            <span className="w-1.5 h-3 rounded-sm bg-accent-yellow inline-block" />
-            <span className="font-mono text-[10px] text-text-muted">EMK-3</span>
-          </div>
+          {[{ color: 'bg-accent-blue', label: 'EMK-1' }, { color: 'bg-accent-green', label: 'EMK-2' }, { color: 'bg-accent-yellow', label: 'EMK-3' }].map(({ color, label }) => (
+            <div key={label} className="flex items-center gap-1.5">
+              <span className={`w-1.5 h-3 rounded-sm ${color} inline-block`} />
+              <span className="font-mono text-[10px] text-text-muted">{label}</span>
+            </div>
+          ))}
         </div>
       </div>
 
       <div className="h-48">
         <ResponsiveContainer width="100%" height="100%">
-          <BarChart
-            data={chartData}
-            margin={{ top: 4, right: 4, left: -20, bottom: 0 }}
-            barCategoryGap="30%"
-            barGap={2}
-          >
+          <BarChart data={chartData} margin={{ top: 4, right: 4, left: -20, bottom: 0 }} barCategoryGap="30%" barGap={2}>
             <CartesianGrid strokeDasharray="3 3" stroke="#21262d" vertical={false} />
-            <XAxis
-              dataKey="name"
-              tick={{ fill: '#8b949e', fontSize: 11, fontFamily: 'JetBrains Mono' }}
-              axisLine={{ stroke: '#21262d' }}
-              tickLine={false}
-            />
-            <YAxis
-              domain={[0, 100]}
-              tick={{ fill: '#8b949e', fontSize: 10, fontFamily: 'JetBrains Mono' }}
-              axisLine={false}
-              tickLine={false}
-              tickFormatter={(v) => `${v}%`}
-              ticks={[0, 30, 60, 100]}
-            />
+            <XAxis dataKey="name" tick={{ fill: '#8b949e', fontSize: 11, fontFamily: 'JetBrains Mono' }} axisLine={{ stroke: '#21262d' }} tickLine={false} />
+            <YAxis domain={[0, 100]} tick={{ fill: '#8b949e', fontSize: 10, fontFamily: 'JetBrains Mono' }} axisLine={false} tickLine={false} tickFormatter={(v) => `${v}%`} ticks={[0, 30, 60, 100]} />
             <Tooltip content={<CustomTooltip />} cursor={{ fill: '#ffffff08' }} />
             <Bar dataKey="EMK-1 %" radius={[2, 2, 0, 0]} maxBarSize={28}>
-              {chartData.map((entry, i) => (
-                <Cell key={i} fill={getColor('emk1', entry.emk1Scarce)} opacity={entry.emk1Scarce ? 1 : 0.85} />
-              ))}
+              {chartData.map((entry, i) => <Cell key={i} fill={entry.emk1Scarce ? EMK_COLORS.emk1.scarce : EMK_COLORS.emk1.normal} opacity={entry.emk1Scarce ? 1 : 0.85} />)}
             </Bar>
             <Bar dataKey="EMK-2 %" radius={[2, 2, 0, 0]} maxBarSize={28}>
-              {chartData.map((entry, i) => (
-                <Cell key={i} fill={getColor('emk2', entry.emk2Scarce)} opacity={entry.emk2Scarce ? 1 : 0.85} />
-              ))}
+              {chartData.map((entry, i) => <Cell key={i} fill={entry.emk2Scarce ? EMK_COLORS.emk2.scarce : EMK_COLORS.emk2.normal} opacity={entry.emk2Scarce ? 1 : 0.85} />)}
             </Bar>
             <Bar dataKey="EMK-3 %" radius={[2, 2, 0, 0]} maxBarSize={28}>
-              {chartData.map((entry, i) => (
-                <Cell key={i} fill={getColor('emk3', entry.emk3Scarce)} opacity={entry.emk3Scarce ? 1 : 0.85} />
-              ))}
+              {chartData.map((entry, i) => <Cell key={i} fill={entry.emk3Scarce ? EMK_COLORS.emk3.scarce : EMK_COLORS.emk3.normal} opacity={entry.emk3Scarce ? 1 : 0.85} />)}
             </Bar>
           </BarChart>
         </ResponsiveContainer>
@@ -161,9 +94,7 @@ export const StockChart = memo(function StockChart({ districts }: StockChartProp
       <div className="mt-3 grid grid-cols-3 gap-2">
         {districts.map((d) => (
           <div key={d.districtId} className="bg-bg-elevated rounded px-3 py-2">
-            <p className="font-mono text-[9px] text-text-muted uppercase tracking-wide mb-1.5">
-              {d.name}
-            </p>
+            <p className="font-mono text-[9px] text-text-muted uppercase tracking-wide mb-1.5">{d.name}</p>
             {d.stock ? (
               <div className="space-y-0.5">
                 {(['emk1', 'emk2', 'emk3'] as const).map((k) => {
@@ -173,20 +104,13 @@ export const StockChart = memo(function StockChart({ districts }: StockChartProp
                   const scarce = pct < SCARCITY_THRESHOLD && tot > 0;
                   return (
                     <div key={k} className="flex justify-between items-center">
-                      <span className={`font-mono text-[10px] ${scarce ? 'text-accent-red' : 'text-text-muted'}`}>
-                        {k.toUpperCase()}
-                      </span>
-                      <span className={`font-mono text-[10px] font-semibold ${scarce ? 'text-accent-red' : 'text-text-secondary'}`}>
-                        {rem.toLocaleString()}
-                        {scarce && ' ⚠'}
-                      </span>
+                      <span className={`font-mono text-[10px] ${scarce ? 'text-accent-red' : 'text-text-muted'}`}>{k.toUpperCase()}</span>
+                      <span className={`font-mono text-[10px] font-semibold ${scarce ? 'text-accent-red' : 'text-text-secondary'}`}>{rem.toLocaleString()}{scarce && ' ⚠'}</span>
                     </div>
                   );
                 })}
               </div>
-            ) : (
-              <p className="font-mono text-[10px] text-text-muted">No stock data</p>
-            )}
+            ) : <p className="font-mono text-[10px] text-text-muted">No stock data</p>}
           </div>
         ))}
       </div>
