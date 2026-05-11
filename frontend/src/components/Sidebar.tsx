@@ -35,6 +35,11 @@ const NAV_ITEMS: NavItem[] = [
     // No roles = visible to all (static page, no ProtectedRoute role guard)
   },
   {
+    label: 'Protocol',
+    to: '/protocol',
+    icon: '⬡',
+  },
+  {
     label: 'Hub Portal',
     to: '/hub',
     icon: '⬡',
