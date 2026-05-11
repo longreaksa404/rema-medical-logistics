@@ -29,6 +29,8 @@ jobs:
       - name: Run unit tests
         working-directory: backend
         run: npm test
+        env:
+          NODE_ENV: test
 
   deploy:
     name: Deploy to Render
