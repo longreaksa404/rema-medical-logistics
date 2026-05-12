@@ -1,4 +1,3 @@
-import Anthropic from '@anthropic-ai/sdk';
 import { PrismaClient } from '@prisma/client';
 import { isInScarcity } from '../utils/stock.utils';
 
@@ -24,51 +23,75 @@ export interface AiBriefResult {
   };
 }
 
-// ─── PROMPT BUILDER ───────────────────────────────────────────────────────────
-// Zero PII — aggregate counts only. No names, addresses, or household IDs.
+// ─── MOCK BRIEF GENERATOR ─────────────────────────────────────────────────────
+// Reads real aggregate data from the database (same as the live version).
+// Generates a realistic brief based on actual current state — no API call needed.
+// NOTE: In production, replace this function body with a real API call to
+// OpenAI or Anthropic. The rest of the codebase (controller, routes, frontend)
+// requires zero changes.
 
-function buildPrompt(snapshot: AiBriefResult['dataSnapshot'], districtStockLines: string[]): string {
-  const phaseLabel = ['Pre-activation (Phase 0)', 'Activation — Hours 0–24 (Phase 1)', 'Adaptive delivery — Hours 24–48 (Phase 2)'][snapshot.phase] ?? `Phase ${snapshot.phase}`;
+function generateMockBrief(snapshot: AiBriefResult['dataSnapshot']): {
+  summary: string;
+  priorityAlert: string;
+  nextStep: string;
+} {
+  const phaseLabel = ['pre-activation', 'Phase 1 (Hours 0–24)', 'Phase 2 (Hours 24–48)'][snapshot.phase] ?? `Phase ${snapshot.phase}`;
+  const totalUndelivered = snapshot.totalCritical + snapshot.totalHigh + snapshot.totalMedium + snapshot.totalStandard;
 
-  return `You are an operational AI assistant for REMA (Rapid Emergency Medical Access), a humanitarian medical logistics system operated by the Viet Nam Red Cross during urban flood events.
+  // ── Summary ────────────────────────────────────────────────────────────────
+  let summary = `REMA is operating in ${phaseLabel} with ${snapshot.activeDeliveryRuns} active delivery run${snapshot.activeDeliveryRuns !== 1 ? 's' : ''} across all districts. `;
 
-Current operational state:
-- Response phase: ${phaseLabel}
-- Active delivery runs: ${snapshot.activeDeliveryRuns}
-- Open incidents: ${snapshot.openIncidentCount}
-- Radio check-in compliance today: ${snapshot.radioCompliancePct}%
-- Stock scarcity alert: ${snapshot.scarcityActive ? 'YES — one or more districts below 30% stock' : 'No'}
+  if (totalUndelivered === 0) {
+    summary += `All assessed households have been delivered to — no pending queue. `;
+  } else {
+    summary += `${totalUndelivered} households remain in the delivery queue, including ${snapshot.totalCritical} CRITICAL and ${snapshot.totalHigh} HIGH priority. `;
+  }
 
-Undelivered household priority queue:
-- CRITICAL (deliver in current run): ${snapshot.totalCritical}
-- HIGH (deliver same day): ${snapshot.totalHigh}
-- MEDIUM (deliver within 48h): ${snapshot.totalMedium}
-- STANDARD (community collection): ${snapshot.totalStandard}
+  if (snapshot.scarcityActive) {
+    summary += `Stock scarcity is active in one or more districts — reallocation may be required.`;
+  } else {
+    summary += `Stock levels across all districts are above the 30% scarcity threshold.`;
+  }
 
-District stock levels (EMK-1 / EMK-2 / EMK-3 remaining vs. total):
-${districtStockLines.join('\n')}
+  // ── Priority Alert ─────────────────────────────────────────────────────────
+  let priorityAlert: string;
 
-Your task: Produce a 3-part operational brief for the Emergency Coordinator.
-Respond with ONLY a valid JSON object — no preamble, no markdown, no explanation. Format:
-{
-  "summary": "2–3 sentence situation overview covering delivery progress, stock status, and key risks",
-  "priorityAlert": "The single most urgent issue the coordinator must address right now (one sentence)",
-  "nextStep": "One concrete action the coordinator should take in the next 60 minutes (one sentence)"
-}
+  if (snapshot.totalCritical > 0 && snapshot.scarcityActive) {
+    priorityAlert = `${snapshot.totalCritical} CRITICAL household${snapshot.totalCritical !== 1 ? 's' : ''} require immediate delivery, and at least one district is in stock scarcity — coordinate a reallocation before dispatching the next run.`;
+  } else if (snapshot.totalCritical > 0) {
+    priorityAlert = `${snapshot.totalCritical} CRITICAL household${snapshot.totalCritical !== 1 ? 's' : ''} must be delivered in the current or next run — do not defer.`;
+  } else if (snapshot.scarcityActive) {
+    priorityAlert = `One or more districts have fallen below 30% stock — initiate cross-district reallocation before stock reaches zero.`;
+  } else if (snapshot.radioCompliancePct < 75) {
+    priorityAlert = `Radio check-in compliance is at ${snapshot.radioCompliancePct}% today — ${Math.round((1 - snapshot.radioCompliancePct / 100) * 12)} scheduled check-ins have been missed. Volunteer contact required.`;
+  } else if (snapshot.openIncidentCount > 0) {
+    priorityAlert = `${snapshot.openIncidentCount} open incident${snapshot.openIncidentCount !== 1 ? 's' : ''} require review — check for any ESCALATED status that needs coordinator action.`;
+  } else {
+    priorityAlert = `No critical alerts at this time. Operations are within normal parameters — maintain current delivery pace to clear the HIGH priority queue.`;
+  }
 
-Rules:
-- Be specific and actionable. Reference actual numbers from the data.
-- Do not mention any person's name or location.
-- Do not recommend any action that overrides a volunteer's on-the-ground safety judgment.
-- If scarcity is active, address it.
-- If radio compliance is below 75%, flag it.
-- If CRITICAL count is above zero, it must appear in priorityAlert or nextStep.`;
+  // ── Next Step ──────────────────────────────────────────────────────────────
+  let nextStep: string;
+
+  if (snapshot.totalCritical > 0) {
+    nextStep = `Confirm with Hub Managers that the ${snapshot.totalCritical} CRITICAL household${snapshot.totalCritical !== 1 ? 's' : ''} are assigned to the current delivery run and will be reached before the next radio check-in window.`;
+  } else if (snapshot.scarcityActive) {
+    nextStep = `Authorise a cross-district stock reallocation via the Stock Management screen — identify the district with the highest remaining stock and transfer to the scarce district.`;
+  } else if (snapshot.radioCompliancePct < 75) {
+    nextStep = `Contact Hub Managers in non-compliant districts to confirm volunteer status and log any missed check-ins as incidents if volunteers are unreachable.`;
+  } else if (snapshot.activeDeliveryRuns === 0 && snapshot.totalHigh > 0) {
+    nextStep = `No delivery runs are currently active but ${snapshot.totalHigh} HIGH priority households are waiting — instruct Hub Managers to dispatch the next team immediately.`;
+  } else {
+    nextStep = `Review the district stock charts for early warning signs of scarcity, and confirm that all ${snapshot.activeDeliveryRuns} active run${snapshot.activeDeliveryRuns !== 1 ? 's' : ''} are on schedule to return before the next check-in window.`;
+  }
+
+  return { summary, priorityAlert, nextStep };
 }
 
 // ─── MAIN SERVICE FUNCTION ────────────────────────────────────────────────────
 
 export async function generateAiBrief(): Promise<AiBriefResult> {
-  // ── Step 1: Read aggregate state from DB (no PII) ──────────────────────────
+  // Read real aggregate state from DB — same logic as dashboard.service.ts
   const [
     alert,
     districts,
@@ -103,7 +126,7 @@ export async function generateAiBrief(): Promise<AiBriefResult> {
     })(),
   ]);
 
-  // ── Step 2: Derive aggregate counts ───────────────────────────────────────
+  // Derive aggregate counts
   let critical = 0, high = 0, medium = 0, standard = 0;
   for (const row of householdCounts) {
     if (row.delivered) continue;
@@ -115,35 +138,28 @@ export async function generateAiBrief(): Promise<AiBriefResult> {
     }
   }
 
-  // ── Step 3: District stock lines and scarcity check ───────────────────────
+  // Scarcity check
   let scarcityActive = false;
-  const districtStockLines: string[] = [];
-
   for (const d of districts) {
     const stock = d.subWarehouse?.stock;
-    if (!stock) {
-      districtStockLines.push(`  ${d.name}: No sub-warehouse stock data`);
-      continue;
-    }
-    const scarce =
+    if (!stock) continue;
+    if (
       isInScarcity(stock.emk1Remaining, stock.emk1Total) ||
       isInScarcity(stock.emk2Remaining, stock.emk2Total) ||
-      isInScarcity(stock.emk3Remaining, stock.emk3Total);
-    if (scarce) scarcityActive = true;
-
-    districtStockLines.push(
-      `  ${d.name}: EMK-1 ${stock.emk1Remaining}/${stock.emk1Total}, EMK-2 ${stock.emk2Remaining}/${stock.emk2Total}, EMK-3 ${stock.emk3Remaining}/${stock.emk3Total}${scarce ? ' [SCARCE]' : ''}`
-    );
+      isInScarcity(stock.emk3Remaining, stock.emk3Total)
+    ) {
+      scarcityActive = true;
+      break;
+    }
   }
 
-  // ── Step 4: Radio compliance % ────────────────────────────────────────────
-  // 4 scheduled slots × 3 districts = 12 expected check-ins per day
+  // Radio compliance
   const expectedCheckins = districts.length * 4;
   const radioCompliancePct = expectedCheckins > 0
     ? Math.round((todayCheckins / expectedCheckins) * 100)
     : 100;
 
-  // ── Step 5: Active delivery runs ──────────────────────────────────────────
+  // Active delivery runs
   const activeDeliveryRuns = await prisma.deliveryRun.count({
     where: { status: 'IN_PROGRESS' },
   });
@@ -160,47 +176,16 @@ export async function generateAiBrief(): Promise<AiBriefResult> {
     radioCompliancePct,
   };
 
-  // ── Step 6: Call Anthropic API ────────────────────────────────────────────
-  const client = new Anthropic({
-    apiKey: process.env.ANTHROPIC_API_KEY,
-  });
+  // Generate brief from real data — no API call
+  const { summary, priorityAlert, nextStep } = generateMockBrief(snapshot);
 
-  const prompt = buildPrompt(snapshot, districtStockLines);
-
-  let rawText: string;
-  try {
-    const message = await client.messages.create({
-      model: 'claude-sonnet-4-20250514',
-      max_tokens: 400,
-      messages: [{ role: 'user', content: prompt }],
-    });
-
-    rawText = message.content
-      .filter((block) => block.type === 'text')
-      .map((block) => (block as { type: 'text'; text: string }).text)
-      .join('');
-  } catch (err) {
-    const message = err instanceof Error ? err.message : 'Anthropic API call failed';
-    throw new Error(`AI Brief unavailable: ${message}`);
-  }
-
-  // ── Step 7: Parse JSON response ───────────────────────────────────────────
-  let parsed: { summary: string; priorityAlert: string; nextStep: string };
-  try {
-    const clean = rawText.replace(/```json|```/g, '').trim();
-    parsed = JSON.parse(clean);
-  } catch {
-    throw new Error('AI Brief unavailable: Could not parse model response');
-  }
-
-  if (!parsed.summary || !parsed.priorityAlert || !parsed.nextStep) {
-    throw new Error('AI Brief unavailable: Incomplete model response');
-  }
+  // Simulate a brief network delay so the loading state is visible in the UI
+  await new Promise((resolve) => setTimeout(resolve, 1200));
 
   return {
-    summary: parsed.summary,
-    priorityAlert: parsed.priorityAlert,
-    nextStep: parsed.nextStep,
+    summary,
+    priorityAlert,
+    nextStep,
     generatedAt: new Date().toISOString(),
     dataSnapshot: snapshot,
   };
