@@ -13,6 +13,7 @@ import { ConfirmModal } from '../components/ConfirmModal';
 import { useAuth } from '../context/AuthContext';
 import type { DashboardSummary } from '../api/dashboard';
 import type { AiBriefResponse } from '../api/ai';
+import { usePageTitle } from '../hooks/usePageTitle';
 
 // ─── SKELETON ─────────────────────────────────────────────────────────────────
 
@@ -303,6 +304,7 @@ const TriggerPanel = memo(function TriggerPanel({
 // ─── MAIN DASHBOARD PAGE ──────────────────────────────────────────────────────
 
 export function DashboardPage() {
+  usePageTitle('Dashboard');
   const { user } = useAuth();
 
   const [data, setData] = useState<DashboardSummary | null>(null);
