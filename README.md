@@ -1,7 +1,5 @@
 # REMA — Rapid Emergency Medical Access
 
-![CI](https://github.com/reaksa-sen/rema-medical-logistics/actions/workflows/ci.yml/badge.svg)
-
 **Challenge:** Medical Logistics in a Sinking City
 **Track:** University Track
 **Organiser:** Viet Nam Red Cross (supported by BSSC, RMIT, Innoex, HELP Logistics)
