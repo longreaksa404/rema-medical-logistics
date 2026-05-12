@@ -22,6 +22,9 @@ Last updated: Chat 21 complete — FINAL (reset endpoint added)
 - `backend/src/services/alert.service.ts` — added `resetSystem()` function
 - `backend/src/controllers/alert.controller.ts` — added `reset` handler, added `resetSystem` to import
 - `backend/src/routes/alert.routes.ts` — `POST /api/alert/reset` registered (SUPER_ADMIN only)
+- `frontend/src/api/alert.ts` — NEW: trigger, getStatus, advancePhase, reset
+- `frontend/src/pages/DashboardPage.tsx` — updated: PhaseControls component added
+  below PhaseBanner, handles both advance (EC+) and reset (SUPER_ADMIN only)
 
 ---
 
@@ -84,3 +87,5 @@ Last updated: Chat 21 complete — FINAL (reset endpoint added)
 | 21 | Frontend URL | rema-system.vercel.app (renamed from rema-frontend-delta) |
 | 21 | Reset endpoint | POST /api/alert/reset — SUPER_ADMIN only, resets phase to 0, clears all triggers, invalidates cache |
 | 21 | Phase direction | Phase advances forward only (0→1→2) via frontend; reset is the only way back, SUPER_ADMIN only |
+| Post-21 | Phase controls on dashboard | PhaseControls component below PhaseBanner — advance button for EC+, reset button for SUPER_ADMIN only, confirm dialog before reset |
+| Post-21 | alert.ts API file | Created new frontend/src/api/alert.ts covering all 4 alert endpoints |

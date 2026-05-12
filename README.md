@@ -202,20 +202,6 @@ The AI Brief is built as a mock service (no API key required for the live demo).
 
 ---
 
-## Demo Reset
-
-To reset the system back to Phase 0 for a fresh demo run:
-
-**Via Frontend:** Log in as `admin@rema.vn` → Dashboard → Reset System button (SUPER_ADMIN only)
-
-**Via Swagger:**
-1. POST `/api/auth/login` as `admin@rema.vn`
-2. Authorize with the JWT token
-3. POST `/api/alert/reset` — no request body needed
-4. System returns to Phase 0 with all trigger conditions cleared
-
----
-
 ## Submission Documents
 
 The full submission package is in `docs/submission/`:

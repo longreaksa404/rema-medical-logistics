@@ -492,8 +492,10 @@ Advisory only — cannot trigger any system action.
 - [x] Final git tag: v1.0.0
 - [x] Package everything into submission folder README
 - [x] Add `POST /api/alert/reset` endpoint (SUPER_ADMIN only)
-- [x] Update README.md with reset endpoint documentation and demo reset instructions
-
+- [x] Create `frontend/src/api/alert.ts` with trigger, getStatus, advancePhase, reset
+- [x] Add PhaseControls component to DashboardPage (advance phase + reset system)
+- [x] Reset button visible to SUPER_ADMIN only — confirmation dialog before action
+- [x] Advance phase button visible to EC and SUPER_ADMIN — hidden at Phase 2
 
 ---
 
@@ -655,7 +657,8 @@ rema-medical-logistics/
 │   │   │   └── AuthContext.tsx
 │   │   │
 │   │   ├── api/
-│   │   │   ├── ai.ts                     ← NEW (Chat 20)
+│   │   │   ├── ai.ts    
+|   |   |   ├── alert.ts
 │   │   │   ├── auth.ts
 │   │   │   ├── cache.ts
 │   │   │   ├── client.ts

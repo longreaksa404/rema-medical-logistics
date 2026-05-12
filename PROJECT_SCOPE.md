@@ -377,7 +377,9 @@ any system action. Graceful degradation if Anthropic API is unavailable.
 | View | Name | Visible To | Description |
 |---|---|---|---|
 | V0 | Auth | All | Login page, role-based redirect, change password on first login |
-| V1 | Operations Dashboard | EC, SUPER_ADMIN, VIEWER | Phase banner, district cards, stock chart, priority queue, incidents, notifications, AI Brief button (EC + SUPER_ADMIN only) |
+V1 | Operations Dashboard | EC, SUPER_ADMIN, VIEWER | Phase banner, phase controls
+(advance phase / reset system), district cards, stock chart, priority queue,
+incidents, notifications, AI Brief button (EC + SUPER_ADMIN only) |
 | V2 | Routing Map | EC, HUB_MANAGER | Leaflet map, district overlays, water depth input, delivery mode per zone |
 | V3 | Warehouse Layout | All | Static draw.io diagram — central + sub-warehouse floor plans |
 | V4 | Prioritization Tool | EC, HUB_MANAGER, VOLUNTEER | Assessment form, live scoring, score band result, priority table |
@@ -585,3 +587,4 @@ These continue from assumption #49 in Assumptions-log.md:
 | 55 | Chat 20 | AI Brief feature is advisory only and cannot trigger any database write or system state change | Matches REMA Operating Principle 4: technology augments human judgment, does not replace it |
 | 56 | Chat 18 | route.utils.ts extracted as a pure utility file to allow unit testing of delivery mode logic without importing PrismaClient | route.service.ts imports Prisma at module level; pure test files cannot import it |
 | 57 | Chat 21 | System reset (`POST /api/alert/reset`) is SUPER_ADMIN only and resets all trigger conditions, activation state, and phase to 0 — does not delete the flood_alerts record | Preserves database record integrity; only state is reset, not history |
+| 58 | Chat 21 | Phase advance via frontend uses PATCH /api/alert/phase — requires system to be activated first; Phase 0 → activate by triggering 2-of-3 conditions OR advancing directly via EC button | Demo convenience; real deployment should use trigger conditions |
