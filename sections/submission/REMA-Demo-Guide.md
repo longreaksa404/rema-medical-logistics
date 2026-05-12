@@ -6,8 +6,6 @@
 
 All test accounts use password: `rema1234`
 
-> **Note on Render cold starts:** The backend is hosted on Render's free tier and may take 30–60 seconds to wake up on first request. If the frontend shows a loading state, wait one moment and refresh.
-
 ---
 
 ## Step 1 — Emergency Coordinator Login and Dashboard (V1)
