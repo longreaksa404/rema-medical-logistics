@@ -16,6 +16,7 @@ import type {
   Volunteer, DeliveryRun, Incident, RadioCheckin,
 } from '../api/hub';
 import type { DistrictCard } from '../api/dashboard.types';
+import { usePageTitle } from '../hooks/usePageTitle';
 
 type TabId = 'stock' | 'volunteers' | 'deliveries' | 'incidents' | 'radio';
 
@@ -980,6 +981,7 @@ function RadioTab({ districtId }: { districtId: string }) {
 // ─── MAIN HUB PAGE ────────────────────────────────────────────────────────────
 
 export function HubPage() {
+  usePageTitle('Hub Portal');
   const { user, isRole } = useAuth();
   const [activeTab, setActiveTab] = useState<TabId>('stock');
   const [selectedDistrictId, setSelectedDistrictId] = useState('');

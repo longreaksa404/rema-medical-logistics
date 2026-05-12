@@ -2,8 +2,10 @@ import { useState } from 'react';
 import type { FormEvent } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
+import { usePageTitle } from '../hooks/usePageTitle';
 
 export function LoginPage() {
+  usePageTitle('Login');
   const { login, user } = useAuth();
   const navigate = useNavigate();
 

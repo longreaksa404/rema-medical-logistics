@@ -4,6 +4,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { DashboardLayout } from '../components/DashboardLayout';
 import { api } from '../api/client';
 import { queryKeys } from '../api/queryKeys';
+import { usePageTitle } from '../hooks/usePageTitle';
 
 type Role = 'SUPER_ADMIN' | 'EMERGENCY_COORDINATOR' | 'HUB_MANAGER' | 'VOLUNTEER' | 'VIEWER';
 interface District { id: string; name: string; }
@@ -292,6 +293,7 @@ function EditUserPanel({ user, districts, currentUserId, onSuccess, onClose }: {
 // ─── MAIN USERS PAGE ──────────────────────────────────────────────────────────
 
 export function UsersPage() {
+  usePageTitle('Users');
   const [filterRole, setFilterRole] = useState<Role | ''>('');
   const [filterActive, setFilterActive] = useState<'all' | 'active' | 'inactive'>('all');
   const [search, setSearch] = useState('');

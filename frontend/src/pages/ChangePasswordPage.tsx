@@ -3,8 +3,10 @@ import type { FormEvent } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { authApi } from '../api/auth';
 import { DashboardLayout } from '../components/DashboardLayout';
+import { usePageTitle } from '../hooks/usePageTitle';
 
 export function ChangePasswordPage() {
+  usePageTitle('Change Password');
   const navigate = useNavigate();
   const [currentPassword, setCurrentPassword] = useState('');
   const [newPassword, setNewPassword] = useState('');

@@ -17,6 +17,7 @@ import {
   CAT1_OPTIONS, CAT2_FLAGS, CAT3_OPTIONS, CAT4_OPTIONS,
 } from '../utils/scoring';
 import type { ScoreInput, PriorityBand, Cat2FlagId } from '../utils/scoring';
+import { usePageTitle } from '../hooks/usePageTitle';
 
 // ─── TYPES ────────────────────────────────────────────────────────────────────
 
@@ -664,6 +665,7 @@ function ReportTab({ districtId }: { districtId: string }) {
 // ─── MAIN VOLUNTEER PAGE ──────────────────────────────────────────────────────
 
 export function VolunteerPage() {
+  usePageTitle('Volunteer');
   const { user } = useAuth();
   const [activeTab, setActiveTab] = useState<TabId>('assess');
 

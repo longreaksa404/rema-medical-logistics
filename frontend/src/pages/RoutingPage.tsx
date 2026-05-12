@@ -11,6 +11,7 @@ import { routesApi } from '../api/routes';
 import { queryKeys } from '../api/queryKeys';
 import type { RouteLog, DeliveryMode } from '../api/routes';
 import type { DistrictCard } from '../api/dashboard.types';
+import { usePageTitle } from '../hooks/usePageTitle';
 
 // ─── CONSTANTS ────────────────────────────────────────────────────────────────
 
@@ -281,6 +282,7 @@ function DistrictSummaryCard({ district, depths, isSelected, onClick }: {
 // ─── MAIN ROUTING PAGE ────────────────────────────────────────────────────────
 
 export function RoutingPage() {
+  usePageTitle('Routing');
   const queryClient = useQueryClient();
   const [selectedDistrictId, setSelectedDistrictId] = useState<string | null>(null);
   const [selectedDistrictName, setSelectedDistrictName] = useState<string | null>(null);

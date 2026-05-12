@@ -19,6 +19,7 @@ import {
   CAT4_OPTIONS,
 } from '../utils/scoring';
 import type { ScoreInput, PriorityBand, Cat2FlagId } from '../utils/scoring';
+import { usePageTitle } from '../hooks/usePageTitle';
 
 // ─── BAND CONFIG ──────────────────────────────────────────────────────────────
 const BAND_CONFIG: Record<PriorityBand, {
@@ -223,6 +224,7 @@ function SuccessCard({
 
 // ─── MAIN PAGE ────────────────────────────────────────────────────────────────
 export function PrioritizePage() {
+  usePageTitle('Prioritize');
   const [districts, setDistricts] = useState<DistrictCard[]>([]);
   const [selectedDistrictId, setSelectedDistrictId] = useState('');
   const [address, setAddress] = useState('');
