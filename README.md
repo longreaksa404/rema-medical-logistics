@@ -10,7 +10,7 @@
 
 | Service | URL |
 |---|---|
-| Frontend Application | https://rema-frontend-delta.vercel.app |
+| Frontend Application | https://rema-system.vercel.app |
 | Backend API | https://rema-medical-logistics.onrender.com |
 | API Documentation (Swagger) | https://rema-medical-logistics.onrender.com/api/docs |
 

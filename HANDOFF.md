@@ -38,7 +38,7 @@ Read the original challenge document — confirmed all 6 judging criteria are ad
 |---|---|
 | Backend API | https://rema-medical-logistics.onrender.com |
 | Swagger docs | https://rema-medical-logistics.onrender.com/api/docs |
-| Frontend | https://rema-frontend-delta.vercel.app |
+| Frontend | https://rema-system.vercel.app |
 | Database | Supabase PostgreSQL — rema-medical-logistics (Singapore) |
 
 ---

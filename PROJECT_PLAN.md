@@ -9,7 +9,7 @@
 |---|---|---|
 | Backend API | https://rema-medical-logistics.onrender.com | ✅ Live |
 | Swagger Docs | https://rema-medical-logistics.onrender.com/api/docs | ✅ Live |
-| Frontend | https://rema-frontend-delta.vercel.app | ✅ Live |
+| Frontend | https://rema-system.vercel.app | ✅ Live |
 | Database | Supabase — rema-medical-logistics (Singapore, ref: vkrtqhiymbbdgmtybjrm) |
 
 ---
