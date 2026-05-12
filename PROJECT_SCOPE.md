@@ -275,6 +275,7 @@ POST   /api/users/:id/reset-password      Admin password reset (SUPER_ADMIN only
 POST   /api/alert/trigger
 GET    /api/alert/status
 PATCH  /api/alert/phase                   EMERGENCY_COORDINATOR+
+POST   /api/alert/reset                   SUPER_ADMIN only — resets to Phase 0 standby
 ```
 
 ### Districts & Sub-Warehouses

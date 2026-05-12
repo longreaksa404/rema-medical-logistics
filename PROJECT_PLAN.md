@@ -491,6 +491,9 @@ Advisory only — cannot trigger any system action.
 - [x] Build presentation slide outline
 - [x] Final git tag: v1.0.0
 - [x] Package everything into submission folder README
+- [x] Add `POST /api/alert/reset` endpoint (SUPER_ADMIN only)
+- [x] Update README.md with reset endpoint documentation and demo reset instructions
+
 
 ---
 

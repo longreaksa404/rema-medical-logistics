@@ -1,5 +1,5 @@
 # REMA Handoff Document
-Last updated: Chat 21 complete — FINAL
+Last updated: Chat 21 complete — FINAL (reset endpoint added)
 
 ---
 
@@ -7,33 +7,25 @@ Last updated: Chat 21 complete — FINAL
 
 **REMA IS COMPLETE. All 21 chats done.**
 
-Chat 21 (Final Assembly + Submission Package) is complete.
-
 ---
 
 ## What Was Completed in Chat 21
 
-### Submission package documents created (in `/docs/` or submission folder)
+### Submission package documents
+- `REMA-Executive-Summary.md`
+- `REMA-Master-Strategy.md`
+- `REMA-Demo-Guide.md`
+- `REMA-Presentation-Outline.md`
+- `REMA-Interview-Reference.md`
 
-| File | Description |
-|---|---|
-| `REMA-Executive-Summary.md` | 1-page summary for judges — problem, solution, live URLs, cost, and the single key number ($0.95/person/year) |
-| `REMA-Master-Strategy.md` | Compiled strategy document from all 7 sections (0, A, B, C, D, E, F) — single readable document for judges who want the full strategy |
-| `REMA-Demo-Guide.md` | 9-step walkthrough for judges — login instructions, what to click, what each feature demonstrates, Swagger exploration guide, how to run tests |
-| `REMA-Presentation-Outline.md` | 10-slide presentation structure with speaker notes, timing guide, and talking points per slide (~13 min + Q&A buffer) |
-
-### Challenge PDF confirmed
-Read the original challenge document — confirmed all 6 judging criteria are addressed:
-1. Strategic understanding of the crisis ✅
-2. Logistics quality ✅
-3. Practical feasibility ✅
-4. Coordination and governance ✅
-5. Innovation with purpose ✅
-6. Humanitarian value ✅
+### Reset endpoint (added post-Chat 21)
+- `backend/src/services/alert.service.ts` — added `resetSystem()` function
+- `backend/src/controllers/alert.controller.ts` — added `reset` handler, added `resetSystem` to import
+- `backend/src/routes/alert.routes.ts` — `POST /api/alert/reset` registered (SUPER_ADMIN only)
 
 ---
 
-## Live URLs (Confirmed)
+## Live URLs
 | Service | URL |
 |---|---|
 | Backend API | https://rema-medical-logistics.onrender.com |
@@ -56,16 +48,16 @@ Read the original challenge document — confirmed all 6 judging criteria are ad
 
 ---
 
-## Final Checklist Before Submission
-
-- [ ] Git tag v1.0.0 applied (see commit command below)
-- [ ] All 4 submission documents copied to `/docs/submission/` in repo
-- [ ] README.md confirms live URLs are still working
-- [ ] `npm test` in `backend/` passes (113 tests)
-- [ ] Frontend loads at Vercel URL and login works
-- [ ] Swagger UI loads and all endpoints are documented
-- [ ] AI Brief button visible for coordinator@rema.vn
-- [ ] Render cold start: first request may take 30–60s — note this in submission if needed
+## Final Submission Checklist
+- [x] Git tag v1.0.0 applied
+- [x] All 4 submission documents in `docs/submission/`
+- [x] README.md updated with rema-system.vercel.app URL
+- [x] 113 unit tests passing
+- [x] Frontend loads at Vercel URL
+- [x] Swagger UI loads with all endpoints documented
+- [x] AI Brief button visible for coordinator@rema.vn
+- [x] UptimeRobot keeping backend warm
+- [x] POST /api/alert/reset working for admin@rema.vn
 
 ---
 
@@ -84,8 +76,11 @@ Read the original challenge document — confirmed all 6 judging criteria are ad
 | 8–14 | Frontend | React + Vite + TypeScript + Tailwind CSS |
 | 15–17 | Static visuals | draw.io (V3, V5) + ReportLab PDF (V6) |
 | 18 | Test scope | Backend utility functions only — no Prisma, no HTTP |
-| 18 | Scarcity boundary | isInScarcity uses strict < 0.3 — exactly 30% is NOT scarce; 29.9% IS |
+| 18 | Scarcity boundary | isInScarcity uses strict < 0.3 — exactly 30% is NOT scarce |
 | 19 | CI/CD | GitHub Actions: test on PR, deploy to Render on main |
 | 20 | AI feature | Mock service, no API key required, reads real DB, advisory only |
 | 20 | Advisory banner | Red banner always rendered — not dismissable |
 | 21 | Submission package | 4 documents: Executive Summary, Master Strategy, Demo Guide, Slide Outline |
+| 21 | Frontend URL | rema-system.vercel.app (renamed from rema-frontend-delta) |
+| 21 | Reset endpoint | POST /api/alert/reset — SUPER_ADMIN only, resets phase to 0, clears all triggers, invalidates cache |
+| 21 | Phase direction | Phase advances forward only (0→1→2) via frontend; reset is the only way back, SUPER_ADMIN only |

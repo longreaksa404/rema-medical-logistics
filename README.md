@@ -14,8 +14,6 @@
 | Backend API | https://rema-medical-logistics.onrender.com |
 | API Documentation (Swagger) | https://rema-medical-logistics.onrender.com/api/docs |
 
-> **Note:** The backend runs on Render's free tier. The first request after a period of inactivity may take 30–60 seconds while the service wakes up. Wait one moment and refresh if the frontend shows a loading state.
-
 ### Test Accounts
 
 All passwords: `rema1234`
@@ -29,6 +27,8 @@ All passwords: `rema1234`
 | hub3@rema.vn | HUB_MANAGER | District 3 |
 | volunteer1@rema.vn | VOLUNTEER | District 1 |
 | viewer@rema.vn | VIEWER | — |
+
+> **Demo tip:** Log in as `admin@rema.vn` to reset the system to Phase 0 before a demo run. Log in as `coordinator@rema.vn` to trigger activation and advance phases.
 
 ---
 
@@ -64,11 +64,11 @@ REMA is a pre-positioned, vulnerability-scored medical logistics system designed
 | EMK types | 3 (General / Vulnerable / Chronic Illness) |
 | Response window | 24–48 hours (critical phase) |
 | Water depth range | 30–80cm operational; suspended above 80cm |
-| API endpoints | 50+ |
+| API endpoints | 51+ |
 | Database tables | 15 |
 | Frontend views | 9 |
 | User roles | 5 |
-| Documented assumptions | 56 |
+| Documented assumptions | 57 |
 | Unit tests | 113 |
 | Annual system cost | ~$69,500 USD |
 | Cost per beneficiary | ~$0.95/person/year |
@@ -173,6 +173,8 @@ Push to main (after PR merge):
 | Pre-positioning strategy | Stock staged Hours 3–8 before flooding peaks | Reactive logistics fails when roads are gone |
 | EMK-3 cold chain | MoH cold storage only; never at sub-warehouses | Community buildings cannot maintain 2–8°C |
 | Activation trigger | 2 of 3 conditions (locked, not manual) | Prevents false activations; removes single-person authority |
+| Phase direction | Forward only (0→1→2) via frontend | Prevents accidental rollback during active flood response |
+| System reset | POST /api/alert/reset — SUPER_ADMIN only | Clean demo reset without touching the database directly |
 | Paper fallback | Every digital function has a paper equivalent | No single tool is in the critical path |
 | Asset model | Borrow trucks and boats via MOUs; pay per activation | Red Cross cannot afford year-round fleet ownership |
 | SUPER_ADMIN creation | Seed script only; never via API | Deliberate security decision for real deployment |
@@ -196,7 +198,21 @@ The Emergency Coordinator dashboard includes an AI-powered operational brief. Wh
 - Graceful degradation to HTTP 503 if unavailable
 - "Advisory only — human decision required" banner is always visible in the modal
 
-The AI Brief is built as a mock service (no API key required for the live demo). It reads real database state and generates contextually accurate text. Replacing it with a live Anthropic or OpenAI API call requires changing only `backend/src/services/ai.service.ts`.
+The AI Brief is built as a mock service (no API key required for the live demo). It reads real database state and generates contextually accurate text. Replacing it with a live Anthropic API call requires changing only `backend/src/services/ai.service.ts`.
+
+---
+
+## Demo Reset
+
+To reset the system back to Phase 0 for a fresh demo run:
+
+**Via Frontend:** Log in as `admin@rema.vn` → Dashboard → Reset System button (SUPER_ADMIN only)
+
+**Via Swagger:**
+1. POST `/api/auth/login` as `admin@rema.vn`
+2. Authorize with the JWT token
+3. POST `/api/alert/reset` — no request body needed
+4. System returns to Phase 0 with all trigger conditions cleared
 
 ---
 

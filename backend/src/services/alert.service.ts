@@ -119,3 +119,20 @@ export async function advancePhase(targetPhase: number) {
 
   return updated;
 }
+
+export async function resetSystem() {
+  const alert = await getOrCreateActiveAlert();
+  const updated = await prisma.floodAlert.update({
+    where: { id: alert.id },
+    data: {
+      phase: 0,
+      activated: false,
+      activatedAt: null,
+      warningLevelTwo: false,
+      rainfallExceeds100mm: false,
+      streetFloodingReport: false,
+    },
+  });
+  invalidateCache();
+  return updated;
+}

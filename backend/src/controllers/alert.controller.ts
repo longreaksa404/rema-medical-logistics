@@ -4,6 +4,7 @@ import {
   getAlertStatus,
   advancePhase,
   isValidCondition,
+  resetSystem,
 } from '../services/alert.service';
 
 // ───   /api/alert/trigger ──────────────────────────────────────────────────
@@ -56,5 +57,17 @@ export async function phase(req: Request, res: Response): Promise<void> {
   } catch (err) {
     const message = err instanceof Error ? err.message : 'Unknown error';
     res.status(400).json({ error: message });
+  }
+}
+
+// ─── POST /api/alert/reset ────────────────────────────────────────────────────
+// SUPER_ADMIN only (enforced by route middleware)
+export async function reset(_req: Request, res: Response): Promise<void> {
+  try {
+    const alert = await resetSystem();
+    res.json({ message: 'System reset to Phase 0', alert });
+  } catch (err) {
+    const message = err instanceof Error ? err.message : 'Unknown error';
+    res.status(500).json({ error: message });
   }
 }
