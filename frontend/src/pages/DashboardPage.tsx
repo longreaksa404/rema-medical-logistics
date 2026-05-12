@@ -9,6 +9,7 @@ import { dashboardApi } from '../api/dashboard';
 import { aiApi } from '../api/ai';
 import { alertApi } from '../api/alert';
 import { AiBriefModal } from '../components/AiBriefModal';
+import { ConfirmModal } from '../components/ConfirmModal';
 import { useAuth } from '../context/AuthContext';
 import type { DashboardSummary } from '../api/dashboard';
 import type { AiBriefResponse } from '../api/ai';
@@ -319,6 +320,7 @@ export function DashboardPage() {
 
   // ── Phase / reset state ───────────────────────────────────────────────────
   const [resetLoading, setResetLoading] = useState(false);
+  const [confirmResetOpen, setConfirmResetOpen] = useState(false);
   const [triggerLoading, setTriggerLoading] = useState(false);
   const [phaseError, setPhaseError] = useState('');
 
@@ -353,43 +355,7 @@ export function DashboardPage() {
     }
   }, []);
 
-  const handleCloseBrief = useCallback(() => setAiBriefOpen(false), []);
-
-  // ── Reset handler ─────────────────────────────────────────────────────────
-  const handleReset = useCallback(async () => {
-    const confirmed = window.confirm(
-      'Reset system to Phase 0? This clears all trigger conditions and deactivates REMA.'
-    );
-    if (!confirmed) return;
-    setResetLoading(true);
-    setPhaseError('');
-    try {
-      await alertApi.reset();
-      await fetchAll(false);
-    } catch (err: unknown) {
-      setPhaseError(err instanceof Error ? err.message : 'Reset failed');
-    } finally {
-      setResetLoading(false);
-    }
-  }, []);
-
-  // ── Trigger condition handler ─────────────────────────────────────────────
-  const handleTrigger = useCallback(async (
-    condition: 'warningLevelTwo' | 'rainfallExceeds100mm' | 'streetFloodingReport'
-  ) => {
-    setTriggerLoading(true);
-    setPhaseError('');
-    try {
-      await alertApi.trigger(condition);
-      await fetchAll(false);
-    } catch (err: unknown) {
-      setPhaseError(err instanceof Error ? err.message : 'Failed to submit condition');
-    } finally {
-      setTriggerLoading(false);
-    }
-  }, []);
-
-  // ── Dashboard fetch ───────────────────────────────────────────────────────
+  // ── Dashboard fetch — declared first, used by all handlers below ─────────
   const fetchAll = useCallback(async (silent = false) => {
     if (!silent) setIsRefreshing(true);
     try {
@@ -405,6 +371,44 @@ export function DashboardPage() {
       if (!silent) setIsRefreshing(false);
     }
   }, []);
+
+  const handleCloseBrief = useCallback(() => setAiBriefOpen(false), []);
+
+  // ── Reset handler — opens confirm modal ───────────────────────────────────
+  const handleReset = useCallback(() => {
+    setConfirmResetOpen(true);
+  }, []);
+
+  // ── Confirmed reset — called from ConfirmModal onConfirm ──────────────────
+  const handleConfirmReset = useCallback(async () => {
+    setResetLoading(true);
+    setPhaseError('');
+    try {
+      await alertApi.reset();
+      setConfirmResetOpen(false);
+      await fetchAll(false);
+    } catch (err: unknown) {
+      setPhaseError(err instanceof Error ? err.message : 'Reset failed');
+    } finally {
+      setResetLoading(false);
+    }
+  }, [fetchAll]);
+
+  // ── Trigger condition handler ─────────────────────────────────────────────
+  const handleTrigger = useCallback(async (
+    condition: 'warningLevelTwo' | 'rainfallExceeds100mm' | 'streetFloodingReport'
+  ) => {
+    setTriggerLoading(true);
+    setPhaseError('');
+    try {
+      await alertApi.trigger(condition);
+      await fetchAll(false);
+    } catch (err: unknown) {
+      setPhaseError(err instanceof Error ? err.message : 'Failed to submit condition');
+    } finally {
+      setTriggerLoading(false);
+    }
+  }, [fetchAll]);
 
   useEffect(() => {
     const init = async () => {
@@ -474,6 +478,19 @@ export function DashboardPage() {
         result={aiBriefResult}
         error={aiBriefError}
         onClose={handleCloseBrief}
+      />
+
+      {/* Reset confirmation modal */}
+      <ConfirmModal
+        isOpen={confirmResetOpen}
+        title="Reset System"
+        description="Reset to Phase 0? This clears all trigger conditions and deactivates REMA. All data is preserved in the database."
+        confirmLabel="Reset to Phase 0"
+        cancelLabel="Cancel"
+        variant="danger"
+        isLoading={resetLoading}
+        onConfirm={handleConfirmReset}
+        onCancel={() => setConfirmResetOpen(false)}
       />
 
       {isStale && !isRefreshing && (

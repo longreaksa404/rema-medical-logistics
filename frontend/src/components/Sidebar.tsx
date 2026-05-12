@@ -14,7 +14,6 @@ const NAV_ITEMS: NavItem[] = [
     label: 'Dashboard',
     to: '/dashboard',
     icon: '◈',
-    // No roles = visible to all authenticated users
   },
   {
     label: 'Routing',
@@ -32,7 +31,6 @@ const NAV_ITEMS: NavItem[] = [
     label: 'Stakeholder',
     to: '/stakeholders',
     icon: '⬢',
-    // No roles = visible to all (static page, no ProtectedRoute role guard)
   },
   {
     label: 'Protocol',
@@ -65,9 +63,18 @@ export function Sidebar() {
   const [collapsed, setCollapsed] = useState(false);
   const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
 
+  // ── Safe logout — navigate regardless of any cleanup errors ───────────────
+  // Leaflet and other page-level effects can throw during unmount.
+  // We always navigate to /login even if logout() or cleanup throws.
   async function handleLogout() {
-    await logout();
-    navigate('/login', { replace: true });
+    setShowLogoutConfirm(false);
+    try {
+      await logout();
+    } catch {
+      // Best effort — auth state is cleared by logout() internally
+    } finally {
+      navigate('/login', { replace: true });
+    }
   }
 
   const visibleItems = NAV_ITEMS.filter(
@@ -79,7 +86,7 @@ export function Sidebar() {
       {/* ── Logout confirmation modal ── */}
       {showLogoutConfirm && (
         <div
-          className="fixed inset-0 z-50 flex items-center justify-center bg-black/60"
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm"
           onClick={() => setShowLogoutConfirm(false)}
         >
           <div
