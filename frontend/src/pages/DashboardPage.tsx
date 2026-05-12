@@ -214,54 +214,86 @@ const BAND_DISPLAY = [
   { key: 'standard' as const, label: 'Standard', color: 'text-accent-green', border: 'border-accent-green/20', bg: 'bg-accent-green/5', dot: 'bg-accent-green' },
 ] as const;
 
-// ─── PHASE CONTROLS ───────────────────────────────────────────────────────────
-// Emergency Coordinator: advance phase (0→1, 1→2)
-// SUPER_ADMIN: reset system to Phase 0
+// ─── TRIGGER PANEL ────────────────────────────────────────────────────────────
+// Shown when phase is 0 and not activated — EC and SUPER_ADMIN only
+// Submit 2 of 3 conditions to auto-activate Phase 1 (Section A.3)
 
-const PhaseControls = memo(function PhaseControls({
-  phase,
-  activated,
-  onAction,
+const TriggerPanel = memo(function TriggerPanel({
+  onTrigger,
   isLoading,
-  role,
+  currentConditions,
 }: {
-  phase: number;
-  activated: boolean;
-  onAction: () => void;
+  onTrigger: (condition: 'warningLevelTwo' | 'rainfallExceeds100mm' | 'streetFloodingReport') => void;
   isLoading: boolean;
-  role: string;
+  currentConditions: {
+    warningLevelTwo: boolean;
+    rainfallExceeds100mm: boolean;
+    streetFloodingReport: boolean;
+  };
 }) {
-  const isSuperAdmin = role === 'SUPER_ADMIN';
-  const isEC = role === 'EMERGENCY_COORDINATOR' || role === 'SUPER_ADMIN';
+  const conditions = [
+    { key: 'warningLevelTwo' as const, label: 'Warning Lv.2', desc: 'City/provincial flood warning Level 2 or above' },
+    { key: 'rainfallExceeds100mm' as const, label: '100mm Rain', desc: 'Rainfall forecast exceeds 100mm in 24 hours' },
+    { key: 'streetFloodingReport' as const, label: 'Street Flooding', desc: 'Any target district reports street-level flooding' },
+  ];
 
-  // What action is available given current phase
-  const canAdvance = isEC && (!activated || phase < 2);
-  const canReset = isSuperAdmin && (activated || phase > 0);
-
-  if (!canAdvance && !canReset) return null;
+  const trueCount = Object.values(currentConditions).filter(Boolean).length;
 
   return (
-    <div className="flex items-center gap-2">
-      {/* Advance Phase — EC and SUPER_ADMIN */}
-      {canAdvance && (
-        <button
-          onClick={onAction}
-          disabled={isLoading}
-          className="font-mono text-[10px] uppercase tracking-widest px-3 py-1.5 rounded border border-accent-green/40 bg-accent-green/10 text-accent-green hover:bg-accent-green/20 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-        >
-          {isLoading ? '...' : !activated ? 'Activate — Phase 1' : `Advance → Phase ${phase + 1}`}
-        </button>
-      )}
+    <div className="card border border-accent-yellow/20 bg-accent-yellow/5 p-4">
+      <div className="flex items-start justify-between gap-4 mb-4">
+        <div>
+          <h3 className="font-mono text-xs text-accent-yellow uppercase tracking-widest">
+            Activation Required
+          </h3>
+          <p className="font-mono text-[10px] text-text-muted mt-0.5">
+            Submit any 2 of 3 conditions to activate REMA Phase 1 — Section A.3
+          </p>
+        </div>
+        <span className={`font-mono text-xs px-2 py-0.5 rounded border flex-shrink-0 ${
+          trueCount >= 2
+            ? 'text-accent-green border-accent-green/30 bg-accent-green/10'
+            : 'text-text-muted border-bg-border'
+        }`}>
+          {trueCount}/3 met
+        </span>
+      </div>
 
-      {/* Reset System — SUPER_ADMIN only */}
-      {canReset && (
-        <button
-          onClick={onAction}
-          disabled={isLoading}
-          className="font-mono text-[10px] uppercase tracking-widest px-3 py-1.5 rounded border border-accent-red/40 bg-accent-red/10 text-accent-red hover:bg-accent-red/20 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-        >
-          {isLoading ? '...' : 'Reset System'}
-        </button>
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+        {conditions.map(({ key, label, desc }) => {
+          const active = currentConditions[key];
+          return (
+            <button
+              key={key}
+              onClick={() => !active && onTrigger(key)}
+              disabled={active || isLoading}
+              title={desc}
+              className={`
+                flex items-center gap-2 px-3 py-2.5 rounded border text-left
+                transition-all duration-150
+                ${active
+                  ? 'border-accent-green/40 bg-accent-green/10 text-accent-green cursor-default'
+                  : 'border-bg-border text-text-muted hover:border-accent-yellow/40 hover:text-accent-yellow hover:bg-accent-yellow/5 active:scale-95 cursor-pointer'
+                }
+                ${isLoading && !active ? 'opacity-50 cursor-not-allowed' : ''}
+              `}
+            >
+              <span className={`w-2 h-2 rounded-full flex-shrink-0 ${
+                active ? 'bg-accent-green' : 'bg-bg-border'
+              }`} />
+              <span className="font-mono text-[10px] uppercase tracking-widest">{label}</span>
+              {active && (
+                <span className="ml-auto font-mono text-[9px] text-accent-green">✓</span>
+              )}
+            </button>
+          );
+        })}
+      </div>
+
+      {trueCount === 1 && (
+        <p className="font-mono text-[9px] text-accent-yellow mt-3 animate-pulse-slow">
+          1 more condition needed to activate REMA
+        </p>
       )}
     </div>
   );
@@ -285,15 +317,22 @@ export function DashboardPage() {
   const [aiBriefResult, setAiBriefResult] = useState<AiBriefResponse | null>(null);
   const [aiBriefError, setAiBriefError] = useState('');
 
-  // ── Phase controls state ──────────────────────────────────────────────────
-  const [phaseActionLoading, setPhaseActionLoading] = useState(false);
+  // ── Phase / reset state ───────────────────────────────────────────────────
+  const [resetLoading, setResetLoading] = useState(false);
+  const [triggerLoading, setTriggerLoading] = useState(false);
   const [phaseError, setPhaseError] = useState('');
 
-  const canUseAiBrief =
-    user?.role === 'EMERGENCY_COORDINATOR' || user?.role === 'SUPER_ADMIN';
+  // ── Role checks ───────────────────────────────────────────────────────────
+  const isSuperAdmin = user?.role === 'SUPER_ADMIN';
+  const isEC = user?.role === 'EMERGENCY_COORDINATOR' || user?.role === 'SUPER_ADMIN';
 
-  const canUsePhaseControls =
-    user?.role === 'EMERGENCY_COORDINATOR' || user?.role === 'SUPER_ADMIN';
+  // Show reset button only when system is active or advanced (something to reset)
+  const showReset = isSuperAdmin && !!(data && (data.activated || data.phase > 0));
+
+  // Show trigger panel when phase is 0, not activated, and user is EC or SUPER_ADMIN
+  const showTriggerPanel = isEC && !!(data && !data.activated && data.phase === 0);
+
+  const canUseAiBrief = isEC;
 
   // ── AI Brief handlers ─────────────────────────────────────────────────────
   const handleGenerateBrief = useCallback(async () => {
@@ -305,82 +344,50 @@ export function DashboardPage() {
       const result = await aiApi.generateBrief();
       setAiBriefResult(result);
     } catch (err: unknown) {
-      const msg =
-        err instanceof Error
-          ? err.message
-          : 'AI Brief temporarily unavailable — use dashboard directly.';
+      const msg = err instanceof Error
+        ? err.message
+        : 'AI Brief temporarily unavailable — use dashboard directly.';
       setAiBriefError(msg);
     } finally {
       setAiBriefLoading(false);
     }
   }, []);
 
-  const handleCloseBrief = useCallback(() => {
-    setAiBriefOpen(false);
+  const handleCloseBrief = useCallback(() => setAiBriefOpen(false), []);
+
+  // ── Reset handler ─────────────────────────────────────────────────────────
+  const handleReset = useCallback(async () => {
+    const confirmed = window.confirm(
+      'Reset system to Phase 0? This clears all trigger conditions and deactivates REMA.'
+    );
+    if (!confirmed) return;
+    setResetLoading(true);
+    setPhaseError('');
+    try {
+      await alertApi.reset();
+      await fetchAll(false);
+    } catch (err: unknown) {
+      setPhaseError(err instanceof Error ? err.message : 'Reset failed');
+    } finally {
+      setResetLoading(false);
+    }
   }, []);
 
-  // ── Phase action handler ──────────────────────────────────────────────────
-  // Determines whether to advance phase or reset based on role and current state
-  const handlePhaseAction = useCallback(async () => {
-    if (!data || !user) return;
-
-    const isSuperAdmin = user.role === 'SUPER_ADMIN';
-    const isActivated = data.activated;
-    const currentPhase = data.phase;
-
-    // SUPER_ADMIN on an active/advanced system → confirm reset
-    if (isSuperAdmin && (isActivated || currentPhase > 0)) {
-      const confirmed = window.confirm(
-        'Reset system to Phase 0? This clears all trigger conditions and deactivates REMA.'
-      );
-      if (!confirmed) return;
-
-      setPhaseActionLoading(true);
-      setPhaseError('');
-      try {
-        await alertApi.reset();
-        await fetchAll(false);
-      } catch (err: unknown) {
-        const msg = err instanceof Error ? err.message : 'Reset failed';
-        setPhaseError(msg);
-      } finally {
-        setPhaseActionLoading(false);
-      }
-      return;
+  // ── Trigger condition handler ─────────────────────────────────────────────
+  const handleTrigger = useCallback(async (
+    condition: 'warningLevelTwo' | 'rainfallExceeds100mm' | 'streetFloodingReport'
+  ) => {
+    setTriggerLoading(true);
+    setPhaseError('');
+    try {
+      await alertApi.trigger(condition);
+      await fetchAll(false);
+    } catch (err: unknown) {
+      setPhaseError(err instanceof Error ? err.message : 'Failed to submit condition');
+    } finally {
+      setTriggerLoading(false);
     }
-
-    // EC or SUPER_ADMIN on standby/phase 1 → advance
-    if (!isActivated) {
-      // Phase 0 — need to trigger activation via conditions
-      // Advance to phase 1 directly if not yet activated
-      setPhaseActionLoading(true);
-      setPhaseError('');
-      try {
-        await alertApi.advancePhase(1);
-        await fetchAll(false);
-      } catch (err: unknown) {
-        const msg = err instanceof Error ? err.message : 'Failed to activate';
-        setPhaseError(msg);
-      } finally {
-        setPhaseActionLoading(false);
-      }
-      return;
-    }
-
-    if (currentPhase < 2) {
-      setPhaseActionLoading(true);
-      setPhaseError('');
-      try {
-        await alertApi.advancePhase((currentPhase + 1) as 1 | 2);
-        await fetchAll(false);
-      } catch (err: unknown) {
-        const msg = err instanceof Error ? err.message : 'Failed to advance phase';
-        setPhaseError(msg);
-      } finally {
-        setPhaseActionLoading(false);
-      }
-    }
-  }, [data, user]);
+  }, []);
 
   // ── Dashboard fetch ───────────────────────────────────────────────────────
   const fetchAll = useCallback(async (silent = false) => {
@@ -456,6 +463,9 @@ export function DashboardPage() {
       showAiBrief={canUseAiBrief}
       onAiBrief={handleGenerateBrief}
       aiBriefLoading={aiBriefLoading}
+      showReset={showReset}
+      onReset={handleReset}
+      resetLoading={resetLoading}
     >
       {/* AI Brief Modal */}
       <AiBriefModal
@@ -496,14 +506,16 @@ export function DashboardPage() {
             triggerConditions={data.triggerConditions}
           />
 
-          {/* Phase controls — EC and SUPER_ADMIN only, shown below phase banner */}
-          {canUsePhaseControls && (
-            <PhaseControls
-              phase={data.phase}
-              activated={data.activated}
-              onAction={handlePhaseAction}
-              isLoading={phaseActionLoading}
-              role={user?.role ?? ''}
+          {/* Trigger panel — phase 0 only, EC and SUPER_ADMIN */}
+          {showTriggerPanel && (
+            <TriggerPanel
+              onTrigger={handleTrigger}
+              isLoading={triggerLoading}
+              currentConditions={{
+                warningLevelTwo: data.triggerConditions?.warningLevelTwo ?? false,
+                rainfallExceeds100mm: data.triggerConditions?.rainfallExceeds100mm ?? false,
+                streetFloodingReport: data.triggerConditions?.streetFloodingReport ?? false,
+              }}
             />
           )}
 
