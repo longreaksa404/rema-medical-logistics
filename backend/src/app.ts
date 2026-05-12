@@ -22,6 +22,9 @@ import radioRoutes from './routes/radio.routes';
 import notificationRoutes from './routes/notification.routes';
 import dashboardRoutes from './routes/dashboard.routes';
 
+// Chat 20
+import aiRoutes from './routes/ai.routes';
+
 const app = express();
 
 // ─── MIDDLEWARE ───────────────────────────────────────────────────────────────
@@ -46,15 +49,13 @@ app.get('/api/health', (_req, res) => {
 });
 
 // ─── PUBLIC STATUS (no auth required) ────────────────────────────────────────
-// Returns only non-sensitive aggregate data: phase, activation state, counts.
-// Never exposes household addresses, medical info, or user data.
 app.get('/api/status', publicStatus);
 
 // ─── ROUTES ───────────────────────────────────────────────────────────────────
 app.use('/api/auth', authRoutes);
 app.use('/api/test', testRoutes); // remove before final deployment
 
-// User management (real deployment)
+// User management
 app.use('/api/users', userRoutes);
 
 // Chat 4
@@ -76,6 +77,9 @@ app.use('/api/incidents', incidentRoutes);
 app.use('/api/radio', radioRoutes);
 app.use('/api/notifications', notificationRoutes);
 app.use('/api/dashboard', dashboardRoutes);
+
+// Chat 20
+app.use('/api/ai', aiRoutes);
 
 // ─── 404 FALLBACK ────────────────────────────────────────────────────────────
 app.use((_req, res) => {
