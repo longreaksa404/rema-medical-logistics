@@ -1,7 +1,7 @@
 # REMA — Judge Demo Guide
 ## System Walkthrough: 9 Steps, ~15 Minutes
 
-**Frontend:** https://rema-frontend-delta.vercel.app
+**Frontend:** https://rema-system.vercel.app
 **Swagger API Docs:** https://rema-medical-logistics.onrender.com/api/docs
 
 All test accounts use password: `rema1234`
