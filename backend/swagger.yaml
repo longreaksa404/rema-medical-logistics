@@ -562,6 +562,78 @@ components:
           type: string
           format: date-time
 
+        AiBriefResponse:
+      type: object
+      properties:
+        summary:
+          type: string
+          description: 2–3 sentence situation overview covering delivery progress, stock status, and key risks
+          example: "Phase 1 operations are underway with 3 active delivery runs across 3 districts. District 2 is approaching stock scarcity on EMK-1 with 28% remaining. 12 households remain in CRITICAL priority status requiring immediate delivery."
+        priorityAlert:
+          type: string
+          description: The single most urgent issue the coordinator must address right now
+          example: "District 2 EMK-1 stock is below the 30% scarcity threshold — reallocation from District 3 should be initiated before the next delivery run."
+        nextStep:
+          type: string
+          description: One concrete action the coordinator should take in the next 60 minutes
+          example: "Authorise a cross-district stock reallocation of 50 EMK-1 units from District 3 to District 2 via POST /api/stock/reallocate."
+        generatedAt:
+          type: string
+          format: date-time
+          description: ISO timestamp when the brief was generated
+        dataSnapshot:
+          $ref: '#/components/schemas/AiBriefDataSnapshot'
+      required:
+        - summary
+        - priorityAlert
+        - nextStep
+        - generatedAt
+        - dataSnapshot
+ 
+    # AI
+    AiBriefDataSnapshot:
+      type: object
+      description: The aggregate data used to generate the brief (no PII)
+      properties:
+        phase:
+          type: integer
+          example: 1
+        totalCritical:
+          type: integer
+          example: 12
+        totalHigh:
+          type: integer
+          example: 34
+        totalMedium:
+          type: integer
+          example: 67
+        totalStandard:
+          type: integer
+          example: 120
+        scarcityActive:
+          type: boolean
+          example: true
+        activeDeliveryRuns:
+          type: integer
+          example: 3
+        openIncidentCount:
+          type: integer
+          example: 2
+        radioCompliancePct:
+          type: integer
+          example: 75
+ 
+    AiBriefError:
+      type: object
+      properties:
+        error:
+          type: string
+          example: "AI Brief temporarily unavailable"
+        detail:
+          type: string
+          example: "AI Brief unavailable: Anthropic API call failed"
+
+
 security:
   - bearerAuth: []
 
@@ -604,8 +676,37 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/PublicStatus'
- 
-  
+
+  # ── AI 
+  /api/ai/brief:
+    post:
+      summary: Generate AI operational brief
+      description: >
+        Reads current aggregate dashboard state (no PII) and calls the Anthropic
+        Claude API server-side to produce a 3-part operational brief.
+        **Advisory only** — cannot trigger any system action.
+        Requires EMERGENCY_COORDINATOR or SUPER_ADMIN role.
+      tags:
+        - AI
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: AI brief generated successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AiBriefResponse'
+        '401':
+          description: Not authenticated
+        '403':
+          description: Insufficient role (requires EMERGENCY_COORDINATOR or above)
+        '503':
+          description: AI Brief temporarily unavailable (Anthropic API error)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AiBriefError'
 
 
   # ── AUTH TESTS ───────────────────────────────────────────────────────────────
@@ -2158,6 +2259,7 @@ paths:
                 items: { $ref: '#/components/schemas/RouteStatus' }
         "401":
           description: Unauthorized
+
 
   # ── VOLUNTEERS ──────────────────────────────────────────────────────────────
   /api/volunteers:
