@@ -7,6 +7,7 @@ import { RadioCompliancePanel } from '../components/RadioCompliancePanel';
 import { DeliveryRunsPanel } from '../components/DeliveryRunsPanel';
 import { dashboardApi } from '../api/dashboard';
 import { aiApi } from '../api/ai';
+import { alertApi } from '../api/alert';
 import { AiBriefModal } from '../components/AiBriefModal';
 import { useAuth } from '../context/AuthContext';
 import type { DashboardSummary } from '../api/dashboard';
@@ -213,6 +214,59 @@ const BAND_DISPLAY = [
   { key: 'standard' as const, label: 'Standard', color: 'text-accent-green', border: 'border-accent-green/20', bg: 'bg-accent-green/5', dot: 'bg-accent-green' },
 ] as const;
 
+// ─── PHASE CONTROLS ───────────────────────────────────────────────────────────
+// Emergency Coordinator: advance phase (0→1, 1→2)
+// SUPER_ADMIN: reset system to Phase 0
+
+const PhaseControls = memo(function PhaseControls({
+  phase,
+  activated,
+  onAction,
+  isLoading,
+  role,
+}: {
+  phase: number;
+  activated: boolean;
+  onAction: () => void;
+  isLoading: boolean;
+  role: string;
+}) {
+  const isSuperAdmin = role === 'SUPER_ADMIN';
+  const isEC = role === 'EMERGENCY_COORDINATOR' || role === 'SUPER_ADMIN';
+
+  // What action is available given current phase
+  const canAdvance = isEC && (!activated || phase < 2);
+  const canReset = isSuperAdmin && (activated || phase > 0);
+
+  if (!canAdvance && !canReset) return null;
+
+  return (
+    <div className="flex items-center gap-2">
+      {/* Advance Phase — EC and SUPER_ADMIN */}
+      {canAdvance && (
+        <button
+          onClick={onAction}
+          disabled={isLoading}
+          className="font-mono text-[10px] uppercase tracking-widest px-3 py-1.5 rounded border border-accent-green/40 bg-accent-green/10 text-accent-green hover:bg-accent-green/20 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+        >
+          {isLoading ? '...' : !activated ? 'Activate — Phase 1' : `Advance → Phase ${phase + 1}`}
+        </button>
+      )}
+
+      {/* Reset System — SUPER_ADMIN only */}
+      {canReset && (
+        <button
+          onClick={onAction}
+          disabled={isLoading}
+          className="font-mono text-[10px] uppercase tracking-widest px-3 py-1.5 rounded border border-accent-red/40 bg-accent-red/10 text-accent-red hover:bg-accent-red/20 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+        >
+          {isLoading ? '...' : 'Reset System'}
+        </button>
+      )}
+    </div>
+  );
+});
+
 // ─── MAIN DASHBOARD PAGE ──────────────────────────────────────────────────────
 
 export function DashboardPage() {
@@ -231,9 +285,17 @@ export function DashboardPage() {
   const [aiBriefResult, setAiBriefResult] = useState<AiBriefResponse | null>(null);
   const [aiBriefError, setAiBriefError] = useState('');
 
+  // ── Phase controls state ──────────────────────────────────────────────────
+  const [phaseActionLoading, setPhaseActionLoading] = useState(false);
+  const [phaseError, setPhaseError] = useState('');
+
   const canUseAiBrief =
     user?.role === 'EMERGENCY_COORDINATOR' || user?.role === 'SUPER_ADMIN';
 
+  const canUsePhaseControls =
+    user?.role === 'EMERGENCY_COORDINATOR' || user?.role === 'SUPER_ADMIN';
+
+  // ── AI Brief handlers ─────────────────────────────────────────────────────
   const handleGenerateBrief = useCallback(async () => {
     setAiBriefOpen(true);
     setAiBriefLoading(true);
@@ -256,6 +318,69 @@ export function DashboardPage() {
   const handleCloseBrief = useCallback(() => {
     setAiBriefOpen(false);
   }, []);
+
+  // ── Phase action handler ──────────────────────────────────────────────────
+  // Determines whether to advance phase or reset based on role and current state
+  const handlePhaseAction = useCallback(async () => {
+    if (!data || !user) return;
+
+    const isSuperAdmin = user.role === 'SUPER_ADMIN';
+    const isActivated = data.activated;
+    const currentPhase = data.phase;
+
+    // SUPER_ADMIN on an active/advanced system → confirm reset
+    if (isSuperAdmin && (isActivated || currentPhase > 0)) {
+      const confirmed = window.confirm(
+        'Reset system to Phase 0? This clears all trigger conditions and deactivates REMA.'
+      );
+      if (!confirmed) return;
+
+      setPhaseActionLoading(true);
+      setPhaseError('');
+      try {
+        await alertApi.reset();
+        await fetchAll(false);
+      } catch (err: unknown) {
+        const msg = err instanceof Error ? err.message : 'Reset failed';
+        setPhaseError(msg);
+      } finally {
+        setPhaseActionLoading(false);
+      }
+      return;
+    }
+
+    // EC or SUPER_ADMIN on standby/phase 1 → advance
+    if (!isActivated) {
+      // Phase 0 — need to trigger activation via conditions
+      // Advance to phase 1 directly if not yet activated
+      setPhaseActionLoading(true);
+      setPhaseError('');
+      try {
+        await alertApi.advancePhase(1);
+        await fetchAll(false);
+      } catch (err: unknown) {
+        const msg = err instanceof Error ? err.message : 'Failed to activate';
+        setPhaseError(msg);
+      } finally {
+        setPhaseActionLoading(false);
+      }
+      return;
+    }
+
+    if (currentPhase < 2) {
+      setPhaseActionLoading(true);
+      setPhaseError('');
+      try {
+        await alertApi.advancePhase((currentPhase + 1) as 1 | 2);
+        await fetchAll(false);
+      } catch (err: unknown) {
+        const msg = err instanceof Error ? err.message : 'Failed to advance phase';
+        setPhaseError(msg);
+      } finally {
+        setPhaseActionLoading(false);
+      }
+    }
+  }, [data, user]);
 
   // ── Dashboard fetch ───────────────────────────────────────────────────────
   const fetchAll = useCallback(async (silent = false) => {
@@ -323,8 +448,6 @@ export function DashboardPage() {
   }
 
   return (
-    // AI Brief button is now rendered inside DashboardLayout's header
-    // next to the refresh button — passed via props
     <DashboardLayout
       title="Operations Dashboard"
       onRefresh={handleRefresh}
@@ -357,6 +480,12 @@ export function DashboardPage() {
         </div>
       )}
 
+      {phaseError && (
+        <div className="mb-4 bg-accent-red/10 border border-accent-red/30 rounded px-4 py-2 animate-slide-in">
+          <p className="font-mono text-xs text-accent-red">{phaseError}</p>
+        </div>
+      )}
+
       {data && topStats && (
         <div className="space-y-6 animate-fade-in">
 
@@ -366,6 +495,17 @@ export function DashboardPage() {
             activatedAt={data.activatedAt}
             triggerConditions={data.triggerConditions}
           />
+
+          {/* Phase controls — EC and SUPER_ADMIN only, shown below phase banner */}
+          {canUsePhaseControls && (
+            <PhaseControls
+              phase={data.phase}
+              activated={data.activated}
+              onAction={handlePhaseAction}
+              isLoading={phaseActionLoading}
+              role={user?.role ?? ''}
+            />
+          )}
 
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
             <StatCard
