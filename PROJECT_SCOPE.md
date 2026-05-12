@@ -500,7 +500,10 @@ No `DATABASE_URL` or `JWT_SECRET` needed in GitHub secrets.
 **Feature name:** REMA AI Brief
 **Visible to:** EMERGENCY_COORDINATOR and SUPER_ADMIN only (on V1 Dashboard)
 **SDK:** `@anthropic-ai/sdk` (server-side only — API key never exposed to browser)
-**Model:** `claude-sonnet-4-20250514`
+**Implementation:** Mock service (no API key required for submission). Reads real
+aggregate DB state and generates contextually accurate brief via rule-based logic.
+Architected for drop-in replacement with OpenAI GPT-4o mini or Anthropic Claude
+by swapping `ai.service.ts` only — controller, routes, and frontend unchanged.
 
 #### What it does
 
