@@ -1,6 +1,22 @@
 import { useState } from 'react';
 import { NavLink } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
+import {
+  LayoutDashboard,
+  Map,
+  ListChecks,
+  Building2,
+  UserCheck,
+  Warehouse,
+  GitFork,
+  FileText,
+  Users,
+  LogOut,
+  ChevronRight,
+  ChevronLeft,
+  ChevronDown,
+  type LucideIcon,
+} from 'lucide-react';
 
 type Role = 'SUPER_ADMIN' | 'EMERGENCY_COORDINATOR' | 'HUB_MANAGER' | 'VOLUNTEER' | 'VIEWER';
 
@@ -8,11 +24,12 @@ interface NavItem {
   label: string;
   to: string;
   roles?: Role[];
-  icon: string;
+  Icon: LucideIcon;
 }
 
 interface NavGroup {
   label: string;
+  collapsible?: boolean;
   items: NavItem[];
 }
 
@@ -23,51 +40,52 @@ const NAV_GROUPS: NavGroup[] = [
       {
         label: 'Dashboard',
         to: '/dashboard',
-        icon: '◈',
+        Icon: LayoutDashboard,
       },
       {
         label: 'Routing',
         to: '/routing',
-        icon: '⟁',
+        Icon: Map,
         roles: ['EMERGENCY_COORDINATOR', 'HUB_MANAGER', 'SUPER_ADMIN'],
       },
       {
         label: 'Prioritize',
         to: '/prioritize',
-        icon: '⊞',
+        Icon: ListChecks,
         roles: ['EMERGENCY_COORDINATOR', 'HUB_MANAGER', 'VOLUNTEER', 'SUPER_ADMIN'],
       },
       {
         label: 'Hub Portal',
         to: '/hub',
-        icon: '⬡',
+        Icon: Building2,
         roles: ['HUB_MANAGER', 'SUPER_ADMIN', 'EMERGENCY_COORDINATOR'],
       },
       {
         label: 'Volunteer',
         to: '/volunteer',
-        icon: '⊕',
+        Icon: UserCheck,
         roles: ['VOLUNTEER', 'HUB_MANAGER', 'SUPER_ADMIN'],
       },
     ],
   },
   {
     label: 'Reference',
+    collapsible: true,
     items: [
       {
         label: 'Warehouse',
         to: '/warehouse',
-        icon: '⬢',
+        Icon: Warehouse,
       },
       {
         label: 'Stakeholder',
         to: '/stakeholders',
-        icon: '⬢',
+        Icon: GitFork,
       },
       {
         label: 'Protocol',
         to: '/protocol',
-        icon: '⬡',
+        Icon: FileText,
       },
     ],
   },
@@ -77,7 +95,7 @@ const NAV_GROUPS: NavGroup[] = [
       {
         label: 'Users',
         to: '/users',
-        icon: '⊗',
+        Icon: Users,
         roles: ['SUPER_ADMIN'],
       },
     ],
@@ -89,6 +107,7 @@ export function Sidebar() {
 
   const [collapsed, setCollapsed] = useState(false);
   const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
+  const [referenceOpen, setReferenceOpen] = useState(false);
 
   function handleLogout() {
     setShowLogoutConfirm(false);
@@ -173,41 +192,72 @@ export function Sidebar() {
             title={collapsed ? 'Expand sidebar' : 'Collapse sidebar'}
             className="w-7 h-7 flex items-center justify-center rounded border border-bg-border text-text-primary hover:border-text-muted transition-colors duration-100 flex-shrink-0"
           >
-            <span className="font-mono text-xs">{collapsed ? '→' : '←'}</span>
+            {collapsed
+              ? <ChevronRight size={13} />
+              : <ChevronLeft size={13} />
+            }
           </button>
         </div>
 
-        {/* Nav groups */}
-        <nav className="flex-1 px-2 py-3 overflow-y-auto">
+        {/* Nav groups — thin custom scrollbar */}
+        <nav
+          className="flex-1 px-2 py-3 overflow-y-auto"
+          style={{
+            scrollbarWidth: 'thin',
+            scrollbarColor: 'rgba(255,255,255,0.08) transparent',
+          }}
+        >
           {NAV_GROUPS.map((group, gi) => {
             const visibleItems = group.items.filter(
               (item) => !item.roles || isRole(...(item.roles as Parameters<typeof isRole>))
             );
 
-            // Hide entire group if the user can't see any item in it
             if (visibleItems.length === 0) return null;
+
+            const isCollapsible = group.collapsible === true;
+            const itemsVisible = collapsed || !isCollapsible || referenceOpen;
 
             return (
               <div key={group.label} className={gi > 0 ? 'mt-1' : ''}>
                 {/* Divider between groups */}
-                {gi > 0 && (
-                  <div className="h-px bg-bg-border mx-1 my-2" />
-                )}
+                {gi > 0 && <div className="h-px bg-bg-border mx-1 my-2" />}
 
-                {/* Group label — hidden when collapsed */}
+                {/* Group label row */}
                 {!collapsed && (
-                  <p className="font-mono text-[9px] text-text-muted uppercase tracking-widest px-2 pt-2 pb-1 select-none">
-                    {group.label}
-                  </p>
+                  isCollapsible ? (
+                    <button
+                      onClick={() => setReferenceOpen((prev) => !prev)}
+                      className="w-full flex items-center justify-between px-2 pt-2 pb-1 group"
+                      aria-expanded={referenceOpen}
+                    >
+                      <span className="font-mono text-[9px] text-text-muted uppercase tracking-widest select-none group-hover:text-text-secondary transition-colors duration-100">
+                        {group.label}
+                      </span>
+                      <ChevronDown
+                        size={11}
+                        className={`text-text-muted group-hover:text-text-secondary transition-transform duration-200 ${
+                          referenceOpen ? 'rotate-0' : '-rotate-90'
+                        }`}
+                      />
+                    </button>
+                  ) : (
+                    <p className="font-mono text-[9px] text-text-muted uppercase tracking-widest px-2 pt-2 pb-1 select-none">
+                      {group.label}
+                    </p>
+                  )
                 )}
 
                 {/* Nav items */}
-                <div className="space-y-0.5">
-                  {visibleItems.map((item) => (
+                <div
+                  className={`space-y-0.5 overflow-hidden transition-all duration-200 ease-in-out ${
+                    itemsVisible ? 'max-h-96 opacity-100' : 'max-h-0 opacity-0'
+                  }`}
+                >
+                  {visibleItems.map(({ label, to, Icon }) => (
                     <NavLink
-                      key={item.to}
-                      to={item.to}
-                      title={collapsed ? item.label : undefined}
+                      key={to}
+                      to={to}
+                      title={collapsed ? label : undefined}
                       className={({ isActive }) =>
                         [
                           'flex items-center gap-3 px-2 py-2.5 rounded text-sm transition-colors duration-100',
@@ -218,11 +268,19 @@ export function Sidebar() {
                         ].join(' ')
                       }
                     >
-                      <span className="font-mono text-base w-5 flex-shrink-0 text-center">
-                        {item.icon}
-                      </span>
-                      {!collapsed && (
-                        <span className="font-sans text-sm">{item.label}</span>
+                      {({ isActive }) => (
+                        <>
+                          <Icon
+                            size={15}
+                            className={`flex-shrink-0 ${
+                              isActive ? 'text-text-primary' : 'text-text-muted'
+                            }`}
+                            strokeWidth={1.75}
+                          />
+                          {!collapsed && (
+                            <span className="font-sans text-sm">{label}</span>
+                          )}
+                        </>
                       )}
                     </NavLink>
                   ))}
@@ -234,7 +292,7 @@ export function Sidebar() {
 
         {/* User info + logout */}
         {collapsed ? (
-          <div className="px-2 py-4 border-t border-bg-border flex flex-col items-center gap-2">
+          <div className="px-2 py-4 border-t border-bg-border flex flex-col items-center gap-3">
             <div
               title={`${user?.name} · ${user?.role}`}
               className="w-7 h-7 rounded-full bg-accent-blue/20 border border-accent-blue/30 flex items-center justify-center flex-shrink-0"
@@ -246,9 +304,9 @@ export function Sidebar() {
             <button
               onClick={() => setShowLogoutConfirm(true)}
               title="Sign out"
-              className="font-mono text-xs text-text-muted hover:text-accent-red transition-colors duration-100"
+              className="text-text-muted hover:text-accent-red transition-colors duration-100"
             >
-              →
+              <LogOut size={13} strokeWidth={1.75} />
             </button>
           </div>
         ) : (
@@ -262,9 +320,10 @@ export function Sidebar() {
             </div>
             <button
               onClick={() => setShowLogoutConfirm(true)}
-              className="w-full text-left font-mono text-xs text-text-muted hover:text-accent-red transition-colors duration-100 py-1"
+              className="flex items-center gap-1.5 font-mono text-xs text-text-muted hover:text-accent-red transition-colors duration-100 py-1"
             >
-              → sign out
+              <LogOut size={12} strokeWidth={1.75} />
+              sign out
             </button>
           </div>
         )}
