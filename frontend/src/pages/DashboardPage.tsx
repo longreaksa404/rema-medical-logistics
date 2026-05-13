@@ -419,41 +419,24 @@ export function DashboardPage() {
   const handleTrigger = useCallback(async (condition: TriggerConditionKey) => {
     setPhaseError('');
 
-    // 1. Update localConditions instantly — this is what TriggerPanel reads
-    const next: TriggerConditions = { ...localConditions, [condition]: true };
-    setLocalConditions(next);
+    // 1. Update localConditions using functional updater — no stale closure risk
+    let nextConditions: TriggerConditions;
+    setLocalConditions(prev => {
+      nextConditions = { ...prev, [condition]: true };
+      return nextConditions;
+    });
 
-    // 2. If 2+ conditions now met, optimistically update phase/activation on data too
-    const trueCount = Object.values(next).filter(Boolean).length;
-    if (trueCount >= 2 && data && !data.activated) {
-      setData(prev => prev ? {
-        ...prev,
-        triggerConditions: next,
-        activated: true,
-        activatedAt: new Date().toISOString(),
-        phase: 1 as 0 | 1 | 2,
-      } : prev);
-    }
-
-    // 3. Fire API silently in background
+    // 2. Fire API, then do a non-silent fetch so server truth always wins
     try {
       await alertApi.trigger(condition);
-      fetchAll(true);
+      // Non-silent: shows the loading state and guarantees data is fresh
+      await fetchAll(false);
     } catch (err: unknown) {
-      // Roll back on failure
-      setLocalConditions(localConditions);
-      if (trueCount >= 2 && data && !data.activated) {
-        setData(prev => prev ? {
-          ...prev,
-          triggerConditions: localConditions,
-          activated: false,
-          activatedAt: null,
-          phase: 0 as 0 | 1 | 2,
-        } : prev);
-      }
+      // Roll back localConditions on failure
+      setLocalConditions(prev => ({ ...prev, [condition]: false }));
       setPhaseError(err instanceof Error ? err.message : 'Failed to submit condition');
     }
-  }, [localConditions, data, fetchAll]);
+  }, [fetchAll]);
 
   // ── Advance phase handler ─────────────────────────────────────────────────
   const handleAdvancePhase = useCallback(async () => {
