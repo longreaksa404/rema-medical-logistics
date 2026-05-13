@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useMemo, memo } from 'react';
+import { useState, useEffect, useCallback, useMemo, memo, useRef } from 'react';
 import { DashboardLayout } from '../components/DashboardLayout';
 import { PhaseBanner } from '../components/PhaseBanner';
 import { StockChart } from '../components/StockChart';
@@ -357,6 +357,7 @@ export function DashboardPage() {
   // ── Sync localConditions from server data ─────────────────────────────────
   // When real data arrives, update localConditions to match server truth
   useEffect(() => {
+    if (isTriggeringRef.current) return;
     if (data?.triggerConditions) {
       setLocalConditions({
         warningLevelTwo: data.triggerConditions.warningLevelTwo,
@@ -364,7 +365,11 @@ export function DashboardPage() {
         streetFloodingReport: data.triggerConditions.streetFloodingReport,
       });
     }
-  }, [data?.triggerConditions]);
+  }, [
+    data?.triggerConditions?.warningLevelTwo,
+    data?.triggerConditions?.rainfallExceeds100mm,
+    data?.triggerConditions?.streetFloodingReport,
+  ]);
 
   // ── AI Brief handlers ─────────────────────────────────────────────────────
   const handleGenerateBrief = useCallback(async () => {
@@ -425,17 +430,22 @@ export function DashboardPage() {
     }
   }, [fetchAll]);
 
+  const isTriggeringRef = useRef(false);
+
   // ── Trigger condition handler — optimistic, zero perceived latency ─────────
   const handleTrigger = useCallback(async (condition: TriggerConditionKey) => {
     setPhaseError('');
+    isTriggeringRef.current = true;
     setLocalConditions(prev => ({ ...prev, [condition]: true }));
 
     try {
       await alertApi.trigger(condition);
-      fetchAll(false);
+      await fetchAll(false);        // ← await it
     } catch (err: unknown) {
       setLocalConditions(prev => ({ ...prev, [condition]: false }));
       setPhaseError(err instanceof Error ? err.message : 'Failed to submit condition');
+    } finally {
+      isTriggeringRef.current = false;  // ← now runs AFTER fetchAll completes
     }
   }, [fetchAll]);
 
