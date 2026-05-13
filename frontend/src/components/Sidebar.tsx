@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { NavLink, useNavigate } from 'react-router-dom';
+import { NavLink } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 
 interface NavItem {
@@ -59,22 +59,16 @@ const NAV_ITEMS: NavItem[] = [
 
 export function Sidebar() {
   const { user, logout, isRole } = useAuth();
-  const navigate = useNavigate();
+
   const [collapsed, setCollapsed] = useState(false);
   const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
 
-  // ── Safe logout — navigate regardless of any cleanup errors ───────────────
-  // Leaflet and other page-level effects can throw during unmount.
-  // We always navigate to /login even if logout() or cleanup throws.
-  async function handleLogout() {
+  // ── Logout ────────────────────────────────────────────────────────────────
+  // AuthContext.logout() clears token immediately — ProtectedRoute detects
+  // the null token and redirects to /login automatically. No navigate() needed.
+  function handleLogout() {
     setShowLogoutConfirm(false);
-    try {
-      await logout();
-    } catch {
-      // Best effort — auth state is cleared by logout() internally
-    } finally {
-      navigate('/login', { replace: true });
-    }
+    logout();
   }
 
   const visibleItems = NAV_ITEMS.filter(
@@ -86,7 +80,7 @@ export function Sidebar() {
       {/* ── Logout confirmation modal ── */}
       {showLogoutConfirm && (
         <div
-          className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm"
+          className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/60 backdrop-blur-sm"
           onClick={() => setShowLogoutConfirm(false)}
         >
           <div

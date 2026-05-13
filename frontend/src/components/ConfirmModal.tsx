@@ -51,12 +51,12 @@ export function ConfirmModal({
     <>
       {/* Backdrop */}
       <div
-        className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm animate-fade-in"
+        className="fixed inset-0 z-[9999] bg-black/60 backdrop-blur-sm animate-fade-in"
         onClick={onCancel}
       />
 
       {/* Modal */}
-      <div className="fixed inset-0 z-50 flex items-center justify-center p-4 pointer-events-none">
+      <div className="fixed inset-0 z-[9999] flex items-center justify-center p-4 pointer-events-none">
         <div
           className={`
             pointer-events-auto

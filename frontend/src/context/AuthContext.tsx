@@ -7,7 +7,7 @@ interface AuthContextValue {
   token: string | null;
   isLoading: boolean;
   login: (email: string, password: string) => Promise<void>;
-  logout: () => Promise<void>;
+  logout: () => void;
   isRole: (...roles: UserProfile['role'][]) => boolean;
 }
 
@@ -18,11 +18,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [token, setToken] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
 
-  // Rehydrate from localStorage on mount
   useEffect(() => {
     const storedToken = localStorage.getItem('rema_token');
     const storedUser = localStorage.getItem('rema_user');
-
     if (storedToken && storedUser) {
       try {
         setToken(storedToken);
@@ -43,20 +41,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     setUser(data.user);
   }, []);
 
-  const logout = useCallback(async () => {
-    try {
-      await authApi.logout();
-    } catch {
-      // Best effort
-    } finally {
-      localStorage.removeItem('rema_token');
-      localStorage.removeItem('rema_user');
-      setToken(null);
-      setUser(null);
-    }
+  const logout = useCallback(() => {
+    localStorage.removeItem('rema_token');
+    localStorage.removeItem('rema_user');
+    setToken(null);
+    setUser(null);
+    authApi.logout().catch(() => {});
   }, []);
 
-  // Check if current user has one of the given roles
   const isRole = useCallback(
     (...roles: UserProfile['role'][]) => {
       if (!user) return false;
