@@ -241,9 +241,25 @@ function EditUserPanel({ user, districts, currentUserId, onSuccess, onClose }: {
               <p className="font-sans text-sm text-text-primary">Account Active</p>
               <p className="font-mono text-[10px] text-text-muted">Inactive users cannot log in. Data is preserved.</p>
             </div>
-            <button onClick={() => { if (isSelf) { setLocalError('You cannot deactivate your own account.'); return; } setActive(v => !v); }}
-              className={`relative w-11 h-6 rounded-full border transition-all duration-200 flex-shrink-0 ${active ? 'bg-accent-green/20 border-accent-green/40' : 'bg-bg-primary border-bg-border'}`}>
-              <span className={`absolute top-0.5 w-5 h-5 rounded-full transition-all duration-200 ${active ? 'translate-x-5 bg-accent-green' : 'translate-x-0.5 bg-text-muted'}`} />
+            <button
+              onClick={() => {
+                // Change 'onError' to 'setLocalError'
+                if (isSelf) { 
+                  setLocalError("You cannot deactivate your own account."); 
+                  return; 
+                }
+                setActive(v => !v);
+              }}
+              // This uses the flexbox fix we discussed to ensure perfect alignment
+              className={`relative w-11 h-6 rounded-full border transition-all duration-200 flex-shrink-0 flex items-center px-0.5 ${
+                active
+                  ? 'bg-accent-green/20 border-accent-green/40 justify-end'
+                  : 'bg-bg-primary border-bg-border justify-start'
+              }`}
+            >
+              <span className={`w-5 h-5 rounded-full transition-all duration-200 ${
+                active ? 'bg-accent-green' : 'bg-text-muted'
+              }`} />
             </button>
           </div>
           <button
