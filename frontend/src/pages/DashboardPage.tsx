@@ -243,6 +243,7 @@ function TriggerPanel({
   ];
 
   const trueCount = Object.values(currentConditions).filter(Boolean).length;
+  const shouldBlock = isLoading || trueCount >= 2;
 
   return (
     <div className="card border border-accent-yellow/20 bg-accent-yellow/5 p-4">
@@ -270,15 +271,15 @@ function TriggerPanel({
           return (
             <button
               key={key}
-              onClick={() => { if (!active && !isLoading) onTrigger(key); }}
-              disabled={active || isLoading} 
+              onClick={() => { if (!active && !shouldBlock) onTrigger(key); }}
+              disabled={active || shouldBlock}
               title={desc}
               className={`
                 flex items-center gap-2 px-3 py-2.5 rounded border text-left
                 transition-all duration-150
                 ${active
                   ? 'border-accent-green/40 bg-accent-green/10 text-accent-green cursor-default'
-                  : isLoading
+                  : shouldBlock
                     ? 'border-bg-border text-text-muted opacity-50 cursor-not-allowed'
                     : 'border-bg-border text-text-muted hover:border-accent-yellow/40 hover:text-accent-yellow hover:bg-accent-yellow/5 active:scale-95 cursor-pointer'
                 }
