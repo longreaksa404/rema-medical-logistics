@@ -256,8 +256,10 @@ function EditUserPanel({ user, districts, currentUserId, onSuccess, onClose }: {
                   : 'bg-bg-primary border-bg-border justify-start'
               }`}
             >
-              <span className={`w-5 h-5 rounded-full transition-all duration-200 ${
-                active ? 'bg-accent-green' : 'bg-text-muted'
+              <span className={`absolute inset-y-0.5 left-0.5 w-5 h-5 rounded-full transition-all duration-200 ${
+                active
+                  ? 'translate-x-5 bg-accent-green'
+                  : 'translate-x-0 bg-text-muted'
               }`} />
             </button>
           </div>
