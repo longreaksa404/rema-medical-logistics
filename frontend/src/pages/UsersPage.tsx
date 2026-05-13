@@ -243,7 +243,6 @@ function EditUserPanel({ user, districts, currentUserId, onSuccess, onClose }: {
             </div>
             <button
               onClick={() => {
-                // Change 'onError' to 'setLocalError'
                 if (isSelf) { 
                   setLocalError("You cannot deactivate your own account."); 
                   return; 
