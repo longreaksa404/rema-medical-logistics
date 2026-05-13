@@ -230,9 +230,11 @@ interface TriggerConditions {
 function TriggerPanel({
   onTrigger,
   currentConditions,
+  isLoading,  
 }: {
   onTrigger: (condition: TriggerConditionKey) => void;
   currentConditions: TriggerConditions;
+  isLoading: boolean;
 }) {
   const conditions: { key: TriggerConditionKey; label: string; desc: string }[] = [
     { key: 'warningLevelTwo', label: 'Warning Lv.2', desc: 'City/provincial flood warning Level 2 or above' },
@@ -268,15 +270,17 @@ function TriggerPanel({
           return (
             <button
               key={key}
-              onClick={() => { if (!active) onTrigger(key); }}
-              disabled={active}
+              onClick={() => { if (!active && !isLoading) onTrigger(key); }}
+              disabled={active || isLoading} 
               title={desc}
               className={`
                 flex items-center gap-2 px-3 py-2.5 rounded border text-left
                 transition-all duration-150
                 ${active
                   ? 'border-accent-green/40 bg-accent-green/10 text-accent-green cursor-default'
-                  : 'border-bg-border text-text-muted hover:border-accent-yellow/40 hover:text-accent-yellow hover:bg-accent-yellow/5 active:scale-95 cursor-pointer'
+                  : isLoading
+                    ? 'border-bg-border text-text-muted opacity-50 cursor-not-allowed'
+                    : 'border-bg-border text-text-muted hover:border-accent-yellow/40 hover:text-accent-yellow hover:bg-accent-yellow/5 active:scale-95 cursor-pointer'
                 }
               `}
             >
@@ -292,11 +296,15 @@ function TriggerPanel({
         })}
       </div>
 
-      {trueCount === 1 && (
+      {isLoading ? (
+        <p className="font-mono text-[9px] text-text-muted mt-3 animate-pulse-slow">
+          Processing trigger condition...
+        </p>
+      ) : trueCount === 1 ? (
         <p className="font-mono text-[9px] text-accent-yellow mt-3 animate-pulse-slow">
           1 more condition needed to activate REMA
         </p>
-      )}
+      ) : null}
     </div>
   );
 }
@@ -313,6 +321,7 @@ export function DashboardPage() {
   const [error, setError] = useState('');
   const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
   const [isStale, setIsStale] = useState(false);
+  const [triggerLoading, setTriggerLoading] = useState(false);
 
   // ── Separate optimistic trigger conditions state ───────────────────────────
   // This is the single source of truth for the TriggerPanel display.
@@ -418,23 +427,18 @@ export function DashboardPage() {
   // ── Trigger condition handler — optimistic, zero perceived latency ─────────
   const handleTrigger = useCallback(async (condition: TriggerConditionKey) => {
     setPhaseError('');
+    setTriggerLoading(true);
 
-    // 1. Update localConditions using functional updater — no stale closure risk
-    let nextConditions: TriggerConditions;
-    setLocalConditions(prev => {
-      nextConditions = { ...prev, [condition]: true };
-      return nextConditions;
-    });
+    setLocalConditions(prev => ({ ...prev, [condition]: true }));
 
-    // 2. Fire API, then do a non-silent fetch so server truth always wins
     try {
       await alertApi.trigger(condition);
-      // Non-silent: shows the loading state and guarantees data is fresh
       await fetchAll(false);
     } catch (err: unknown) {
-      // Roll back localConditions on failure
       setLocalConditions(prev => ({ ...prev, [condition]: false }));
       setPhaseError(err instanceof Error ? err.message : 'Failed to submit condition');
+    } finally {
+      setTriggerLoading(false);
     }
   }, [fetchAll]);
 
@@ -575,6 +579,7 @@ export function DashboardPage() {
             <TriggerPanel
               onTrigger={handleTrigger}
               currentConditions={localConditions}
+              isLoading={triggerLoading}
             />
           )}
 
