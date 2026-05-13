@@ -452,6 +452,7 @@ function DeliverTab({ districtId }: { districtId: string }) {
       setConfirming(null);
       queryClient.invalidateQueries({ queryKey: queryKeys.households.queue(districtId) });
       queryClient.invalidateQueries({ queryKey: queryKeys.dashboard.summary() });
+      queryClient.invalidateQueries({ queryKey: [...queryKeys.hub.deliveries(districtId), 'active'] });
     },
   });
 
