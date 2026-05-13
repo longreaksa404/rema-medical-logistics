@@ -243,7 +243,7 @@ function TriggerPanel({
   ];
 
   const trueCount = Object.values(currentConditions).filter(Boolean).length;
-  const shouldBlock = isLoading || trueCount >= 2;
+  const shouldBlock = trueCount >= 2;
 
   return (
     <div className="card border border-accent-yellow/20 bg-accent-yellow/5 p-4">
@@ -428,18 +428,14 @@ export function DashboardPage() {
   // ── Trigger condition handler — optimistic, zero perceived latency ─────────
   const handleTrigger = useCallback(async (condition: TriggerConditionKey) => {
     setPhaseError('');
-    setTriggerLoading(true);
-
     setLocalConditions(prev => ({ ...prev, [condition]: true }));
 
     try {
       await alertApi.trigger(condition);
-      await fetchAll(false);
+      fetchAll(false);
     } catch (err: unknown) {
       setLocalConditions(prev => ({ ...prev, [condition]: false }));
       setPhaseError(err instanceof Error ? err.message : 'Failed to submit condition');
-    } finally {
-      setTriggerLoading(false);
     }
   }, [fetchAll]);
 

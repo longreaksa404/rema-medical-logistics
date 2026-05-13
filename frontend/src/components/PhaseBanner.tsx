@@ -84,18 +84,22 @@ export function PhaseBanner({ phase, activated, activatedAt, triggerConditions }
                 keyof typeof triggerConditions,
                 boolean
               ][]
-            ).map(([key, value]) => (
-              <span
-                key={key}
-                className={`font-mono text-[10px] px-2 py-0.5 rounded border ${
-                  value
-                    ? 'text-accent-orange border-accent-orange/40 bg-accent-orange/10'
-                    : 'text-text-muted border-bg-border bg-transparent'
-                }`}
-              >
-                {TRIGGER_LABELS[key]}
-              </span>
-            ))}
+            )
+              .filter(([, value]) => !activated || value)
+              .map(([key, value]) => (
+                <span
+                  key={key}
+                  className={`font-mono text-[10px] px-2 py-0.5 rounded border ${
+                    value
+                      ? phase === 2
+                        ? 'text-accent-red border-accent-red/40 bg-accent-red/10'
+                        : 'text-accent-orange border-accent-orange/40 bg-accent-orange/10'
+                      : 'text-text-muted border-bg-border bg-transparent'
+                  }`}
+                >
+                  {TRIGGER_LABELS[key]}
+                </span>
+              ))}
           </div>
         )}
 
