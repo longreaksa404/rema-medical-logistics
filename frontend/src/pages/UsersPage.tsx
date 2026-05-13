@@ -202,7 +202,13 @@ function EditUserPanel({ user, districts, currentUserId, onSuccess, onClose }: {
           <h3 className="font-sans font-bold text-text-primary">Edit User</h3>
           <p className="font-mono text-[10px] text-text-muted">{user.email}</p>
         </div>
-        <button onClick={onClose} className="font-mono text-xs text-text-muted hover:text-text-primary transition-colors flex-shrink-0">✕ Close</button>
+        <button 
+          onClick={onClose} 
+          className="flex items-center gap-1.5 px-2 py-1 -mr-2 font-mono text-[10px] uppercase tracking-wider hover:text-accent-red hover:bg-accent-red/10 rounded transition-all duration-200 flex-shrink-0"
+        >
+          <span className="text-xs">✕</span>
+          <span>Close</span>
+        </button>
       </div>
 
       {anyError && <ErrorBox msg={anyError} onDismiss={() => { setLocalError(''); updateMutation.reset(); resetMutation.reset(); }} />}
