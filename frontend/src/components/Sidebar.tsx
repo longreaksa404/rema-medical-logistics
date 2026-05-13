@@ -2,60 +2,87 @@ import { useState } from 'react';
 import { NavLink } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 
+type Role = 'SUPER_ADMIN' | 'EMERGENCY_COORDINATOR' | 'HUB_MANAGER' | 'VOLUNTEER' | 'VIEWER';
+
 interface NavItem {
   label: string;
   to: string;
-  roles?: ReturnType<typeof useAuth>['user'] extends { role: infer R } ? R[] : never;
+  roles?: Role[];
   icon: string;
 }
 
-const NAV_ITEMS: NavItem[] = [
+interface NavGroup {
+  label: string;
+  items: NavItem[];
+}
+
+const NAV_GROUPS: NavGroup[] = [
   {
-    label: 'Dashboard',
-    to: '/dashboard',
-    icon: '◈',
+    label: 'Operations',
+    items: [
+      {
+        label: 'Dashboard',
+        to: '/dashboard',
+        icon: '◈',
+      },
+      {
+        label: 'Routing',
+        to: '/routing',
+        icon: '⟁',
+        roles: ['EMERGENCY_COORDINATOR', 'HUB_MANAGER', 'SUPER_ADMIN'],
+      },
+      {
+        label: 'Prioritize',
+        to: '/prioritize',
+        icon: '⊞',
+        roles: ['EMERGENCY_COORDINATOR', 'HUB_MANAGER', 'VOLUNTEER', 'SUPER_ADMIN'],
+      },
+      {
+        label: 'Hub Portal',
+        to: '/hub',
+        icon: '⬡',
+        roles: ['HUB_MANAGER', 'SUPER_ADMIN', 'EMERGENCY_COORDINATOR'],
+      },
+      {
+        label: 'Volunteer',
+        to: '/volunteer',
+        icon: '⊕',
+        roles: ['VOLUNTEER', 'HUB_MANAGER', 'SUPER_ADMIN'],
+      },
+    ],
   },
   {
-    label: 'Routing',
-    to: '/routing',
-    icon: '⟁',
-    roles: ['EMERGENCY_COORDINATOR', 'HUB_MANAGER', 'SUPER_ADMIN'] as const,
+    label: 'Reference',
+    items: [
+      {
+        label: 'Warehouse',
+        to: '/warehouse',
+        icon: '⬢',
+      },
+      {
+        label: 'Stakeholder',
+        to: '/stakeholders',
+        icon: '⬢',
+      },
+      {
+        label: 'Protocol',
+        to: '/protocol',
+        icon: '⬡',
+      },
+    ],
   },
   {
-    label: 'Prioritize',
-    to: '/prioritize',
-    icon: '⊞',
-    roles: ['EMERGENCY_COORDINATOR', 'HUB_MANAGER', 'VOLUNTEER', 'SUPER_ADMIN'] as const,
+    label: 'Admin',
+    items: [
+      {
+        label: 'Users',
+        to: '/users',
+        icon: '⊗',
+        roles: ['SUPER_ADMIN'],
+      },
+    ],
   },
-  {
-    label: 'Stakeholder',
-    to: '/stakeholders',
-    icon: '⬢',
-  },
-  {
-    label: 'Protocol',
-    to: '/protocol',
-    icon: '⬡',
-  },
-  {
-    label: 'Hub Portal',
-    to: '/hub',
-    icon: '⬡',
-    roles: ['HUB_MANAGER', 'SUPER_ADMIN', 'EMERGENCY_COORDINATOR'] as const,
-  },
-  {
-    label: 'Volunteer',
-    to: '/volunteer',
-    icon: '⊕',
-    roles: ['VOLUNTEER', 'HUB_MANAGER', 'SUPER_ADMIN'] as const,
-  },
-  {
-    label: 'Users',
-    to: '/users',
-    icon: '⊗',
-    roles: ['SUPER_ADMIN'] as const,
-  },
-] as NavItem[];
+];
 
 export function Sidebar() {
   const { user, logout, isRole } = useAuth();
@@ -63,17 +90,10 @@ export function Sidebar() {
   const [collapsed, setCollapsed] = useState(false);
   const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
 
-  // ── Logout ────────────────────────────────────────────────────────────────
-  // AuthContext.logout() clears token immediately — ProtectedRoute detects
-  // the null token and redirects to /login automatically. No navigate() needed.
   function handleLogout() {
     setShowLogoutConfirm(false);
     logout();
   }
-
-  const visibleItems = NAV_ITEMS.filter(
-    (item) => !item.roles || isRole(...(item.roles as Parameters<typeof isRole>))
-  );
 
   return (
     <>
@@ -116,7 +136,11 @@ export function Sidebar() {
         }`}
       >
         {/* Logo + collapse toggle */}
-        <div className={`border-b border-bg-border flex items-center ${collapsed ? 'px-3 py-5 flex-col gap-3' : 'px-5 py-5 justify-between'}`}>
+        <div
+          className={`border-b border-bg-border flex items-center ${
+            collapsed ? 'px-3 py-5 flex-col gap-3' : 'px-5 py-5 justify-between'
+          }`}
+        >
           {collapsed && (
             <img
               src="/rema_logo_new.svg"
@@ -145,41 +169,67 @@ export function Sidebar() {
           )}
 
           <button
-            onClick={() => setCollapsed(prev => !prev)}
+            onClick={() => setCollapsed((prev) => !prev)}
             title={collapsed ? 'Expand sidebar' : 'Collapse sidebar'}
             className="w-7 h-7 flex items-center justify-center rounded border border-bg-border text-text-primary hover:border-text-muted transition-colors duration-100 flex-shrink-0"
           >
-            <span className="font-mono text-xs">
-              {collapsed ? '→' : '←'}
-            </span>
+            <span className="font-mono text-xs">{collapsed ? '→' : '←'}</span>
           </button>
         </div>
 
-        {/* Nav items */}
-        <nav className="flex-1 px-2 py-4 space-y-0.5 overflow-y-auto">
-          {visibleItems.map((item) => (
-            <NavLink
-              key={item.to}
-              to={item.to}
-              title={collapsed ? item.label : undefined}
-              className={({ isActive }) =>
-                [
-                  'flex items-center gap-3 px-2 py-2.5 rounded text-sm transition-colors duration-100',
-                  collapsed ? 'justify-center' : '',
-                  isActive
-                    ? 'bg-bg-elevated text-text-primary border border-bg-border'
-                    : 'text-text-secondary hover:text-text-primary hover:bg-bg-elevated/50',
-                ].join(' ')
-              }
-            >
-              <span className="font-mono text-base w-5 flex-shrink-0 text-center">
-                {item.icon}
-              </span>
-              {!collapsed && (
-                <span className="font-sans text-sm">{item.label}</span>
-              )}
-            </NavLink>
-          ))}
+        {/* Nav groups */}
+        <nav className="flex-1 px-2 py-3 overflow-y-auto">
+          {NAV_GROUPS.map((group, gi) => {
+            const visibleItems = group.items.filter(
+              (item) => !item.roles || isRole(...(item.roles as Parameters<typeof isRole>))
+            );
+
+            // Hide entire group if the user can't see any item in it
+            if (visibleItems.length === 0) return null;
+
+            return (
+              <div key={group.label} className={gi > 0 ? 'mt-1' : ''}>
+                {/* Divider between groups */}
+                {gi > 0 && (
+                  <div className="h-px bg-bg-border mx-1 my-2" />
+                )}
+
+                {/* Group label — hidden when collapsed */}
+                {!collapsed && (
+                  <p className="font-mono text-[9px] text-text-muted uppercase tracking-widest px-2 pt-2 pb-1 select-none">
+                    {group.label}
+                  </p>
+                )}
+
+                {/* Nav items */}
+                <div className="space-y-0.5">
+                  {visibleItems.map((item) => (
+                    <NavLink
+                      key={item.to}
+                      to={item.to}
+                      title={collapsed ? item.label : undefined}
+                      className={({ isActive }) =>
+                        [
+                          'flex items-center gap-3 px-2 py-2.5 rounded text-sm transition-colors duration-100',
+                          collapsed ? 'justify-center' : '',
+                          isActive
+                            ? 'bg-bg-elevated text-text-primary border border-bg-border'
+                            : 'text-text-secondary hover:text-text-primary hover:bg-bg-elevated/50',
+                        ].join(' ')
+                      }
+                    >
+                      <span className="font-mono text-base w-5 flex-shrink-0 text-center">
+                        {item.icon}
+                      </span>
+                      {!collapsed && (
+                        <span className="font-sans text-sm">{item.label}</span>
+                      )}
+                    </NavLink>
+                  ))}
+                </div>
+              </div>
+            );
+          })}
         </nav>
 
         {/* User info + logout */}
