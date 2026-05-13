@@ -217,26 +217,27 @@ const BAND_DISPLAY = [
 ] as const;
 
 // ─── TRIGGER PANEL ────────────────────────────────────────────────────────────
-// Shown when phase is 0 and not activated — EC and SUPER_ADMIN only
-// Submit 2 of 3 conditions to auto-activate Phase 1 (Section A.3)
+// NOT wrapped in memo — conditions must re-render instantly on parent state change
 
-const TriggerPanel = memo(function TriggerPanel({
+type TriggerConditionKey = 'warningLevelTwo' | 'rainfallExceeds100mm' | 'streetFloodingReport';
+
+interface TriggerConditions {
+  warningLevelTwo: boolean;
+  rainfallExceeds100mm: boolean;
+  streetFloodingReport: boolean;
+}
+
+function TriggerPanel({
   onTrigger,
-  isLoading,
   currentConditions,
 }: {
-  onTrigger: (condition: 'warningLevelTwo' | 'rainfallExceeds100mm' | 'streetFloodingReport') => void;
-  isLoading: boolean;
-  currentConditions: {
-    warningLevelTwo: boolean;
-    rainfallExceeds100mm: boolean;
-    streetFloodingReport: boolean;
-  };
+  onTrigger: (condition: TriggerConditionKey) => void;
+  currentConditions: TriggerConditions;
 }) {
-  const conditions = [
-    { key: 'warningLevelTwo' as const, label: 'Warning Lv.2', desc: 'City/provincial flood warning Level 2 or above' },
-    { key: 'rainfallExceeds100mm' as const, label: '100mm Rain', desc: 'Rainfall forecast exceeds 100mm in 24 hours' },
-    { key: 'streetFloodingReport' as const, label: 'Street Flooding', desc: 'Any target district reports street-level flooding' },
+  const conditions: { key: TriggerConditionKey; label: string; desc: string }[] = [
+    { key: 'warningLevelTwo', label: 'Warning Lv.2', desc: 'City/provincial flood warning Level 2 or above' },
+    { key: 'rainfallExceeds100mm', label: '100mm Rain', desc: 'Rainfall forecast exceeds 100mm in 24 hours' },
+    { key: 'streetFloodingReport', label: 'Street Flooding', desc: 'Any target district reports street-level flooding' },
   ];
 
   const trueCount = Object.values(currentConditions).filter(Boolean).length;
@@ -267,8 +268,8 @@ const TriggerPanel = memo(function TriggerPanel({
           return (
             <button
               key={key}
-              onClick={() => !active && onTrigger(key)}
-              disabled={active || isLoading}
+              onClick={() => { if (!active) onTrigger(key); }}
+              disabled={active}
               title={desc}
               className={`
                 flex items-center gap-2 px-3 py-2.5 rounded border text-left
@@ -277,10 +278,9 @@ const TriggerPanel = memo(function TriggerPanel({
                   ? 'border-accent-green/40 bg-accent-green/10 text-accent-green cursor-default'
                   : 'border-bg-border text-text-muted hover:border-accent-yellow/40 hover:text-accent-yellow hover:bg-accent-yellow/5 active:scale-95 cursor-pointer'
                 }
-                ${isLoading && !active ? 'opacity-50 cursor-not-allowed' : ''}
               `}
             >
-              <span className={`w-2 h-2 rounded-full flex-shrink-0 ${
+              <span className={`w-2 h-2 rounded-full flex-shrink-0 transition-colors duration-150 ${
                 active ? 'bg-accent-green' : 'bg-bg-border'
               }`} />
               <span className="font-mono text-[10px] uppercase tracking-widest">{label}</span>
@@ -299,7 +299,7 @@ const TriggerPanel = memo(function TriggerPanel({
       )}
     </div>
   );
-});
+}
 
 // ─── MAIN DASHBOARD PAGE ──────────────────────────────────────────────────────
 
@@ -314,6 +314,15 @@ export function DashboardPage() {
   const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
   const [isStale, setIsStale] = useState(false);
 
+  // ── Separate optimistic trigger conditions state ───────────────────────────
+  // This is the single source of truth for the TriggerPanel display.
+  // It updates instantly on click — never waits for the API.
+  const [localConditions, setLocalConditions] = useState<TriggerConditions>({
+    warningLevelTwo: false,
+    rainfallExceeds100mm: false,
+    streetFloodingReport: false,
+  });
+
   // ── AI Brief state ────────────────────────────────────────────────────────
   const [aiBriefOpen, setAiBriefOpen] = useState(false);
   const [aiBriefLoading, setAiBriefLoading] = useState(false);
@@ -323,23 +332,29 @@ export function DashboardPage() {
   // ── Phase / reset state ───────────────────────────────────────────────────
   const [resetLoading, setResetLoading] = useState(false);
   const [confirmResetOpen, setConfirmResetOpen] = useState(false);
-  const [triggerLoading, setTriggerLoading] = useState(false);
-  const [advancePhaseLoading, setAdvancePhaseLoading] = useState(false); // ← ADD
+  const [advancePhaseLoading, setAdvancePhaseLoading] = useState(false);
   const [phaseError, setPhaseError] = useState('');
 
   // ── Role checks ───────────────────────────────────────────────────────────
   const isSuperAdmin = user?.role === 'SUPER_ADMIN';
   const isEC = user?.role === 'EMERGENCY_COORDINATOR' || user?.role === 'SUPER_ADMIN';
 
-  // Show reset button only when system is active or advanced (something to reset)
   const showReset = isSuperAdmin && !!(data && (data.activated || data.phase > 0));
-
-  // Show trigger panel when phase is 0, not activated, and user is EC or SUPER_ADMIN
   const showTriggerPanel = isEC && !!(data && !data.activated && data.phase === 0);
-  // Show advance button: EC+, system activated, currently at phase 1 (can go to 2)
-  const showAdvancePhase = isEC && !!(data && data.activated && data.phase === 1); // ← ADD
-
+  const showAdvancePhase = isEC && !!(data && data.activated && data.phase === 1);
   const canUseAiBrief = isEC;
+
+  // ── Sync localConditions from server data ─────────────────────────────────
+  // When real data arrives, update localConditions to match server truth
+  useEffect(() => {
+    if (data?.triggerConditions) {
+      setLocalConditions({
+        warningLevelTwo: data.triggerConditions.warningLevelTwo,
+        rainfallExceeds100mm: data.triggerConditions.rainfallExceeds100mm,
+        streetFloodingReport: data.triggerConditions.streetFloodingReport,
+      });
+    }
+  }, [data?.triggerConditions]);
 
   // ── AI Brief handlers ─────────────────────────────────────────────────────
   const handleGenerateBrief = useCallback(async () => {
@@ -360,7 +375,7 @@ export function DashboardPage() {
     }
   }, []);
 
-  // ── Dashboard fetch — declared first, used by all handlers below ─────────
+  // ── Dashboard fetch ───────────────────────────────────────────────────────
   const fetchAll = useCallback(async (silent = false) => {
     if (!silent) setIsRefreshing(true);
     try {
@@ -379,18 +394,19 @@ export function DashboardPage() {
 
   const handleCloseBrief = useCallback(() => setAiBriefOpen(false), []);
 
-  // ── Reset handler — opens confirm modal ───────────────────────────────────
+  // ── Reset handler ─────────────────────────────────────────────────────────
   const handleReset = useCallback(() => {
     setConfirmResetOpen(true);
   }, []);
 
-  // ── Confirmed reset — called from ConfirmModal onConfirm ──────────────────
   const handleConfirmReset = useCallback(async () => {
     setResetLoading(true);
     setPhaseError('');
     try {
       await alertApi.reset();
       setConfirmResetOpen(false);
+      // Reset local conditions immediately
+      setLocalConditions({ warningLevelTwo: false, rainfallExceeds100mm: false, streetFloodingReport: false });
       await fetchAll(false);
     } catch (err: unknown) {
       setPhaseError(err instanceof Error ? err.message : 'Reset failed');
@@ -399,21 +415,45 @@ export function DashboardPage() {
     }
   }, [fetchAll]);
 
-  // ── Trigger condition handler ─────────────────────────────────────────────
-  const handleTrigger = useCallback(async (
-    condition: 'warningLevelTwo' | 'rainfallExceeds100mm' | 'streetFloodingReport'
-  ) => {
-    setTriggerLoading(true);
+  // ── Trigger condition handler — optimistic, zero perceived latency ─────────
+  const handleTrigger = useCallback(async (condition: TriggerConditionKey) => {
     setPhaseError('');
+
+    // 1. Update localConditions instantly — this is what TriggerPanel reads
+    const next: TriggerConditions = { ...localConditions, [condition]: true };
+    setLocalConditions(next);
+
+    // 2. If 2+ conditions now met, optimistically update phase/activation on data too
+    const trueCount = Object.values(next).filter(Boolean).length;
+    if (trueCount >= 2 && data && !data.activated) {
+      setData(prev => prev ? {
+        ...prev,
+        triggerConditions: next,
+        activated: true,
+        activatedAt: new Date().toISOString(),
+        phase: 1 as 0 | 1 | 2,
+      } : prev);
+    }
+
+    // 3. Fire API silently in background
     try {
       await alertApi.trigger(condition);
-      await fetchAll(false);
+      fetchAll(true);
     } catch (err: unknown) {
+      // Roll back on failure
+      setLocalConditions(localConditions);
+      if (trueCount >= 2 && data && !data.activated) {
+        setData(prev => prev ? {
+          ...prev,
+          triggerConditions: localConditions,
+          activated: false,
+          activatedAt: null,
+          phase: 0 as 0 | 1 | 2,
+        } : prev);
+      }
       setPhaseError(err instanceof Error ? err.message : 'Failed to submit condition');
-    } finally {
-      setTriggerLoading(false);
     }
-  }, [fetchAll]);
+  }, [localConditions, data, fetchAll]);
 
   // ── Advance phase handler ─────────────────────────────────────────────────
   const handleAdvancePhase = useCallback(async () => {
@@ -431,6 +471,7 @@ export function DashboardPage() {
     }
   }, [data, fetchAll]);
 
+  // ── Init + polling ────────────────────────────────────────────────────────
   useEffect(() => {
     const init = async () => {
       try {
@@ -488,15 +529,14 @@ export function DashboardPage() {
       showAiBrief={canUseAiBrief}
       onAiBrief={handleGenerateBrief}
       aiBriefLoading={aiBriefLoading}
-      showAdvancePhase={showAdvancePhase}      
-      onAdvancePhase={handleAdvancePhase}         
-      advancePhaseLoading={advancePhaseLoading}  
-      advancePhaseLabel="Advance to Phase 2"    
+      showAdvancePhase={showAdvancePhase}
+      onAdvancePhase={handleAdvancePhase}
+      advancePhaseLoading={advancePhaseLoading}
+      advancePhaseLabel="Advance to Phase 2"
       showReset={showReset}
       onReset={handleReset}
       resetLoading={resetLoading}
     >
-      {/* AI Brief Modal */}
       <AiBriefModal
         isOpen={aiBriefOpen}
         isLoading={aiBriefLoading}
@@ -505,7 +545,6 @@ export function DashboardPage() {
         onClose={handleCloseBrief}
       />
 
-      {/* Reset confirmation modal */}
       <ConfirmModal
         isOpen={confirmResetOpen}
         title="Reset System"
@@ -552,12 +591,7 @@ export function DashboardPage() {
           {showTriggerPanel && (
             <TriggerPanel
               onTrigger={handleTrigger}
-              isLoading={triggerLoading}
-              currentConditions={{
-                warningLevelTwo: data.triggerConditions?.warningLevelTwo ?? false,
-                rainfallExceeds100mm: data.triggerConditions?.rainfallExceeds100mm ?? false,
-                streetFloodingReport: data.triggerConditions?.streetFloodingReport ?? false,
-              }}
+              currentConditions={localConditions}
             />
           )}
 
