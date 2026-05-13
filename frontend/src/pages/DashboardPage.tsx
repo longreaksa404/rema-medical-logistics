@@ -324,6 +324,7 @@ export function DashboardPage() {
   const [resetLoading, setResetLoading] = useState(false);
   const [confirmResetOpen, setConfirmResetOpen] = useState(false);
   const [triggerLoading, setTriggerLoading] = useState(false);
+  const [advancePhaseLoading, setAdvancePhaseLoading] = useState(false); // ← ADD
   const [phaseError, setPhaseError] = useState('');
 
   // ── Role checks ───────────────────────────────────────────────────────────
@@ -335,6 +336,8 @@ export function DashboardPage() {
 
   // Show trigger panel when phase is 0, not activated, and user is EC or SUPER_ADMIN
   const showTriggerPanel = isEC && !!(data && !data.activated && data.phase === 0);
+  // Show advance button: EC+, system activated, currently at phase 1 (can go to 2)
+  const showAdvancePhase = isEC && !!(data && data.activated && data.phase === 1); // ← ADD
 
   const canUseAiBrief = isEC;
 
@@ -412,6 +415,22 @@ export function DashboardPage() {
     }
   }, [fetchAll]);
 
+  // ── Advance phase handler ─────────────────────────────────────────────────
+  const handleAdvancePhase = useCallback(async () => {
+    if (!data) return;
+    const nextPhase = (data.phase + 1) as 1 | 2;
+    setAdvancePhaseLoading(true);
+    setPhaseError('');
+    try {
+      await alertApi.advancePhase(nextPhase);
+      await fetchAll(false);
+    } catch (err: unknown) {
+      setPhaseError(err instanceof Error ? err.message : 'Failed to advance phase');
+    } finally {
+      setAdvancePhaseLoading(false);
+    }
+  }, [data, fetchAll]);
+
   useEffect(() => {
     const init = async () => {
       try {
@@ -469,6 +488,10 @@ export function DashboardPage() {
       showAiBrief={canUseAiBrief}
       onAiBrief={handleGenerateBrief}
       aiBriefLoading={aiBriefLoading}
+      showAdvancePhase={showAdvancePhase}      
+      onAdvancePhase={handleAdvancePhase}         
+      advancePhaseLoading={advancePhaseLoading}  
+      advancePhaseLabel="Advance to Phase 2"    
       showReset={showReset}
       onReset={handleReset}
       resetLoading={resetLoading}

@@ -12,6 +12,11 @@ interface DashboardLayoutProps {
   onAiBrief?: () => void;
   aiBriefLoading?: boolean;
   showAiBrief?: boolean;
+  // Phase advance  ← ADD THESE THREE
+  onAdvancePhase?: () => void;
+  advancePhaseLoading?: boolean;
+  showAdvancePhase?: boolean;
+  advancePhaseLabel?: string;
   // Phase reset
   onReset?: () => void;
   resetLoading?: boolean;
@@ -29,6 +34,10 @@ export function DashboardLayout({
   onAiBrief,
   aiBriefLoading = false,
   showAiBrief = false,
+  onAdvancePhase,                   // ← ADD
+  advancePhaseLoading = false,      // ← ADD
+  showAdvancePhase = false,         // ← ADD
+  advancePhaseLabel = 'Advance Phase', // ← ADD
   onReset,
   resetLoading = false,
   showReset = false,
@@ -88,8 +97,45 @@ export function DashboardLayout({
             </button>
           )}
 
-          {/* Divider between AI brief and destructive actions */}
-          {showAiBrief && showReset && (
+          {/* Divider between AI brief and phase controls */}
+          {showAiBrief && (showAdvancePhase || showReset) && (
+            <div className="h-5 w-px bg-bg-border flex-shrink-0" />
+          )}
+
+          {/* Advance Phase button — EC and SUPER_ADMIN, phases 1 only */}
+          {showAdvancePhase && onAdvancePhase && (
+            <button
+              onClick={onAdvancePhase}
+              disabled={advancePhaseLoading}
+              title={advancePhaseLabel}
+              className={`
+                flex items-center gap-1.5 px-3 py-1.5 rounded border font-mono text-xs
+                transition-all duration-150
+                ${advancePhaseLoading
+                  ? 'border-bg-border text-text-muted cursor-not-allowed bg-bg-elevated'
+                  : 'border-accent-orange/40 text-accent-orange bg-accent-orange/5 hover:bg-accent-orange/15 hover:border-accent-orange/60 active:scale-95'
+                }
+              `}
+            >
+              {advancePhaseLoading ? (
+                <>
+                  <div className="w-3 h-3 border border-text-muted border-t-accent-orange rounded-full animate-spin flex-shrink-0" />
+                  <span className="hidden sm:inline">Advancing...</span>
+                </>
+              ) : (
+                <>
+                  <svg width="11" height="11" viewBox="0 0 12 12" fill="none" className="flex-shrink-0">
+                    <path d="M6 1v10M6 1l4 4M6 1L2 5" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round"/>
+                  </svg>
+                  <span className="hidden sm:inline">{advancePhaseLabel}</span>
+                  <span className="sm:hidden">Ph2</span>
+                </>
+              )}
+            </button>
+          )}
+
+          {/* Divider between advance and reset */}
+          {showAdvancePhase && showReset && (
             <div className="h-5 w-px bg-bg-border flex-shrink-0" />
           )}
 
