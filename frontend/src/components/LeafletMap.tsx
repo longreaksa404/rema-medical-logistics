@@ -155,24 +155,23 @@ export function LeafletMap({
         }).addTo(map);
       }
 
-      const zoneLines = Object.entries(depths).map(([zone, dep]) => {
-        const m = MODE_CONFIG[depthToMode(dep)];
-        return `<span style="color:${m.fillColor}">${zone}: ${dep}cm</span>`;
-      }).join(' &nbsp;•&nbsp; ');
+      // const zoneLines = Object.entries(depths).map(([zone, dep]) => {
+      //   const m = MODE_CONFIG[depthToMode(dep)];
+      //   return `<span style="color:${m.fillColor}">${zone}: ${dep}cm</span>`;
+      // }).join(' &nbsp;•&nbsp; ');
 
       const labelHtml = `
-        <div style="background:rgba(13,17,23,0.97);border:2px solid ${cfg.fillColor};border-radius:8px;padding:8px 14px;font-family:'JetBrains Mono',monospace;min-width:155px;box-shadow:0 8px 24px rgba(0,0,0,0.5);">
-          <div style="font-size:22px;line-height:1;">${cfg.icon}</div>
-          <div style="color:#e6edf3;font-weight:700;font-size:13px;margin:5px 0 2px;">${district.name}</div>
-          <div style="color:${cfg.fillColor};font-size:11px;">${avgDepth}cm &mdash; ${cfg.label}</div>
-          <div style="margin-top:6px;font-size:9px;color:#8b949e;line-height:1.6;">${zoneLines}</div>
+        <div style="background:rgba(13,17,23,0.85);border:1px solid ${cfg.fillColor};border-radius:4px;padding:3px 8px;font-family:'JetBrains Mono',monospace;white-space:nowrap;backdrop-filter:blur(4px);">
+          <span style="font-size:11px;">${cfg.icon}</span>
+          <span style="color:#e6edf3;font-weight:600;font-size:10px;margin:0 4px;">${district.name}</span>
+          <span style="color:${cfg.fillColor};font-size:10px;">${avgDepth}cm</span>
         </div>`;
 
       const labelIcon = L.divIcon({
         className: 'custom-label',
         html: labelHtml,
-        iconSize: [165, 120],
-        iconAnchor: [82, 65],
+        iconSize: [140, 24],
+        iconAnchor: [70, 12],
       });
 
       const marker = L.marker(center, { icon: labelIcon }).addTo(map);

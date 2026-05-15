@@ -1,8 +1,10 @@
 // HubPage.tsx — V7 Hub Manager Portal
-// Fully migrated to React Query.
-// - useQuery per tab: cached, deduplicated, survives navigation
-// - useMutation for all writes: auto-invalidates relevant queries on success
-// - No cacheRef, no setInterval, no manual staleness checks
+// Fixes applied:
+//   1. Central warehouse stock row (GET /api/stock/status)
+//   2. Reallocation form gated to EMERGENCY_COORDINATOR (POST /api/stock/reallocate)
+//   3. Volunteer role filter: TEAM_LEADER only in delivery run lead dropdown
+//   4. Civil defense escalation note on VOLUNTEER_SAFETY incidents
+//   5. Radio tab subtitle clarified
 
 import { useState, useCallback, useMemo } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
@@ -97,8 +99,19 @@ function SuccessBox({ msg, onDismiss }: { msg: string; onDismiss: () => void }) 
 
 // ─── TAB: STOCK ───────────────────────────────────────────────────────────────
 
-function StockTab({ districtId, subWarehouseId }: { districtId: string; subWarehouseId: string | null }) {
+function StockTab({
+  districtId,
+  subWarehouseId,
+  allSubWarehouses,
+}: {
+  districtId: string;
+  subWarehouseId: string | null;
+  allSubWarehouses: DistrictCard[];
+}) {
   const queryClient = useQueryClient();
+  const { isRole } = useAuth();
+  const isEC = isRole('EMERGENCY_COORDINATOR') || isRole('SUPER_ADMIN');
+
   const [success, setSuccess] = useState('');
   const [dispEmkType, setDispEmkType] = useState<'EMK1' | 'EMK2' | 'EMK3'>('EMK1');
   const [dispQty, setDispQty] = useState('');
@@ -107,12 +120,29 @@ function StockTab({ districtId, subWarehouseId }: { districtId: string; subWareh
   const [adjQty, setAdjQty] = useState('');
   const [adjReason, setAdjReason] = useState('');
 
-  // Parallel fetch stock + movements
+  // Reallocation state — EC only
+  const [reallocFrom, setReallocFrom] = useState('');
+  const [reallocTo, setReallocTo] = useState('');
+  const [reallocEmk, setReallocEmk] = useState<'EMK1' | 'EMK2' | 'EMK3'>('EMK3');
+  const [reallocQty, setReallocQty] = useState('');
+  const [reallocReason, setReallocReason] = useState('');
+
+  // Sub-warehouse stock (this district)
   const { data: stock, isLoading: stockLoading } = useQuery({
     queryKey: queryKeys.hub.stock(districtId),
     queryFn: () => hubApi.getDistrictStock(districtId),
     enabled: !!districtId,
   });
+
+  // All districts stock — for central warehouse summary
+  const { data: allStock = [] } = useQuery({
+    queryKey: ['stock', 'all'],
+    queryFn: async () => {
+      const res = await api.get('/api/stock/status');
+      return res.data as StockLevel[];
+    },
+  });
+
   const { data: movements = [], isLoading: movementsLoading } = useQuery({
     queryKey: queryKeys.hub.movements(districtId),
     queryFn: () => hubApi.getMovements(districtId),
@@ -122,11 +152,26 @@ function StockTab({ districtId, subWarehouseId }: { districtId: string; subWareh
 
   const isLoading = stockLoading || movementsLoading;
 
-  // Invalidate both stock + movements + dashboard summary on any write
+  // Central warehouse totals — sum of all sub-warehouse allocations
+  const centralReserve = useMemo(() => ({
+    emk1: allStock.reduce((sum, s) => sum + (s.emk1Total ?? 0), 0),
+    emk2: allStock.reduce((sum, s) => sum + (s.emk2Total ?? 0), 0),
+    emk3: allStock.reduce((sum, s) => sum + (s.emk3Total ?? 0), 0),
+    emk1Rem: allStock.reduce((sum, s) => sum + (s.emk1Remaining ?? 0), 0),
+    emk2Rem: allStock.reduce((sum, s) => sum + (s.emk2Remaining ?? 0), 0),
+    emk3Rem: allStock.reduce((sum, s) => sum + (s.emk3Remaining ?? 0), 0),
+  }), [allStock]);
+
   const invalidateStock = useCallback(() => {
     queryClient.invalidateQueries({ queryKey: queryKeys.hub.stock(districtId) });
     queryClient.invalidateQueries({ queryKey: queryKeys.hub.movements(districtId) });
+    queryClient.invalidateQueries({ queryKey: ['stock', 'all'] });
     queryClient.invalidateQueries({ queryKey: queryKeys.dashboard.summary() });
+    
+    // Force refetch immediately
+    setTimeout(() => {
+      queryClient.refetchQueries({ queryKey: queryKeys.hub.stock(districtId) });
+    }, 300);
   }, [queryClient, districtId]);
 
   const dispatchMutation = useMutation({
@@ -147,8 +192,21 @@ function StockTab({ districtId, subWarehouseId }: { districtId: string; subWareh
     },
   });
 
+  const reallocMutation = useMutation({
+    mutationFn: hubApi.reallocate,
+    onSuccess: (_, vars) => {
+      setSuccess(`Reallocated ${vars.quantity}× ${vars.emkType} between districts.`);
+      setReallocQty(''); setReallocReason(''); setReallocFrom(''); setReallocTo('');
+      invalidateStock();
+    },
+  });
+
   const EMK_TYPES: Array<'EMK1' | 'EMK2' | 'EMK3'> = ['EMK1', 'EMK2', 'EMK3'];
-  const EMK_COLORS = { EMK1: 'text-accent-blue', EMK2: 'text-accent-green', EMK3: 'text-accent-yellow' };
+  const EMK_COLORS: Record<string, string> = {
+    EMK1: 'text-accent-blue',
+    EMK2: 'text-accent-green',
+    EMK3: 'text-accent-yellow',
+  };
   const MOVE_COLORS: Record<string, string> = {
     DISPATCH: 'text-accent-green border-accent-green/30 bg-accent-green/5',
     MOH_TRANSFER: 'text-accent-yellow border-accent-yellow/30 bg-accent-yellow/5',
@@ -169,15 +227,69 @@ function StockTab({ districtId, subWarehouseId }: { districtId: string; subWareh
 
   const dispatchError = dispatchMutation.error as { response?: { data?: { error?: string } } } | null;
   const adjustError = adjustMutation.error as { response?: { data?: { error?: string } } } | null;
-  const mutationError = dispatchError?.response?.data?.error ?? adjustError?.response?.data?.error ?? '';
+  const reallocError = reallocMutation.error as { response?: { data?: { error?: string } } } | null;
+  const mutationError =
+    dispatchError?.response?.data?.error ??
+    adjustError?.response?.data?.error ??
+    reallocError?.response?.data?.error ?? '';
 
   return (
     <div className="space-y-6">
-      {mutationError && <ErrorBox msg={mutationError} onDismiss={() => { dispatchMutation.reset(); adjustMutation.reset(); }} />}
+      {mutationError && (
+        <ErrorBox msg={mutationError} onDismiss={() => {
+          dispatchMutation.reset(); adjustMutation.reset(); reallocMutation.reset();
+        }} />
+      )}
       {success && <SuccessBox msg={success} onDismiss={() => setSuccess('')} />}
 
+      {/* ── Central Warehouse Summary ── */}
+      {allStock.length > 0 && (
+        <div className="card p-4 border-bg-border">
+          <div className="flex items-center justify-between mb-3">
+            <div>
+              <p className="font-mono text-[10px] text-text-muted uppercase tracking-widest">
+                Central Warehouse — All Districts Combined
+              </p>
+              <p className="font-mono text-[9px] text-text-muted mt-0.5">
+                Total remaining / total dispatched across 3 sub-warehouses
+              </p>
+            </div>
+            <span className="font-mono text-[9px] text-text-muted px-2 py-1 rounded border border-bg-border">
+              30% reserve held
+            </span>
+          </div>
+          <div className="flex gap-6">
+            {[
+              { key: 'emk1', rem: centralReserve.emk1Rem, total: centralReserve.emk1 },
+              { key: 'emk2', rem: centralReserve.emk2Rem, total: centralReserve.emk2 },
+              { key: 'emk3', rem: centralReserve.emk3Rem, total: centralReserve.emk3 },
+            ].map(({ key, rem, total }) => {
+              const pct = total > 0 ? Math.round((rem / total) * 100) : 0;
+              return (
+                <div key={key} className="flex-1">
+                  <span className={`font-mono text-xs font-bold ${EMK_COLORS[key.toUpperCase()]}`}>
+                    {key.toUpperCase()}
+                  </span>
+                  <p className="font-mono text-xl font-bold text-text-primary mt-0.5">
+                    {fmt(rem)}
+                  </p>
+                  <p className="font-mono text-[9px] text-text-muted">of {fmt(total)} · {pct}%</p>
+                  <div className="mt-1.5 h-1 bg-bg-border rounded-full overflow-hidden">
+                    <div
+                      className={`h-full rounded-full ${pct > 60 ? 'bg-accent-green' : pct > 30 ? 'bg-accent-yellow' : 'bg-accent-red'}`}
+                      style={{ width: `${Math.max(pct, 2)}%` }}
+                    />
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
+
+      {/* ── Sub-Warehouse Stock Cards ── */}
       <div>
-        <SectionTitle sub="Current remaining / total allocated at sub-warehouse">Stock Levels</SectionTitle>
+        <SectionTitle sub="Current remaining / total allocated at this sub-warehouse">Stock Levels</SectionTitle>
         {stock ? (
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
             {EMK_TYPES.map((type) => {
@@ -189,16 +301,26 @@ function StockTab({ districtId, subWarehouseId }: { districtId: string; subWareh
                 <div key={type} className={`card p-4 ${scarce ? 'border-accent-red/40' : ''}`}>
                   <div className="flex items-center justify-between mb-2">
                     <span className={`font-mono text-sm font-bold ${EMK_COLORS[type]}`}>{type}</span>
-                    {scarce && <span className="font-mono text-[9px] text-accent-red bg-accent-red/10 px-1.5 py-0.5 rounded border border-accent-red/30 animate-pulse">⚠ SCARCE</span>}
+                    {scarce && (
+                      <span className="font-mono text-[9px] text-accent-red bg-accent-red/10 px-1.5 py-0.5 rounded border border-accent-red/30 animate-pulse">
+                        ⚠ SCARCE
+                      </span>
+                    )}
                   </div>
                   <p className="font-mono text-2xl font-bold text-text-primary">{fmt(rem)}</p>
                   <p className="font-mono text-[10px] text-text-muted mt-0.5">of {fmt(total)} · {pct}%</p>
                   <div className="mt-2 h-1.5 bg-bg-border rounded-full overflow-hidden">
-                    <div className={`h-full rounded-full transition-all duration-500 ${scarce ? 'bg-accent-red' : pct > 60 ? 'bg-accent-green' : pct > 30 ? 'bg-accent-yellow' : 'bg-accent-orange'}`}
-                      style={{ width: `${Math.max(pct, 2)}%` }} />
+                    <div
+                      className={`h-full rounded-full transition-all duration-500 ${
+                        scarce ? 'bg-accent-red' : pct > 60 ? 'bg-accent-green' : pct > 30 ? 'bg-accent-yellow' : 'bg-accent-orange'
+                      }`}
+                      style={{ width: `${Math.max(pct, 2)}%` }}
+                    />
                   </div>
                   {type === 'EMK3' && total === 0 && (
-                    <p className="font-mono text-[9px] text-text-muted mt-1.5">MoH cold storage — transferred at activation</p>
+                    <p className="font-mono text-[9px] text-text-muted mt-1.5">
+                      MoH cold storage — transferred at activation
+                    </p>
                   )}
                 </div>
               );
@@ -207,6 +329,7 @@ function StockTab({ districtId, subWarehouseId }: { districtId: string; subWareh
         ) : <Empty message="No stock record found for this district." />}
       </div>
 
+      {/* ── Dispatch + Adjust ── */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
         <div className="card p-5">
           <SectionTitle sub="Record stock arriving from central warehouse">Record Dispatch</SectionTitle>
@@ -220,18 +343,26 @@ function StockTab({ districtId, subWarehouseId }: { districtId: string; subWareh
               </div>
               <div>
                 <label className="label">Quantity</label>
-                <input type="number" min="1" className="input" placeholder="e.g. 200" value={dispQty} onChange={e => setDispQty(e.target.value)} />
+                <input type="number" min="1" className="input" placeholder="e.g. 200"
+                  value={dispQty} onChange={e => setDispQty(e.target.value)} />
               </div>
             </div>
             <div>
               <label className="label">Reason (optional)</label>
-              <input type="text" className="input" placeholder="Phase 1 resupply..." value={dispReason} onChange={e => setDispReason(e.target.value)} />
+              <input type="text" className="input" placeholder="Phase 1 resupply..."
+                value={dispReason} onChange={e => setDispReason(e.target.value)} />
             </div>
-            <button onClick={() => subWarehouseId && dispQty && dispatchMutation.mutate({ subWarehouseId, emkType: dispEmkType, quantity: Number(dispQty), reason: dispReason || undefined })}
-              disabled={dispatchMutation.isPending || !dispQty || !subWarehouseId} className="btn-primary w-full">
+            <button
+              onClick={() => subWarehouseId && dispQty && dispatchMutation.mutate({
+                subWarehouseId, emkType: dispEmkType, quantity: Number(dispQty), reason: dispReason || undefined,
+              })}
+              disabled={dispatchMutation.isPending || !dispQty || !subWarehouseId}
+              className="btn-primary w-full">
               {dispatchMutation.isPending ? 'Recording...' : 'Record Dispatch'}
             </button>
-            {!subWarehouseId && <p className="font-mono text-[10px] text-accent-orange">No sub-warehouse assigned to this district.</p>}
+            {!subWarehouseId && (
+              <p className="font-mono text-[10px] text-accent-orange">No sub-warehouse assigned to this district.</p>
+            )}
           </div>
         </div>
 
@@ -247,21 +378,137 @@ function StockTab({ districtId, subWarehouseId }: { districtId: string; subWareh
               </div>
               <div>
                 <label className="label">Quantity (+/−)</label>
-                <input type="number" className="input" placeholder="-5 or +10" value={adjQty} onChange={e => setAdjQty(e.target.value)} />
+                <input type="number" className="input" placeholder="-5 or +10"
+                  value={adjQty} onChange={e => setAdjQty(e.target.value)} />
               </div>
             </div>
             <div>
               <label className="label">Reason (required)</label>
-              <input type="text" className="input" placeholder="e.g. Water-damaged kits removed" value={adjReason} onChange={e => setAdjReason(e.target.value)} />
+              <input type="text" className="input" placeholder="e.g. Water-damaged kits removed"
+                value={adjReason} onChange={e => setAdjReason(e.target.value)} />
             </div>
-            <button onClick={() => subWarehouseId && adjQty && adjReason.trim() && adjustMutation.mutate({ subWarehouseId, emkType: adjEmkType, quantity: Number(adjQty), reason: adjReason })}
-              disabled={adjustMutation.isPending || !adjQty || !adjReason.trim() || !subWarehouseId} className="btn-ghost w-full">
+            <button
+              onClick={() => subWarehouseId && adjQty && adjReason.trim() && adjustMutation.mutate({
+                subWarehouseId, emkType: adjEmkType, quantity: Number(adjQty), reason: adjReason,
+              })}
+              disabled={adjustMutation.isPending || !adjQty || !adjReason.trim() || !subWarehouseId}
+              className="btn-ghost w-full">
               {adjustMutation.isPending ? 'Adjusting...' : 'Record Adjustment'}
             </button>
           </div>
         </div>
       </div>
 
+      {/* ── Reallocation — Emergency Coordinator only ── */}
+      {isEC && allSubWarehouses.length > 1 && (
+        <div className="card p-5 border-accent-blue/20">
+          <SectionTitle sub="Cross-district reallocation — Emergency Coordinator only (Section D.4.1)">
+            Reallocate Stock Between Districts
+          </SectionTitle>
+          <div className="space-y-3">
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+              <div>
+                <label className="label">From District</label>
+                <select 
+                  value={reallocFrom} 
+                  onChange={e => setReallocFrom(e.target.value)} 
+                  className="input"
+                >
+                  <option value="">Select source...</option>
+                  {allSubWarehouses.map(d => {
+                    const id = d.subWarehouseId ?? '';
+                    return (
+                      <option key={id} value={id}>
+                        {d.name}
+                      </option>
+                    );
+                  })}
+                </select>
+              </div>
+
+              <div>
+                <label className="label">To District</label>
+                <select 
+                  value={reallocTo} 
+                  onChange={e => setReallocTo(e.target.value)} 
+                  className="input"
+                >
+                  <option value="">Select destination...</option>
+                  {allSubWarehouses
+                    .filter(d => (d.subWarehouseId ?? '') !== reallocFrom)
+                    .map(d => {
+                      const id = d.subWarehouseId ?? '';
+                      return (
+                        <option key={id} value={id}>
+                          {d.name}
+                        </option>
+                      );
+                    })}
+                </select>
+              </div>
+
+              <div>
+                <label className="label">EMK Type</label>
+                <select 
+                  value={reallocEmk} 
+                  onChange={e => setReallocEmk(e.target.value as 'EMK1' | 'EMK2' | 'EMK3')} 
+                  className="input"
+                >
+                  {EMK_TYPES.map(t => <option key={t} value={t}>{t}</option>)}
+                </select>
+              </div>
+            </div>
+            {/* Rest of the form remains the same */}
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label className="label">Quantity</label>
+                <input 
+                  type="number" 
+                  min="1" 
+                  className="input" 
+                  placeholder="e.g. 150"
+                  value={reallocQty} 
+                  onChange={e => setReallocQty(e.target.value)} 
+                />
+              </div>
+              <div>
+                <label className="label">Reason (required)</label>
+                <input 
+                  type="text" 
+                  className="input" 
+                  placeholder="e.g. District 1 EMK3 at 35%"
+                  value={reallocReason} 
+                  onChange={e => setReallocReason(e.target.value)} 
+                />
+              </div>
+            </div>
+            {/* button stays the same */}
+            <button
+              onClick={() =>
+                reallocFrom && reallocTo && reallocQty && reallocReason.trim() &&
+                reallocMutation.mutate({
+                  fromSubWarehouseId: reallocFrom,
+                  toSubWarehouseId: reallocTo,
+                  emkType: reallocEmk,
+                  quantity: Number(reallocQty),
+                  reason: reallocReason,
+                })
+              }
+              disabled={
+                reallocMutation.isPending ||
+                !reallocFrom || !reallocTo ||
+                !reallocQty || !reallocReason.trim() ||
+                reallocFrom === reallocTo
+              }
+              className="btn-primary w-full"
+            >
+              {reallocMutation.isPending ? 'Reallocating...' : `Reallocate ${reallocEmk}`}
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* ── Audit Log ── */}
       <div>
         <SectionTitle sub="Last 50 stock movements for this district">Audit Log</SectionTitle>
         <div className="card divide-y divide-bg-border">
@@ -269,7 +516,9 @@ function StockTab({ districtId, subWarehouseId }: { districtId: string; subWareh
             <div key={m.id} className="px-4 py-3 flex items-start justify-between gap-3">
               <div className="min-w-0 flex-1">
                 <div className="flex items-center gap-2 flex-wrap mb-0.5">
-                  <span className={`font-mono text-[10px] px-1.5 py-0.5 rounded border ${MOVE_COLORS[m.movementType] ?? 'text-text-muted border-bg-border'}`}>{m.movementType}</span>
+                  <span className={`font-mono text-[10px] px-1.5 py-0.5 rounded border ${MOVE_COLORS[m.movementType] ?? 'text-text-muted border-bg-border'}`}>
+                    {m.movementType}
+                  </span>
                   <span className={`font-mono text-xs font-semibold ${EMK_COLORS[m.emkType]}`}>{m.emkType}</span>
                   <span className={`font-mono text-sm font-bold ${m.quantity > 0 ? 'text-accent-green' : 'text-accent-red'}`}>
                     {m.quantity > 0 ? '+' : ''}{fmt(m.quantity)}
@@ -299,7 +548,6 @@ function VolunteersTab({ districtId, subWarehouseId }: { districtId: string; sub
   const [assignZone, setAssignZone] = useState('Zone A');
   const [assignTeam, setAssignTeam] = useState(1);
 
-  // Parallel: roster + alert status
   const { data: roster, isLoading: rosterLoading } = useQuery({
     queryKey: queryKeys.hub.volunteers(districtId),
     queryFn: () => hubApi.getRoster(districtId),
@@ -335,12 +583,12 @@ function VolunteersTab({ districtId, subWarehouseId }: { districtId: string; sub
   });
 
   const statusMutation = useMutation({
-  mutationFn: ({ id, status }: { id: string; status: 'AVAILABLE' | 'INACTIVE' }) => 
-    hubApi.updateVolunteer(id, { status }),
-  onSuccess: (_, vars) => {
-    setSuccess(`Volunteer → ${vars.status}`);
-    invalidateRoster();
-  },
+    mutationFn: ({ id, status }: { id: string; status: 'AVAILABLE' | 'INACTIVE' }) =>
+      hubApi.updateVolunteer(id, { status }),
+    onSuccess: (_, vars) => {
+      setSuccess(`Volunteer → ${vars.status}`);
+      invalidateRoster();
+    },
   });
 
   const STATUS_COLORS: Record<string, string> = {
@@ -354,7 +602,6 @@ function VolunteersTab({ districtId, subWarehouseId }: { districtId: string; sub
   const addError = (addMutation.error as any)?.response?.data?.error ?? '';
   const assignError = (assignMutation.error as any)?.response?.data?.error ?? '';
   const statusError = (statusMutation.error as any)?.response?.data?.error ?? '';
-
   const mutationError = addError || assignError || statusError;
 
   if (rosterLoading) {
@@ -406,23 +653,37 @@ function VolunteersTab({ districtId, subWarehouseId }: { districtId: string; sub
         <div className="card p-5">
           <SectionTitle sub="Add to district roster">Add Volunteer</SectionTitle>
           <div className="space-y-3">
-            <div><label className="label">Full Name</label>
-              <input type="text" className="input" placeholder="Nguyen Van A" value={addName} onChange={e => setAddName(e.target.value)} /></div>
-            <div><label className="label">Phone</label>
-              <input type="tel" className="input" placeholder="+84901234567" value={addPhone} onChange={e => setAddPhone(e.target.value)} /></div>
+            <div>
+              <label className="label">Full Name</label>
+              <input type="text" className="input" placeholder="Nguyen Van A"
+                value={addName} onChange={e => setAddName(e.target.value)} />
+            </div>
+            <div>
+              <label className="label">Phone</label>
+              <input type="tel" className="input" placeholder="+84901234567"
+                value={addPhone} onChange={e => setAddPhone(e.target.value)} />
+            </div>
             <div>
               <label className="label">Role</label>
               <div className="flex gap-2">
                 {(['VOLUNTEER', 'TEAM_LEADER'] as const).map(r => (
                   <button key={r} onClick={() => setAddRole(r)}
-                    className={`flex-1 font-mono text-xs py-2 rounded border transition-all ${addRole === r ? 'bg-accent-blue/10 border-accent-blue/40 text-accent-blue' : 'bg-bg-elevated border-bg-border text-text-secondary hover:text-text-primary'}`}>
+                    className={`flex-1 font-mono text-xs py-2 rounded border transition-all ${
+                      addRole === r
+                        ? 'bg-accent-blue/10 border-accent-blue/40 text-accent-blue'
+                        : 'bg-bg-elevated border-bg-border text-text-secondary hover:text-text-primary'
+                    }`}>
                     {r === 'TEAM_LEADER' ? 'Team Leader' : 'Volunteer'}
                   </button>
                 ))}
               </div>
             </div>
-            <button onClick={() => addName.trim() && addPhone.trim() && addMutation.mutate({ districtId, name: addName.trim(), phone: addPhone.trim(), role: addRole })}
-              disabled={addMutation.isPending || !addName.trim() || !addPhone.trim()} className="btn-primary w-full">
+            <button
+              onClick={() => addName.trim() && addPhone.trim() && addMutation.mutate({
+                districtId, name: addName.trim(), phone: addPhone.trim(), role: addRole,
+              })}
+              disabled={addMutation.isPending || !addName.trim() || !addPhone.trim()}
+              className="btn-primary w-full">
               {addMutation.isPending ? 'Adding...' : 'Add to Roster'}
             </button>
           </div>
@@ -436,26 +697,37 @@ function VolunteersTab({ districtId, subWarehouseId }: { districtId: string; sub
             </div>
           ) : (
             <div className="space-y-3">
-              <div><label className="label">Volunteer</label>
+              <div>
+                <label className="label">Volunteer</label>
                 <select value={assignVolId} onChange={e => setAssignVolId(e.target.value)} className="input">
                   <option value="">Select available volunteer...</option>
-                  {availableVols.map((v: Volunteer) => <option key={v.id} value={v.id}>{v.name} ({v.role === 'TEAM_LEADER' ? 'TL' : 'V'})</option>)}
+                  {availableVols.map((v: Volunteer) => (
+                    <option key={v.id} value={v.id}>
+                      {v.name} ({v.role === 'TEAM_LEADER' ? 'TL' : 'V'})
+                    </option>
+                  ))}
                 </select>
               </div>
               <div className="grid grid-cols-2 gap-3">
-                <div><label className="label">Zone</label>
+                <div>
+                  <label className="label">Zone</label>
                   <select value={assignZone} onChange={e => setAssignZone(e.target.value)} className="input">
                     {['Zone A', 'Zone B', 'Zone C'].map(z => <option key={z}>{z}</option>)}
                   </select>
                 </div>
-                <div><label className="label">Team #</label>
+                <div>
+                  <label className="label">Team #</label>
                   <select value={assignTeam} onChange={e => setAssignTeam(Number(e.target.value))} className="input">
                     {[1, 2, 3].map(n => <option key={n} value={n}>Team {n}</option>)}
                   </select>
                 </div>
               </div>
-              <button onClick={() => assignVolId && subWarehouseId && assignMutation.mutate({ volunteerId: assignVolId, subWarehouseId, alertId, zone: assignZone, teamNumber: assignTeam })}
-                disabled={assignMutation.isPending || !assignVolId || !subWarehouseId} className="btn-primary w-full">
+              <button
+                onClick={() => assignVolId && subWarehouseId && assignMutation.mutate({
+                  volunteerId: assignVolId, subWarehouseId, alertId, zone: assignZone, teamNumber: assignTeam,
+                })}
+                disabled={assignMutation.isPending || !assignVolId || !subWarehouseId}
+                className="btn-primary w-full">
                 {assignMutation.isPending ? 'Assigning...' : 'Assign & Deploy'}
               </button>
             </div>
@@ -476,12 +748,18 @@ function VolunteersTab({ districtId, subWarehouseId }: { districtId: string; sub
             </thead>
             <tbody>
               {!roster || roster.volunteers.length === 0 ? (
-                <tr><td colSpan={6} className="px-4 py-8 text-center"><p className="font-mono text-xs text-text-muted">No volunteers in roster.</p></td></tr>
+                <tr><td colSpan={6} className="px-4 py-8 text-center">
+                  <p className="font-mono text-xs text-text-muted">No volunteers in roster.</p>
+                </td></tr>
               ) : roster.volunteers.map((v: Volunteer) => (
                 <tr key={v.id} className="border-b border-bg-border hover:bg-bg-elevated/40 transition-colors">
                   <td className="px-4 py-3 font-sans text-sm text-text-primary">{v.name}</td>
                   <td className="px-4 py-3 font-mono text-xs text-text-secondary">{v.phone}</td>
-                  <td className="px-4 py-3"><span className={`font-mono text-[10px] ${v.role === 'TEAM_LEADER' ? 'text-accent-blue' : 'text-text-muted'}`}>{v.role === 'TEAM_LEADER' ? 'TL' : 'V'}</span></td>
+                  <td className="px-4 py-3">
+                    <span className={`font-mono text-[10px] ${v.role === 'TEAM_LEADER' ? 'text-accent-blue' : 'text-text-muted'}`}>
+                      {v.role === 'TEAM_LEADER' ? 'TL' : 'V'}
+                    </span>
+                  </td>
                   <td className="px-4 py-3"><Badge label={v.status} color={STATUS_COLORS[v.status]} /></td>
                   <td className="px-4 py-3 font-mono text-[10px] text-text-muted">
                     {v.assignments?.[0] ? `${v.assignments[0].zone} · T${v.assignments[0].teamNumber}` : '—'}
@@ -489,12 +767,11 @@ function VolunteersTab({ districtId, subWarehouseId }: { districtId: string; sub
                   <td className="px-4 py-3">
                     {v.status !== 'DEPLOYED' && (
                       <button
-                        onClick={() => {
-                          const newStatus = v.status === 'AVAILABLE' ? 'INACTIVE' : 'AVAILABLE';
-                          statusMutation.mutate({ id: v.id, status: newStatus });
-                        }}
-                        className="font-mono text-[10px] text-text-muted hover:text-text-primary transition-colors"
-                      >
+                        onClick={() => statusMutation.mutate({
+                          id: v.id,
+                          status: v.status === 'AVAILABLE' ? 'INACTIVE' : 'AVAILABLE',
+                        })}
+                        className="font-mono text-[10px] text-text-muted hover:text-text-primary transition-colors">
                         {v.status === 'AVAILABLE' ? 'Deactivate' : 'Reactivate'}
                       </button>
                     )}
@@ -520,12 +797,11 @@ function DeliveriesTab({ districtId, subWarehouseId }: { districtId: string; sub
   const [abortId, setAbortId] = useState('');
   const [abortReason, setAbortReason] = useState('');
 
-  // Parallel: runs + roster
   const { data: runs = [], isLoading: runsLoading } = useQuery({
     queryKey: queryKeys.hub.deliveries(districtId),
     queryFn: () => hubApi.getDeliveryRuns(districtId),
     enabled: !!districtId,
-    refetchInterval: 30_000, // delivery runs change frequently
+    refetchInterval: 30_000,
   });
   const { data: roster } = useQuery({
     queryKey: queryKeys.hub.volunteers(districtId),
@@ -533,8 +809,12 @@ function DeliveriesTab({ districtId, subWarehouseId }: { districtId: string; sub
     enabled: !!districtId,
   });
 
-  const volunteers = useMemo(
-    () => (roster?.volunteers ?? []).filter((v: Volunteer) => v.status === 'AVAILABLE' || v.status === 'DEPLOYED'),
+  // FIX: Only TEAM_LEADER role volunteers can lead a delivery run
+  const teamLeads = useMemo(
+    () => (roster?.volunteers ?? []).filter(
+      (v: Volunteer) => v.role === 'TEAM_LEADER' &&
+        (v.status === 'AVAILABLE' || v.status === 'DEPLOYED')
+    ),
     [roster]
   );
 
@@ -597,25 +877,40 @@ function DeliveriesTab({ districtId, subWarehouseId }: { districtId: string; sub
           <SectionTitle sub="Fixed departure times: 07:00 / 11:00 / 15:00 (Section B.4)">Start Delivery Run</SectionTitle>
           <div className="space-y-3">
             <div className="grid grid-cols-2 gap-3">
-              <div><label className="label">Zone</label>
+              <div>
+                <label className="label">Zone</label>
                 <select value={zone} onChange={e => setZone(e.target.value)} className="input">
                   {['Zone A', 'Zone B', 'Zone C'].map(z => <option key={z}>{z}</option>)}
                 </select>
               </div>
-              <div><label className="label">Team #</label>
+              <div>
+                <label className="label">Team #</label>
                 <select value={team} onChange={e => setTeam(Number(e.target.value))} className="input">
                   {[1, 2, 3].map(n => <option key={n} value={n}>Team {n}</option>)}
                 </select>
               </div>
             </div>
-            <div><label className="label">Team Lead</label>
+            <div>
+              <label className="label">Team Lead</label>
               <select value={leadId} onChange={e => setLeadId(e.target.value)} className="input">
                 <option value="">Select team lead...</option>
-                {volunteers.map((v: Volunteer) => <option key={v.id} value={v.id}>{v.name} · {v.status}</option>)}
+                {teamLeads.map((v: Volunteer) => (
+                  // FIX: shows only TEAM_LEADER role, with status label
+                  <option key={v.id} value={v.id}>{v.name} · {v.status}</option>
+                ))}
               </select>
+              {teamLeads.length === 0 && (
+                <p className="font-mono text-[9px] text-accent-orange mt-1">
+                  No team leaders available. Add volunteers with Team Leader role first.
+                </p>
+              )}
             </div>
-            <button onClick={() => subWarehouseId && leadId && startMutation.mutate({ subWarehouseId, teamNumber: team, zone, leadVolunteerId: leadId })}
-              disabled={startMutation.isPending || !leadId || !subWarehouseId} className="btn-primary w-full">
+            <button
+              onClick={() => subWarehouseId && leadId && startMutation.mutate({
+                subWarehouseId, teamNumber: team, zone, leadVolunteerId: leadId,
+              })}
+              disabled={startMutation.isPending || !leadId || !subWarehouseId}
+              className="btn-primary w-full">
               {startMutation.isPending ? 'Departing...' : '▶ Start Run'}
             </button>
           </div>
@@ -629,12 +924,18 @@ function DeliveriesTab({ districtId, subWarehouseId }: { districtId: string; sub
                 <div key={r.id} className="bg-bg-elevated rounded-lg border border-accent-green/20 p-3">
                   <div className="flex items-start justify-between gap-2 mb-2">
                     <div>
-                      <p className="font-sans text-sm font-semibold text-text-primary">Team {r.teamNumber} · {r.zone}</p>
-                      <p className="font-mono text-[10px] text-text-muted">Lead: {r.leadVolunteer?.name ?? '—'} · Departed {fmtTime(r.departedAt)}</p>
+                      <p className="font-sans text-sm font-semibold text-text-primary">
+                        Team {r.teamNumber} · {r.zone}
+                      </p>
+                      <p className="font-mono text-[10px] text-text-muted">
+                        Lead: {r.leadVolunteer?.name ?? '—'} · Departed {fmtTime(r.departedAt)}
+                      </p>
                     </div>
                     <Badge label="IN PROGRESS" color="text-accent-green border-accent-green/30 bg-accent-green/5" />
                   </div>
-                  <p className="font-mono text-[10px] text-text-muted mb-2">{r.receipts?.length ?? 0} deliveries recorded</p>
+                  <p className="font-mono text-[10px] text-text-muted mb-2">
+                    {r.receipts?.length ?? 0} deliveries recorded
+                  </p>
                   <div className="flex gap-2">
                     <button onClick={() => completeMutation.mutate(r.id)} disabled={completeMutation.isPending}
                       className="flex-1 font-mono text-xs py-1.5 rounded border border-accent-green/40 text-accent-green hover:bg-accent-green/10 transition-colors">
@@ -647,14 +948,18 @@ function DeliveriesTab({ districtId, subWarehouseId }: { districtId: string; sub
                   </div>
                   {abortId === r.id && (
                     <div className="mt-2 space-y-2">
-                      <input type="text" className="input text-xs" placeholder="Abort reason (required — e.g. water >80cm)"
+                      <input type="text" className="input text-xs"
+                        placeholder="Abort reason (required — e.g. water >80cm)"
                         value={abortReason} onChange={e => setAbortReason(e.target.value)} />
                       <div className="flex gap-2">
-                        <button onClick={() => abortReason.trim() && abortMutation.mutate({ id: r.id, reason: abortReason })}
-                          disabled={!abortReason.trim() || abortMutation.isPending} className="flex-1 btn-danger text-xs py-1.5">
+                        <button
+                          onClick={() => abortReason.trim() && abortMutation.mutate({ id: r.id, reason: abortReason })}
+                          disabled={!abortReason.trim() || abortMutation.isPending}
+                          className="flex-1 btn-danger text-xs py-1.5">
                           Confirm Abort
                         </button>
-                        <button onClick={() => { setAbortId(''); setAbortReason(''); }} className="btn-ghost text-xs py-1.5 px-3">Cancel</button>
+                        <button onClick={() => { setAbortId(''); setAbortReason(''); }}
+                          className="btn-ghost text-xs py-1.5 px-3">Cancel</button>
                       </div>
                     </div>
                   )}
@@ -710,7 +1015,7 @@ function IncidentsTab({ districtId }: { districtId: string }) {
   const reportMutation = useMutation({
     mutationFn: hubApi.reportIncident,
     onSuccess: (result) => {
-      const autoMsg = (result as Incident).autoEscalated ? ' Auto-escalated (volunteer safety).' : '';
+      const autoMsg = (result as Incident).autoEscalated ? ' Auto-escalated to Operations Center.' : '';
       setSuccess(`Incident reported.${autoMsg}`);
       setIncDesc('');
       invalidateIncidents();
@@ -727,7 +1032,9 @@ function IncidentsTab({ districtId }: { districtId: string }) {
     ESCALATED: 'text-accent-red border-accent-red/30 bg-accent-red/5',
     RESOLVED: 'text-text-muted border-bg-border bg-bg-elevated',
   };
-  const INCIDENT_TYPES: Incident['type'][] = ['ROUTE_BLOCKED', 'VOLUNTEER_SAFETY', 'STOCK_SCARCITY', 'BUILDING_FLOODED', 'OTHER'];
+  const INCIDENT_TYPES: Incident['type'][] = [
+    'ROUTE_BLOCKED', 'VOLUNTEER_SAFETY', 'STOCK_SCARCITY', 'BUILDING_FLOODED', 'OTHER',
+  ];
   const open = useMemo(() => incidents.filter((i: Incident) => i.status !== 'RESOLVED'), [incidents]);
   const resolved = useMemo(() => incidents.filter((i: Incident) => i.status === 'RESOLVED'), [incidents]);
 
@@ -745,7 +1052,9 @@ function IncidentsTab({ districtId }: { districtId: string }) {
       {success && <SuccessBox msg={success} onDismiss={() => setSuccess('')} />}
 
       <div className="card p-5">
-        <SectionTitle sub="VOLUNTEER_SAFETY incidents are auto-escalated (Section A.4)">Report Incident</SectionTitle>
+        <SectionTitle sub="VOLUNTEER_SAFETY incidents are auto-escalated to Operations Center (Section A.4)">
+          Report Incident
+        </SectionTitle>
         <div className="space-y-3">
           <div>
             <label className="label">Incident Type</label>
@@ -754,11 +1063,15 @@ function IncidentsTab({ districtId }: { districtId: string }) {
                 <button key={t} onClick={() => setIncType(t)}
                   className={`font-mono text-[10px] py-2 px-2 rounded border transition-all text-left ${
                     incType === t
-                      ? t === 'VOLUNTEER_SAFETY' ? 'bg-accent-red/10 border-accent-red/40 text-accent-red' : 'bg-accent-blue/10 border-accent-blue/40 text-accent-blue'
+                      ? t === 'VOLUNTEER_SAFETY'
+                        ? 'bg-accent-red/10 border-accent-red/40 text-accent-red'
+                        : 'bg-accent-blue/10 border-accent-blue/40 text-accent-blue'
                       : 'bg-bg-elevated border-bg-border text-text-secondary hover:text-text-primary'
                   }`}>
                   {t.replace(/_/g, ' ')}
-                  {t === 'VOLUNTEER_SAFETY' && <span className="block text-[9px] text-accent-red mt-0.5">Auto-escalates</span>}
+                  {t === 'VOLUNTEER_SAFETY' && (
+                    <span className="block text-[9px] text-accent-red mt-0.5">Auto-escalates</span>
+                  )}
                 </button>
               ))}
             </div>
@@ -768,8 +1081,10 @@ function IncidentsTab({ districtId }: { districtId: string }) {
             <textarea rows={3} className="input resize-none" placeholder="Describe the incident clearly..."
               value={incDesc} onChange={e => setIncDesc(e.target.value)} />
           </div>
-          <button onClick={() => incDesc.trim() && reportMutation.mutate({ districtId, type: incType, description: incDesc.trim() })}
-            disabled={reportMutation.isPending || !incDesc.trim()} className="btn-primary w-full">
+          <button
+            onClick={() => incDesc.trim() && reportMutation.mutate({ districtId, type: incType, description: incDesc.trim() })}
+            disabled={reportMutation.isPending || !incDesc.trim()}
+            className="btn-primary w-full">
             {reportMutation.isPending ? 'Reporting...' : 'Report Incident'}
           </button>
         </div>
@@ -788,16 +1103,31 @@ function IncidentsTab({ districtId }: { districtId: string }) {
                     <span className="font-mono text-[10px] text-text-muted">{timeAgo(inc.createdAt)}</span>
                   </div>
                   <p className="font-sans text-sm text-text-primary">{inc.description}</p>
-                  <p className="font-mono text-[10px] text-text-muted mt-1">Reported by {inc.reportedBy?.name ?? '—'}</p>
+                  <p className="font-mono text-[10px] text-text-muted mt-1">
+                    Reported by {inc.reportedBy?.name ?? '—'}
+                  </p>
                 </div>
                 <button onClick={() => resolveMutation.mutate(inc.id)} disabled={resolveMutation.isPending}
                   className="flex-shrink-0 font-mono text-xs py-1.5 px-3 rounded border border-accent-green/40 text-accent-green hover:bg-accent-green/10 transition-colors">
                   ✓ Resolve
                 </button>
               </div>
-              {(inc as Incident & { escalationNote?: string }).escalationNote && (
-                <div className="bg-accent-red/10 border border-accent-red/20 rounded px-3 py-2 mt-2">
-                  <p className="font-mono text-[10px] text-accent-red">{(inc as Incident & { escalationNote?: string }).escalationNote}</p>
+
+              {/* FIX: Civil defense escalation note for VOLUNTEER_SAFETY */}
+              {inc.status === 'ESCALATED' && (
+                <div className="bg-accent-red/10 border border-accent-red/30 rounded px-3 py-2 mt-2 space-y-1">
+                  {(inc as Incident & { escalationNote?: string }).escalationNote && (
+                    <p className="font-mono text-[10px] text-accent-red">
+                      {(inc as Incident & { escalationNote?: string }).escalationNote}
+                    </p>
+                  )}
+                  {inc.type === 'VOLUNTEER_SAFETY' && (
+                    <p className="font-mono text-[10px] text-accent-red font-bold">
+                      ⚡ Contact civil defense immediately for evacuation support.
+                      Water may exceed 80cm — all volunteers must return to sub-warehouse or shelter in place.
+                      Do NOT send more teams to this zone.
+                    </p>
+                  )}
                 </div>
               )}
             </div>
@@ -816,7 +1146,9 @@ function IncidentsTab({ districtId }: { districtId: string }) {
                   <span className="font-mono text-[10px] text-text-muted">{inc.type.replace(/_/g, ' ')}</span>
                 </div>
                 <p className="font-sans text-xs text-text-secondary">{inc.description}</p>
-                <p className="font-mono text-[10px] text-text-muted mt-0.5">Resolved {inc.resolvedAt ? timeAgo(inc.resolvedAt) : '—'} by {inc.resolvedBy?.name ?? '—'}</p>
+                <p className="font-mono text-[10px] text-text-muted mt-0.5">
+                  Resolved {inc.resolvedAt ? timeAgo(inc.resolvedAt) : '—'} by {inc.resolvedBy?.name ?? '—'}
+                </p>
               </div>
             ))}
           </div>
@@ -864,7 +1196,9 @@ function RadioTab({ districtId }: { districtId: string }) {
   if (isLoading) {
     return (
       <div className="space-y-4">
-        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">{[...Array(4)].map((_, i) => <Skeleton key={i} className="h-20" />)}</div>
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+          {[...Array(4)].map((_, i) => <Skeleton key={i} className="h-20" />)}
+        </div>
         <Skeleton className="h-64" />
       </div>
     );
@@ -874,6 +1208,14 @@ function RadioTab({ districtId }: { districtId: string }) {
     <div className="space-y-6">
       {mutationError && <ErrorBox msg={mutationError} onDismiss={() => submitMutation.reset()} />}
       {success && <SuccessBox msg={success} onDismiss={() => setSuccess('')} />}
+
+      {/* FIX: clarified subtitle explaining relationship to physical radio */}
+      <div className="bg-bg-elevated border border-bg-border rounded px-4 py-3">
+        <p className="font-mono text-[10px] text-text-muted">
+          <span className="text-text-secondary font-bold">How this works:</span> At each scheduled time, make the real radio call to Operations Center first.
+          Then log it here to record compliance. This is the digital record — the radio call is the actual communication.
+        </p>
+      </div>
 
       <div>
         <SectionTitle sub="Section D.9 — fixed schedule: 08:00, 12:00, 16:00, 20:00">Today's Check-in Schedule</SectionTitle>
@@ -885,12 +1227,21 @@ function RadioTab({ districtId }: { districtId: string }) {
               <div key={s.value} className={`card p-4 transition-colors ${done ? 'border-accent-green/30 bg-accent-green/5' : 'border-bg-border'}`}>
                 <div className="flex items-center justify-between mb-2">
                   <span className="font-mono text-base font-bold text-text-primary">{s.label}</span>
-                  <span className={`font-mono text-sm ${done ? 'text-accent-green' : 'text-text-muted'}`}>{done ? '✓' : '○'}</span>
+                  <span className={`font-mono text-sm ${done ? 'text-accent-green' : 'text-text-muted'}`}>
+                    {done ? '✓' : '○'}
+                  </span>
                 </div>
                 {done && checkin ? (
                   <>
-                    <Badge label={checkin.status === 'OK' ? 'OK' : 'ISSUE'} color={checkin.status === 'OK' ? 'text-accent-green border-accent-green/30 bg-accent-green/5' : 'text-accent-red border-accent-red/30 bg-accent-red/5'} />
-                    {checkin.notes && <p className="font-mono text-[9px] text-text-muted mt-1.5 truncate">{checkin.notes}</p>}
+                    <Badge
+                      label={checkin.status === 'OK' ? 'OK' : 'ISSUE'}
+                      color={checkin.status === 'OK'
+                        ? 'text-accent-green border-accent-green/30 bg-accent-green/5'
+                        : 'text-accent-red border-accent-red/30 bg-accent-red/5'}
+                    />
+                    {checkin.notes && (
+                      <p className="font-mono text-[9px] text-text-muted mt-1.5 truncate">{checkin.notes}</p>
+                    )}
                   </>
                 ) : (
                   <p className="font-mono text-[9px] text-text-muted">{s.desc}</p>
@@ -902,7 +1253,7 @@ function RadioTab({ districtId }: { districtId: string }) {
       </div>
 
       <div className="card p-5">
-        <SectionTitle sub="Submit or retroactively log a missed check-in">Submit Check-in</SectionTitle>
+        <SectionTitle sub="Submit after completing the real radio call">Submit Check-in</SectionTitle>
         <div className="space-y-4">
           <div>
             <label className="label">Scheduled Time</label>
@@ -912,9 +1263,11 @@ function RadioTab({ districtId }: { districtId: string }) {
                 return (
                   <button key={s.value} onClick={() => setSlot(s.value)}
                     className={`font-mono text-xs py-2 rounded border transition-all ${
-                      slot === s.value ? 'bg-accent-blue/10 border-accent-blue/40 text-accent-blue' :
-                      done ? 'bg-accent-green/5 border-accent-green/20 text-accent-green' :
-                      'bg-bg-elevated border-bg-border text-text-secondary hover:text-text-primary'
+                      slot === s.value
+                        ? 'bg-accent-blue/10 border-accent-blue/40 text-accent-blue'
+                        : done
+                          ? 'bg-accent-green/5 border-accent-green/20 text-accent-green'
+                          : 'bg-bg-elevated border-bg-border text-text-secondary hover:text-text-primary'
                     }`}>
                     {s.label}{done && <span className="block text-[9px]">✓ done</span>}
                   </button>
@@ -929,7 +1282,9 @@ function RadioTab({ districtId }: { districtId: string }) {
                 <button key={s} onClick={() => setStatus(s)}
                   className={`flex-1 font-mono text-xs py-2.5 rounded border transition-all ${
                     status === s
-                      ? s === 'OK' ? 'bg-accent-green/10 border-accent-green/40 text-accent-green' : 'bg-accent-red/10 border-accent-red/40 text-accent-red'
+                      ? s === 'OK'
+                        ? 'bg-accent-green/10 border-accent-green/40 text-accent-green'
+                        : 'bg-accent-red/10 border-accent-red/40 text-accent-red'
                       : 'bg-bg-elevated border-bg-border text-text-secondary hover:text-text-primary'
                   }`}>
                   {s === 'OK' ? '✓ All OK' : '⚠ Issue Reported'}
@@ -938,14 +1293,26 @@ function RadioTab({ districtId }: { districtId: string }) {
             </div>
           </div>
           <div>
-            <label className="label">Notes {status === 'ISSUE_REPORTED' && <span className="text-accent-red">(describe issue)</span>}</label>
+            <label className="label">
+              Notes {status === 'ISSUE_REPORTED' && <span className="text-accent-red">(describe issue)</span>}
+            </label>
             <textarea rows={3} className="input resize-none"
-              placeholder={status === 'OK' ? 'e.g. EMK1: 4,800 remaining. 3 teams deployed. No overnight incidents.' : 'Describe the issue clearly for Operations Center...'}
+              placeholder={
+                status === 'OK'
+                  ? 'e.g. EMK1: 4,800 remaining. 3 teams deployed. No overnight incidents.'
+                  : 'Describe the issue clearly for Operations Center...'
+              }
               value={notes} onChange={e => setNotes(e.target.value)} />
           </div>
-          <button onClick={() => submitMutation.mutate({ districtId, scheduledTime: slot, status, notes: notes.trim() || undefined })}
-            disabled={submitMutation.isPending} className="btn-primary w-full">
-            {submitMutation.isPending ? 'Submitting...' : `Submit ${SLOTS.find(s => s.value === slot)?.label} Check-in`}
+          <button
+            onClick={() => submitMutation.mutate({
+              districtId, scheduledTime: slot, status, notes: notes.trim() || undefined,
+            })}
+            disabled={submitMutation.isPending}
+            className="btn-primary w-full">
+            {submitMutation.isPending
+              ? 'Submitting...'
+              : `Submit ${SLOTS.find(s => s.value === slot)?.label} Check-in`}
           </button>
           <p className="font-mono text-[10px] text-text-muted text-center">
             Section D.9: If internet/phone fails, submit retroactively when contact restored.
@@ -964,10 +1331,15 @@ function RadioTab({ districtId }: { districtId: string }) {
                     <span className="font-mono text-sm font-bold text-text-primary">
                       {SLOTS.find(s => s.value === c.scheduledTime)?.label ?? c.scheduledTime}
                     </span>
-                    <Badge label={c.status === 'OK' ? 'OK' : 'ISSUE'} color={c.status === 'OK' ? 'text-accent-green border-accent-green/30' : 'text-accent-red border-accent-red/30'} />
+                    <Badge
+                      label={c.status === 'OK' ? 'OK' : 'ISSUE'}
+                      color={c.status === 'OK' ? 'text-accent-green border-accent-green/30' : 'text-accent-red border-accent-red/30'}
+                    />
                   </div>
                   {c.notes && <p className="font-mono text-[10px] text-text-secondary">{c.notes}</p>}
-                  <p className="font-mono text-[10px] text-text-muted mt-0.5">by {c.submittedBy?.name ?? '—'} · {timeAgo(c.createdAt)}</p>
+                  <p className="font-mono text-[10px] text-text-muted mt-0.5">
+                    by {c.submittedBy?.name ?? '—'} · {timeAgo(c.createdAt)}
+                  </p>
                 </div>
               </div>
             ))}
@@ -989,7 +1361,6 @@ export function HubPage() {
   const isManager = isRole('HUB_MANAGER');
   const canSelectDistrict = !isManager;
 
-  // Parallel: summary (for districts list) + alert status
   const { data: summaryData, isLoading: summaryLoading } = useQuery({
     queryKey: queryKeys.dashboard.summary(),
     queryFn: () => import('../api/dashboard').then(m => m.dashboardApi.getSummary()),
@@ -1001,10 +1372,9 @@ export function HubPage() {
 
   const districts: DistrictCard[] = summaryData?.districts ?? [];
 
-  // Set default district once data loads
-  const resolvedDistrictId = useMemo(() => {
+  const resolvedDistrictId: string = useMemo(() => {
     if (selectedDistrictId) return selectedDistrictId;
-    if (isManager && user?.districtId) return user.districtId;
+    if (isManager && user?.districtId) return user.districtId!; // non-null assertion after guard
     return districts[0]?.districtId ?? '';
   }, [selectedDistrictId, isManager, user?.districtId, districts]);
 
@@ -1012,14 +1382,23 @@ export function HubPage() {
     () => districts.find(d => d.districtId === resolvedDistrictId),
     [districts, resolvedDistrictId]
   );
+
   const subWarehouseId = selectedDistrict?.subWarehouseId ?? null;
 
+  // Pass all sub-warehouses to StockTab for cross-district reallocation
+  const allSubWarehouses = useMemo(
+    () => districts
+      .map(d => ({ ...d, subWarehouseId: d.subWarehouseId ?? '' }))
+      .filter(d => d.subWarehouseId),
+    [districts]
+  );
+
   const TABS: Array<{ id: TabId; label: string; icon: string }> = [
-    { id: 'stock', label: 'Stock', icon: '⬡' },
-    { id: 'volunteers', label: 'Volunteers', icon: '⊕' },
-    { id: 'deliveries', label: 'Deliveries', icon: '⟁' },
-    { id: 'incidents', label: 'Incidents', icon: '⚠' },
-    { id: 'radio', label: 'Radio', icon: '◈' },
+    { id: 'stock',      label: 'Stock',      icon: '⬡' },
+    { id: 'volunteers', label: 'Volunteers',  icon: '⊕' },
+    { id: 'deliveries', label: 'Deliveries',  icon: '⟁' },
+    { id: 'incidents',  label: 'Incidents',   icon: '⚠' },
+    { id: 'radio',      label: 'Radio',       icon: '◈' },
   ];
 
   if (summaryLoading && districts.length === 0) {
@@ -1036,21 +1415,28 @@ export function HubPage() {
               <>
                 <span className="font-mono text-[10px] text-text-muted uppercase tracking-widest">District</span>
                 <div className="flex gap-1.5">
-                  {districts.map(d => (
-                    <button key={d.districtId} onClick={() => setSelectedDistrictId(d.districtId)}
-                      className={`font-mono text-xs px-3 py-1.5 rounded border transition-all ${
-                        resolvedDistrictId === d.districtId
-                          ? 'bg-accent-blue/10 border-accent-blue/40 text-accent-blue'
-                          : 'bg-bg-elevated border-bg-border text-text-secondary hover:text-text-primary'
-                      }`}>
-                      {d.name}
-                    </button>
-                  ))}
+                  {districts.map(d => {
+                    const districtId = d.districtId ?? '';
+                    return (
+                      <button 
+                        key={districtId} 
+                        onClick={() => setSelectedDistrictId(districtId)}
+                        className={`font-mono text-xs px-3 py-1.5 rounded border transition-all ${
+                          resolvedDistrictId === districtId
+                            ? 'bg-accent-blue/10 border-accent-blue/40 text-accent-blue'
+                            : 'bg-bg-elevated border-bg-border text-text-secondary hover:text-text-primary'
+                        }`}>
+                        {d.name}
+                      </button>
+                    );
+                  })}
                 </div>
               </>
             ) : (
               <div className="flex items-center gap-2">
-                <span className="font-mono text-sm font-bold text-text-primary">{selectedDistrict?.name ?? 'Your District'}</span>
+                <span className="font-mono text-sm font-bold text-text-primary">
+                  {selectedDistrict?.name ?? 'Your District'}
+                </span>
                 <span className="font-mono text-[10px] text-text-muted">Hub Manager view</span>
               </div>
             )}
@@ -1059,7 +1445,9 @@ export function HubPage() {
           {alertStatus && (
             <div className={`flex items-center gap-2 px-3 py-1.5 rounded border font-mono text-xs ${
               alertStatus.activated
-                ? alertStatus.phase === 2 ? 'bg-accent-red/10 border-accent-red/30 text-accent-red' : 'bg-accent-orange/10 border-accent-orange/30 text-accent-orange'
+                ? alertStatus.phase === 2
+                  ? 'bg-accent-red/10 border-accent-red/30 text-accent-red'
+                  : 'bg-accent-orange/10 border-accent-orange/30 text-accent-orange'
                 : 'bg-bg-elevated border-bg-border text-text-muted'
             }`}>
               <span className={`w-1.5 h-1.5 rounded-full ${alertStatus.activated ? 'bg-accent-orange animate-pulse-slow' : 'bg-text-muted'}`} />
@@ -1070,7 +1458,9 @@ export function HubPage() {
 
         {!subWarehouseId && resolvedDistrictId && (
           <div className="bg-accent-orange/10 border border-accent-orange/30 rounded px-4 py-2">
-            <p className="font-mono text-xs text-accent-orange">No sub-warehouse found for this district. Stock and delivery operations require a sub-warehouse record.</p>
+            <p className="font-mono text-xs text-accent-orange">
+              No sub-warehouse found for this district. Stock and delivery operations require a sub-warehouse record.
+            </p>
           </div>
         )}
 
@@ -1090,11 +1480,25 @@ export function HubPage() {
 
         {resolvedDistrictId ? (
           <div className="animate-fade-in">
-            {activeTab === 'stock'       && <StockTab       districtId={resolvedDistrictId} subWarehouseId={subWarehouseId} />}
-            {activeTab === 'volunteers'  && <VolunteersTab  districtId={resolvedDistrictId} subWarehouseId={subWarehouseId} />}
-            {activeTab === 'deliveries'  && <DeliveriesTab  districtId={resolvedDistrictId} subWarehouseId={subWarehouseId} />}
-            {activeTab === 'incidents'   && <IncidentsTab   districtId={resolvedDistrictId} />}
-            {activeTab === 'radio'       && <RadioTab       districtId={resolvedDistrictId} />}
+            {activeTab === 'stock' && (
+              <StockTab
+                districtId={resolvedDistrictId}
+                subWarehouseId={subWarehouseId}
+                allSubWarehouses={allSubWarehouses}
+              />
+            )}
+            {activeTab === 'volunteers' && (
+              <VolunteersTab districtId={resolvedDistrictId} subWarehouseId={subWarehouseId} />
+            )}
+            {activeTab === 'deliveries' && (
+              <DeliveriesTab districtId={resolvedDistrictId} subWarehouseId={subWarehouseId} />
+            )}
+            {activeTab === 'incidents' && (
+              <IncidentsTab districtId={resolvedDistrictId} />
+            )}
+            {activeTab === 'radio' && (
+              <RadioTab districtId={resolvedDistrictId} />
+            )}
           </div>
         ) : (
           <div className="py-20 text-center">

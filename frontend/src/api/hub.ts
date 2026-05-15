@@ -141,6 +141,17 @@ export const hubApi = {
     return res.data;
   },
 
+  reallocate: async (data: {
+    fromSubWarehouseId: string;
+    toSubWarehouseId: string;
+    emkType: 'EMK1' | 'EMK2' | 'EMK3';
+    quantity: number;
+    reason: string;
+  }) => {
+    const res = await api.post('/api/stock/reallocate', data);
+    return res.data;
+  },
+
   getMovements: async (districtId: string): Promise<StockMovement[]> => {
     const res = await api.get<StockMovement[]>(`/api/stock/movements/${districtId}`);
     return res.data;

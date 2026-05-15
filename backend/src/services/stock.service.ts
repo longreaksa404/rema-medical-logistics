@@ -118,8 +118,10 @@ export async function getStockByDistrict(districtId: string): Promise<StockWithS
   return enrichStock(stock);
 }
 
-// ─── DISPATCH — Central Warehouse → Sub-Warehouse ────────────────────────────
 
+// ─── DISPATCH — Central Warehouse → Sub-Warehouse ────────────────────────────
+// ─── DISPATCH — Central Warehouse → Sub-Warehouse ────────────────────────────
+// ─── DISPATCH — Central Warehouse → Sub-Warehouse ────────────────────────────
 export async function dispatchStock(data: {
   subWarehouseId: string;
   emkType: EmkType;
@@ -130,7 +132,12 @@ export async function dispatchStock(data: {
   const { subWarehouseId, emkType, quantity, reason, performedById } = data;
   if (quantity <= 0) throw new Error('Quantity must be positive for dispatch');
 
-  const stock = await prisma.stock.findUnique({ where: { subWarehouseId } });
+  const stock = await prisma.stock.findUnique({ 
+    where: { subWarehouseId },
+    include: { 
+      subWarehouse: { include: { district: { select: { name: true } } } } 
+    }
+  });
   if (!stock) throw new Error(`No stock record found for sub-warehouse ${subWarehouseId}`);
 
   const totalField = emkType === 'EMK1' ? 'emk1Total' : emkType === 'EMK2' ? 'emk2Total' : 'emk3Total';
@@ -139,7 +146,11 @@ export async function dispatchStock(data: {
   const currentTotal = stock[totalField as keyof typeof stock] as number;
   const currentRemaining = stock[remainingField as keyof typeof stock] as number;
 
+  // TODO: Change 'CENTRAL_WAREHOUSE_ID' to the actual central subWarehouseId
+  const CENTRAL_WAREHOUSE_ID = 'YOUR_CENTRAL_SUBWAREHOUSE_ID_HERE';   // ←←← CHANGE THIS
+
   const [updatedStock, movement] = await prisma.$transaction([
+    // 1. Increase Sub-Warehouse
     prisma.stock.update({
       where: { subWarehouseId },
       data: {
@@ -150,6 +161,16 @@ export async function dispatchStock(data: {
         subWarehouse: { include: { district: { select: { name: true } } } },
       },
     }),
+
+    // 2. Decrease Central Warehouse
+    prisma.stock.update({
+      where: { subWarehouseId: CENTRAL_WAREHOUSE_ID },
+      data: {
+        [totalField]: { decrement: quantity },
+        [remainingField]: { decrement: quantity },
+      },
+    }),
+
     prisma.stockMovement.create({
       data: {
         subWarehouseId,
@@ -209,12 +230,18 @@ export async function reallocateStock(data: {
   const [updatedFrom, updatedTo] = await prisma.$transaction([
     prisma.stock.update({
       where: { subWarehouseId: fromSubWarehouseId },
-      data: { [remainingField]: fromRemaining - quantity },
+      data: { 
+        [remainingField]: fromRemaining - quantity,
+        [totalField]: { decrement: quantity }   // ← Add this
+      },
       include: { subWarehouse: { include: { district: { select: { name: true } } } } },
     }),
     prisma.stock.update({
       where: { subWarehouseId: toSubWarehouseId },
-      data: { [remainingField]: toRemaining + quantity },
+      data: { 
+        [remainingField]: toRemaining + quantity,
+        [totalField]: { increment: quantity }   // ← Add this
+      },
       include: { subWarehouse: { include: { district: { select: { name: true } } } } },
     }),
     prisma.stockMovement.create({
