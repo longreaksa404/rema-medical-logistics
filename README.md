@@ -1,4 +1,4 @@
-# REMA — Rapid Emergency Medical Access
+# REMA - Rapid Emergency Medical Access
 
 **Challenge:** Medical Logistics in a Sinking City
 **Track:** University Track
@@ -20,13 +20,13 @@ All passwords: `rema1234`
 
 | Email | Role | District |
 |---|---|---|
-| admin@rema.vn | SUPER_ADMIN | — |
-| coordinator@rema.vn | EMERGENCY_COORDINATOR | — |
+| admin@rema.vn | SUPER_ADMIN | - |
+| coordinator@rema.vn | EMERGENCY_COORDINATOR | - |
 | hub1@rema.vn | HUB_MANAGER | District 1 |
 | hub2@rema.vn | HUB_MANAGER | District 2 |
 | hub3@rema.vn | HUB_MANAGER | District 3 |
 | volunteer1@rema.vn | VOLUNTEER | District 1 |
-| viewer@rema.vn | VIEWER | — |
+| viewer@rema.vn | VIEWER | - |
 
 > **Demo tip:** Log in as `admin@rema.vn` to reset the system to Phase 0 before a demo run. Log in as `coordinator@rema.vn` to trigger activation and advance phases.
 
@@ -34,23 +34,23 @@ All passwords: `rema1234`
 
 ## What REMA Does
 
-REMA is a pre-positioned, vulnerability-scored medical logistics system designed to deliver Emergency Medical Kits to the right households within 24–48 hours of a flood event — through any water depth up to 80cm.
+REMA is a pre-positioned, vulnerability-scored medical logistics system designed to deliver Emergency Medical Kits to the right households within 24–48 hours of a flood event - through any water depth up to 80cm.
 
 **The core insight:** Reactive logistics fails in urban flooding because by the time demand is confirmed, roads are already gone. REMA pre-positions supplies before peaks, scores households by medical vulnerability, and adapts delivery mode to water depth.
 
 **Three-layer architecture:**
-- Layer 1: Central Warehouse — master stock, 30% reserve after dispatch
-- Layer 2: Sub-Warehouses ×3 — stocked Hours 3–8 in existing community buildings
-- Layer 3: Last-mile volunteers — motorbike (0–30cm) / bicycle or foot (30–60cm) / boat (60–80cm) / suspended above 80cm
+- Layer 1: Central Warehouse - master stock, 30% reserve after dispatch
+- Layer 2: Sub-Warehouses ×3 - stocked Hours 3–8 in existing community buildings
+- Layer 3: Last-mile volunteers - motorbike (0–30cm) / bicycle or foot (30–60cm) / boat (60–80cm) / suspended above 80cm
 
 **Three EMK types:**
 - EMK-1 General: ORS, wound care, paracetamol, hygiene
 - EMK-2 Vulnerable: all EMK-1 + infant formula, prenatal vitamins, thermometer
-- EMK-3 Chronic Illness: 3-day medication supply — MoH cold storage only, never pre-stored at sub-warehouses
+- EMK-3 Chronic Illness: 3-day medication supply - MoH cold storage only, never pre-stored at sub-warehouses
 
 **Prioritisation:** 20-point vulnerability score across 5 categories. Critical households (15–20 points) delivered in current run. Every score is documented on paper and auditable.
 
-**Activation trigger:** 2 of 3 objective conditions (locked — no single-person override).
+**Activation trigger:** 2 of 3 objective conditions (locked - no single-person override).
 
 ---
 
@@ -84,10 +84,10 @@ Frontend:   React (Vite) + TypeScript + Tailwind CSS + Recharts + Leaflet.js
 Hosting:    Render (backend) + Supabase (PostgreSQL) + Vercel (frontend)
 API Docs:   Swagger (swagger-ui-express)
 Diagrams:   draw.io (V3 Warehouse Layout, V5 Stakeholder Flowchart)
-Protocol:   ReportLab PDF (V6 Operating Protocol — 8 pages, print-ready A4)
-Testing:    Jest + ts-jest (113 unit tests — backend utility functions)
+Protocol:   ReportLab PDF (V6 Operating Protocol - 8 pages, print-ready A4)
+Testing:    Jest + ts-jest (113 unit tests - backend utility functions)
 CI/CD:      GitHub Actions (tests gate every deployment)
-AI:         Anthropic Claude API — server-side AI Brief for Emergency Coordinator
+AI:         Anthropic Claude API - server-side AI Brief for Emergency Coordinator
 ```
 
 ---
@@ -138,7 +138,7 @@ Expected output: **113 tests passing** across 4 test files:
 | `alert.test.ts` | 13 | All 8 activation trigger combinations |
 | `route.test.ts` | 23 | All 4 delivery mode tiers and depth boundaries |
 
-These tests verify that the implementation matches the strategy documents exactly. No database connection required — pure utility functions only.
+These tests verify that the implementation matches the strategy documents exactly. No database connection required - pure utility functions only.
 
 ---
 
@@ -174,13 +174,13 @@ Push to main (after PR merge):
 | EMK-3 cold chain | MoH cold storage only; never at sub-warehouses | Community buildings cannot maintain 2–8°C |
 | Activation trigger | 2 of 3 conditions (locked, not manual) | Prevents false activations; removes single-person authority |
 | Phase direction | Forward only (0→1→2) via frontend | Prevents accidental rollback during active flood response |
-| System reset | POST /api/alert/reset — SUPER_ADMIN only | Clean demo reset without touching the database directly |
+| System reset | POST /api/alert/reset - SUPER_ADMIN only | Clean demo reset without touching the database directly |
 | Paper fallback | Every digital function has a paper equivalent | No single tool is in the critical path |
 | Asset model | Borrow trucks and boats via MOUs; pay per activation | Red Cross cannot afford year-round fleet ownership |
 | SUPER_ADMIN creation | Seed script only; never via API | Deliberate security decision for real deployment |
 | User deactivation | Deactivate, never delete | Audit trail preserved for accountability |
 | Scoring engine | Identical TypeScript in frontend and backend | Live preview without an API call; server validates on submit |
-| AI Brief | Advisory only; reads aggregate data; no PII in prompt | Technology augments human judgment — never replaces it |
+| AI Brief | Advisory only; reads aggregate data; no PII in prompt | Technology augments human judgment - never replaces it |
 
 ---
 
@@ -188,15 +188,15 @@ Push to main (after PR merge):
 
 The Emergency Coordinator dashboard includes an AI-powered operational brief. When triggered:
 
-1. Backend reads current dashboard state from the database (aggregate data only — no PII)
+1. Backend reads current dashboard state from the database (aggregate data only - no PII)
 2. Generates a 3-part brief: Situation Summary, Priority Alert, Recommended Next Step
 3. Returns the brief with a data snapshot showing exactly what data was used
 
 **Hard constraints:**
-- Advisory only — cannot trigger any database write or system action
+- Advisory only - cannot trigger any database write or system action
 - No household names, addresses, or personal information in the prompt
 - Graceful degradation to HTTP 503 if unavailable
-- "Advisory only — human decision required" banner is always visible in the modal
+- "Advisory only - human decision required" banner is always visible in the modal
 
 The AI Brief is built as a mock service (no API key required for the live demo). It reads real database state and generates contextually accurate text. Replacing it with a live Anthropic API call requires changing only `backend/src/services/ai.service.ts`.
 
