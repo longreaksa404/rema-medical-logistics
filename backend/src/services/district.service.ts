@@ -1,21 +1,14 @@
 import { prisma } from '../lib/prisma';
 import { getCached, setCached, deleteCached } from '../utils/cache';
 
-// ─── CACHE KEYS ───────────────────────────────────────────────────────────────
-// Districts almost never change mid-event (no writes during active flood).
-// 300 s TTL is safe — list and individual records are invalidated together
-// on the rare case a district record is modified outside normal flow.
-
 const KEY_LIST = 'districts:list';
 const KEY_PREFIX = 'districts:';
-const TTL = 300_000; // 300 s
+const TTL = 300_000;
 
 function invalidateDistrictCache(id?: string): void {
   deleteCached(KEY_LIST);
   if (id) deleteCached(`${KEY_PREFIX}${id}`);
 }
-
-// ─── LIST ALL DISTRICTS ───────────────────────────────────────────────────────
 
 export async function listDistricts() {
   const cached = getCached<Awaited<ReturnType<typeof fetchDistricts>>>(KEY_LIST);
@@ -28,6 +21,7 @@ export async function listDistricts() {
 
 async function fetchDistricts() {
   return prisma.district.findMany({
+    where: { name: { not: '__central__' } },  // exclude synthetic central district
     orderBy: { name: 'asc' },
     include: {
       subWarehouse: {
@@ -42,8 +36,6 @@ async function fetchDistricts() {
     },
   });
 }
-
-// ─── GET SINGLE DISTRICT ──────────────────────────────────────────────────────
 
 export async function getDistrict(id: string) {
   const key = `${KEY_PREFIX}detail:${id}`;
@@ -65,11 +57,6 @@ async function fetchDistrict(id: string) {
   if (!district) throw new Error('District not found');
   return district;
 }
-
-// ─── GET DISTRICT SUMMARY ─────────────────────────────────────────────────────
-// Not cached here — the dashboard service caches this under dashboard:district:{id}.
-// Calling getDistrictSummary directly (e.g. GET /api/districts/:id/summary) goes
-// to the DB each time, which is acceptable since it's not polled on a tight loop.
 
 export async function getDistrictSummary(id: string) {
   const district = await prisma.district.findUnique({
@@ -121,5 +108,4 @@ export async function getDistrictSummary(id: string) {
   };
 }
 
-// ─── INVALIDATE (exported for use by other services if needed) ────────────────
 export { invalidateDistrictCache };
