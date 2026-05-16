@@ -3,12 +3,25 @@ import { EmkType } from '@prisma/client';
 import {
   getAllStock,
   getStockByDistrict,
+  getCentralStock,
   dispatchStock,
   reallocateStock,
   adjustStock,
   getAllMovements,
   getMovementsByDistrict,
 } from '../services/stock.service';
+
+// ─── GET /api/stock/central ───────────────────────────────────────────────────
+
+export async function getCentral(_req: Request, res: Response): Promise<void> {
+  try {
+    const stock = await getCentralStock();
+    res.json(stock);
+  } catch (err) {
+    const message = err instanceof Error ? err.message : 'Error fetching central stock';
+    res.status(500).json({ error: message });
+  }
+}
 
 // ─── GET /api/stock/status ────────────────────────────────────────────────────
 
@@ -50,12 +63,6 @@ export async function dispatch(req: Request, res: Response): Promise<void> {
     return;
   }
 
-  if (emkType === 'EMK3') {
-    // EMK-3 dispatch is recorded as MOH_TRANSFER — only from MoH cold storage
-    // Hub Managers cannot dispatch EMK-3 themselves; this endpoint handles the
-    // MoH transfer event (performed by Emergency Coordinator or above)
-  }
-
   try {
     const result = await dispatchStock({
       subWarehouseId,
@@ -67,12 +74,13 @@ export async function dispatch(req: Request, res: Response): Promise<void> {
     res.json(result);
   } catch (err) {
     const message = err instanceof Error ? err.message : 'Dispatch failed';
-    res.status(400).json({ error: message });
+    // Insufficient stock is a client error (422), not a server error
+    const status = message.includes('Insufficient') ? 422 : 400;
+    res.status(status).json({ error: message });
   }
 }
 
 // ─── POST /api/stock/reallocate ───────────────────────────────────────────────
-// Emergency Coordinator only (enforced by route middleware)
 
 export async function reallocate(req: Request, res: Response): Promise<void> {
   const { fromSubWarehouseId, toSubWarehouseId, emkType, quantity, reason } = req.body;
@@ -96,7 +104,8 @@ export async function reallocate(req: Request, res: Response): Promise<void> {
     res.json(result);
   } catch (err) {
     const message = err instanceof Error ? err.message : 'Reallocation failed';
-    res.status(400).json({ error: message });
+    const status = message.includes('Insufficient') ? 422 : 400;
+    res.status(status).json({ error: message });
   }
 }
 
@@ -123,7 +132,8 @@ export async function adjust(req: Request, res: Response): Promise<void> {
     res.json(result);
   } catch (err) {
     const message = err instanceof Error ? err.message : 'Adjustment failed';
-    res.status(400).json({ error: message });
+    const status = message.includes('negative') ? 422 : 400;
+    res.status(status).json({ error: message });
   }
 }
 
