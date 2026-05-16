@@ -3,14 +3,8 @@ import { getCached, setCached, deleteCached } from '../utils/cache';
 
 const prisma = new PrismaClient();
 
-// ─── CACHE KEYS ───────────────────────────────────────────────────────────────
-// Compliance summary is polled by the V1 dashboard every 30–60 s.
-// 20 s TTL; busted immediately on every new check-in submission.
-
 const KEY_COMPLIANCE = 'radio:compliance:today';
-const TTL_COMPLIANCE = 20_000; // 20 s
-
-// ─── SUBMIT CHECK-IN ─────────────────────────────────────────────────────────
+const TTL_COMPLIANCE = 20_000;
 
 export async function submitCheckin(data: {
   districtId: string;
@@ -21,7 +15,10 @@ export async function submitCheckin(data: {
 }) {
   const { districtId, submittedById, scheduledTime, status, notes } = data;
 
-  const district = await prisma.district.findUnique({ where: { id: districtId } });
+  // Only allow check-ins for real districts, not the synthetic __central__ one
+  const district = await prisma.district.findFirst({
+    where: { id: districtId, name: { not: '__central__' } },
+  });
   if (!district) throw new Error(`District not found: ${districtId}`);
 
   const result = await prisma.radioCheckin.create({
@@ -38,18 +35,13 @@ export async function submitCheckin(data: {
     },
   });
 
-  // New check-in must appear on the compliance panel within one poll cycle
   deleteCached(KEY_COMPLIANCE);
-
   return result;
 }
 
-// ─── LIST CHECK-INS ───────────────────────────────────────────────────────────
-// Not cached — filtered queries called infrequently (Hub Manager log view).
-
 export async function listCheckins(filters: {
   districtId?: string;
-  date?: string; // ISO date string e.g. "2026-04-21"
+  date?: string;
 }) {
   const where: Record<string, unknown> = {};
 
@@ -73,9 +65,6 @@ export async function listCheckins(filters: {
   });
 }
 
-// ─── GET CHECKIN COMPLIANCE SUMMARY ──────────────────────────────────────────
-// Polled by V1 dashboard. Cached 20 s. Busted on submitCheckin.
-
 export async function getTodayComplianceSummary() {
   const cached = getCached<Awaited<ReturnType<typeof buildComplianceSummary>>>(KEY_COMPLIANCE);
   if (cached) return cached;
@@ -96,7 +85,11 @@ async function buildComplianceSummary() {
       where: { createdAt: { gte: today, lt: tomorrow } },
       include: { district: { select: { name: true } } },
     }),
-    prisma.district.findMany({ select: { id: true, name: true } }),
+    // ── KEY FIX: only real districts have radio check-in obligations ─────────
+    prisma.district.findMany({
+      where: { name: { not: '__central__' } },
+      select: { id: true, name: true },
+    }),
   ]);
 
   const slots: RadioCheckTime[] = ['T0800', 'T1200', 'T1600', 'T2000'];
