@@ -14,7 +14,7 @@ import { api } from '../api/client';
 import { hubApi } from '../api/hub';
 import { queryKeys } from '../api/queryKeys';
 import type {
-  StockLevel, StockMovement, DistrictRoster,
+  StockLevel,CentralStockLevel, StockMovement, DistrictRoster,
   Volunteer, DeliveryRun, Incident, RadioCheckin,
 } from '../api/hub';
 import type { DistrictCard } from '../api/dashboard.types';
@@ -99,19 +99,12 @@ function SuccessBox({ msg, onDismiss }: { msg: string; onDismiss: () => void }) 
 
 // ─── TAB: STOCK ───────────────────────────────────────────────────────────────
 
-function StockTab({
-  districtId,
-  subWarehouseId,
-  allSubWarehouses,
-}: {
-  districtId: string;
+function StockTab({ districtId, subWarehouseId, allSubWarehouses }: { 
+  districtId: string; 
   subWarehouseId: string | null;
-  allSubWarehouses: DistrictCard[];
+  allSubWarehouses?: unknown;  // accepted but unused — central stock comes from API now
 }) {
   const queryClient = useQueryClient();
-  const { isRole } = useAuth();
-  const isEC = isRole('EMERGENCY_COORDINATOR') || isRole('SUPER_ADMIN');
-
   const [success, setSuccess] = useState('');
   const [dispEmkType, setDispEmkType] = useState<'EMK1' | 'EMK2' | 'EMK3'>('EMK1');
   const [dispQty, setDispQty] = useState('');
@@ -119,70 +112,46 @@ function StockTab({
   const [adjEmkType, setAdjEmkType] = useState<'EMK1' | 'EMK2' | 'EMK3'>('EMK1');
   const [adjQty, setAdjQty] = useState('');
   const [adjReason, setAdjReason] = useState('');
-
-  // Reallocation state — EC only
-  const [reallocFrom, setReallocFrom] = useState('');
-  const [reallocTo, setReallocTo] = useState('');
-  const [reallocEmk, setReallocEmk] = useState<'EMK1' | 'EMK2' | 'EMK3'>('EMK3');
-  const [reallocQty, setReallocQty] = useState('');
-  const [reallocReason, setReallocReason] = useState('');
-
-  // Sub-warehouse stock (this district)
+ 
+  // ── Three parallel queries ────────────────────────────────────────────────
+  const { data: centralStock, isLoading: centralLoading } = useQuery({
+    queryKey: queryKeys.hub.centralStock(),
+    queryFn: () => hubApi.getCentralStock(),
+    staleTime: 15_000,
+  });
+ 
   const { data: stock, isLoading: stockLoading } = useQuery({
     queryKey: queryKeys.hub.stock(districtId),
     queryFn: () => hubApi.getDistrictStock(districtId),
     enabled: !!districtId,
   });
-
-  // All districts stock — for central warehouse summary
-  const { data: allStock = [] } = useQuery({
-    queryKey: ['stock', 'all'],
-    queryFn: async () => {
-      const res = await api.get('/api/stock/status');
-      return res.data as StockLevel[];
-    },
-  });
-
+ 
   const { data: movements = [], isLoading: movementsLoading } = useQuery({
     queryKey: queryKeys.hub.movements(districtId),
     queryFn: () => hubApi.getMovements(districtId),
     enabled: !!districtId,
     select: (data: StockMovement[]) => data.slice(0, 50),
   });
-
-  const isLoading = stockLoading || movementsLoading;
-
-  // Central warehouse totals — sum of all sub-warehouse allocations
-  const centralReserve = useMemo(() => ({
-    emk1: allStock.reduce((sum, s) => sum + (s.emk1Total ?? 0), 0),
-    emk2: allStock.reduce((sum, s) => sum + (s.emk2Total ?? 0), 0),
-    emk3: allStock.reduce((sum, s) => sum + (s.emk3Total ?? 0), 0),
-    emk1Rem: allStock.reduce((sum, s) => sum + (s.emk1Remaining ?? 0), 0),
-    emk2Rem: allStock.reduce((sum, s) => sum + (s.emk2Remaining ?? 0), 0),
-    emk3Rem: allStock.reduce((sum, s) => sum + (s.emk3Remaining ?? 0), 0),
-  }), [allStock]);
-
+ 
+  const isLoading = centralLoading || stockLoading || movementsLoading;
+ 
+  // Invalidate central + sub-warehouse + dashboard on any write
   const invalidateStock = useCallback(() => {
+    queryClient.invalidateQueries({ queryKey: queryKeys.hub.centralStock() });
     queryClient.invalidateQueries({ queryKey: queryKeys.hub.stock(districtId) });
     queryClient.invalidateQueries({ queryKey: queryKeys.hub.movements(districtId) });
-    queryClient.invalidateQueries({ queryKey: ['stock', 'all'] });
     queryClient.invalidateQueries({ queryKey: queryKeys.dashboard.summary() });
-    
-    // Force refetch immediately
-    setTimeout(() => {
-      queryClient.refetchQueries({ queryKey: queryKeys.hub.stock(districtId) });
-    }, 300);
   }, [queryClient, districtId]);
-
+ 
   const dispatchMutation = useMutation({
     mutationFn: hubApi.dispatch,
     onSuccess: (_, vars) => {
-      setSuccess(`Dispatched ${vars.quantity}× ${vars.emkType} to sub-warehouse.`);
+      setSuccess(`Dispatched ${vars.quantity}× ${vars.emkType} from central warehouse to sub-warehouse.`);
       setDispQty(''); setDispReason('');
       invalidateStock();
     },
   });
-
+ 
   const adjustMutation = useMutation({
     mutationFn: hubApi.adjust,
     onSuccess: (_, vars) => {
@@ -191,22 +160,9 @@ function StockTab({
       invalidateStock();
     },
   });
-
-  const reallocMutation = useMutation({
-    mutationFn: hubApi.reallocate,
-    onSuccess: (_, vars) => {
-      setSuccess(`Reallocated ${vars.quantity}× ${vars.emkType} between districts.`);
-      setReallocQty(''); setReallocReason(''); setReallocFrom(''); setReallocTo('');
-      invalidateStock();
-    },
-  });
-
+ 
   const EMK_TYPES: Array<'EMK1' | 'EMK2' | 'EMK3'> = ['EMK1', 'EMK2', 'EMK3'];
-  const EMK_COLORS: Record<string, string> = {
-    EMK1: 'text-accent-blue',
-    EMK2: 'text-accent-green',
-    EMK3: 'text-accent-yellow',
-  };
+  const EMK_COLORS = { EMK1: 'text-accent-blue', EMK2: 'text-accent-green', EMK3: 'text-accent-yellow' };
   const MOVE_COLORS: Record<string, string> = {
     DISPATCH: 'text-accent-green border-accent-green/30 bg-accent-green/5',
     MOH_TRANSFER: 'text-accent-yellow border-accent-yellow/30 bg-accent-yellow/5',
@@ -214,89 +170,116 @@ function StockTab({
     REALLOCATION: 'text-accent-blue border-accent-blue/30 bg-accent-blue/5',
     ADJUSTMENT: 'text-accent-orange border-accent-orange/30 bg-accent-orange/5',
   };
-
+ 
   if (isLoading) {
     return (
       <div className="space-y-4">
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">{[...Array(3)].map((_, i) => <Skeleton key={i} className="h-28" />)}</div>
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-5"><Skeleton className="h-48" /><Skeleton className="h-48" /></div>
+        <Skeleton className="h-40" />
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+          {[...Array(3)].map((_, i) => <Skeleton key={i} className="h-28" />)}
+        </div>
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
+          <Skeleton className="h-48" /><Skeleton className="h-48" />
+        </div>
         <Skeleton className="h-64" />
       </div>
     );
   }
-
-  const dispatchError = dispatchMutation.error as { response?: { data?: { error?: string } } } | null;
-  const adjustError = adjustMutation.error as { response?: { data?: { error?: string } } } | null;
-  const reallocError = reallocMutation.error as { response?: { data?: { error?: string } } } | null;
-  const mutationError =
-    dispatchError?.response?.data?.error ??
-    adjustError?.response?.data?.error ??
-    reallocError?.response?.data?.error ?? '';
-
+ 
+  const dispatchError = (dispatchMutation.error as { response?: { data?: { error?: string } } } | null)
+    ?.response?.data?.error ?? '';
+  const adjustError = (adjustMutation.error as { response?: { data?: { error?: string } } } | null)
+    ?.response?.data?.error ?? '';
+  const mutationError = dispatchError || adjustError;
+ 
+  // Central availability for the currently selected EMK type
+  const centralAvailable = centralStock
+    ? (centralStock[`${dispEmkType.toLowerCase()}Remaining` as keyof CentralStockLevel] as number)
+    : null;
+ 
   return (
     <div className="space-y-6">
       {mutationError && (
-        <ErrorBox msg={mutationError} onDismiss={() => {
-          dispatchMutation.reset(); adjustMutation.reset(); reallocMutation.reset();
-        }} />
+        <ErrorBox
+          msg={mutationError}
+          onDismiss={() => { dispatchMutation.reset(); adjustMutation.reset(); }}
+        />
       )}
       {success && <SuccessBox msg={success} onDismiss={() => setSuccess('')} />}
-
-      {/* ── Central Warehouse Summary ── */}
-      {allStock.length > 0 && (
-        <div className="card p-4 border-bg-border">
-          <div className="flex items-center justify-between mb-3">
-            <div>
-              <p className="font-mono text-[10px] text-text-muted uppercase tracking-widest">
-                Central Warehouse — All Districts Combined
-              </p>
-              <p className="font-mono text-[9px] text-text-muted mt-0.5">
-                Total remaining / total dispatched across 3 sub-warehouses
-              </p>
-            </div>
-            <span className="font-mono text-[9px] text-text-muted px-2 py-1 rounded border border-bg-border">
-              30% reserve held
-            </span>
+ 
+      {/* ── CENTRAL WAREHOUSE ─────────────────────────────────────────────── */}
+      <div className="card p-5 border-accent-blue/20 bg-bg-elevated/40">
+        <div className="flex items-start justify-between mb-4">
+          <div>
+            <h3 className="font-sans font-bold text-text-primary">Central Warehouse</h3>
+            <p className="font-mono text-[10px] text-text-muted mt-0.5">
+              Master stock — each dispatch reduces this balance
+            </p>
           </div>
-          <div className="flex gap-6">
-            {[
-              { key: 'emk1', rem: centralReserve.emk1Rem, total: centralReserve.emk1 },
-              { key: 'emk2', rem: centralReserve.emk2Rem, total: centralReserve.emk2 },
-              { key: 'emk3', rem: centralReserve.emk3Rem, total: centralReserve.emk3 },
-            ].map(({ key, rem, total }) => {
-              const pct = total > 0 ? Math.round((rem / total) * 100) : 0;
+          <span className="font-mono text-[10px] text-text-muted bg-bg-elevated px-2 py-1 rounded border border-bg-border">
+            30% reserve
+          </span>
+        </div>
+ 
+        {centralStock ? (
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+            {EMK_TYPES.map((type) => {
+              const key = type.toLowerCase() as 'emk1' | 'emk2' | 'emk3';
+              const rem    = centralStock[`${key}Remaining` as keyof CentralStockLevel] as number;
+              const total  = centralStock[`${key}Total`     as keyof CentralStockLevel] as number;
+              const pct    = centralStock[`${key}Pct`       as keyof CentralStockLevel] as number;
+              const scarce = centralStock[`${key}Scarce`    as keyof CentralStockLevel] as boolean;
               return (
-                <div key={key} className="flex-1">
-                  <span className={`font-mono text-xs font-bold ${EMK_COLORS[key.toUpperCase()]}`}>
-                    {key.toUpperCase()}
-                  </span>
-                  <p className="font-mono text-xl font-bold text-text-primary mt-0.5">
-                    {fmt(rem)}
-                  </p>
-                  <p className="font-mono text-[9px] text-text-muted">of {fmt(total)} · {pct}%</p>
-                  <div className="mt-1.5 h-1 bg-bg-border rounded-full overflow-hidden">
+                <div key={type} className={`bg-bg-elevated rounded-lg border p-4 ${scarce ? 'border-accent-red/40' : 'border-bg-border'}`}>
+                  <div className="flex items-center justify-between mb-2">
+                    <span className={`font-mono text-sm font-bold ${EMK_COLORS[type]}`}>{type}</span>
+                    {scarce && (
+                      <span className="font-mono text-[9px] text-accent-red bg-accent-red/10 px-1.5 py-0.5 rounded border border-accent-red/30 animate-pulse">
+                        ⚠ SCARCE
+                      </span>
+                    )}
+                  </div>
+                  <p className="font-mono text-2xl font-bold text-text-primary">{fmt(rem)}</p>
+                  <p className="font-mono text-[10px] text-text-muted mt-0.5">of {fmt(total)} · {pct}%</p>
+                  <div className="mt-2 h-1.5 bg-bg-border rounded-full overflow-hidden">
                     <div
-                      className={`h-full rounded-full ${pct > 60 ? 'bg-accent-green' : pct > 30 ? 'bg-accent-yellow' : 'bg-accent-red'}`}
+                      className={`h-full rounded-full transition-all duration-500 ${
+                        scarce ? 'bg-accent-red' : pct > 60 ? 'bg-accent-blue' : pct > 30 ? 'bg-accent-yellow' : 'bg-accent-orange'
+                      }`}
                       style={{ width: `${Math.max(pct, 2)}%` }}
                     />
                   </div>
+                  {type === 'EMK3' && total === 0 && (
+                    <p className="font-mono text-[9px] text-text-muted mt-1.5">
+                      MoH cold storage — transferred at activation
+                    </p>
+                  )}
                 </div>
               );
             })}
           </div>
-        </div>
-      )}
-
-      {/* ── Sub-Warehouse Stock Cards ── */}
+        ) : (
+          <div className="bg-accent-orange/10 border border-accent-orange/30 rounded px-3 py-2">
+            <p className="font-mono text-xs text-accent-orange">
+              Central warehouse not found. Run <code>npm run seed</code> on the backend.
+            </p>
+          </div>
+        )}
+      </div>
+ 
+      {/* ── SUB-WAREHOUSE STOCK ───────────────────────────────────────────── */}
       <div>
-        <SectionTitle sub="Current remaining / total allocated at this sub-warehouse">Stock Levels</SectionTitle>
+        <SectionTitle sub="Current remaining / total dispatched to this sub-warehouse">
+          Sub-Warehouse Stock Levels
+        </SectionTitle>
         {stock ? (
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
             {EMK_TYPES.map((type) => {
-              const rem = stock[`${type.toLowerCase()}Remaining` as keyof StockLevel] as number;
-              const total = stock[`${type.toLowerCase()}Total` as keyof StockLevel] as number;
-              const pct = stock[`${type.toLowerCase()}Pct` as keyof StockLevel] as number;
-              const scarce = stock[`${type.toLowerCase()}Scarce` as keyof StockLevel] as boolean;
+              const key    = type.toLowerCase() as 'emk1' | 'emk2' | 'emk3';
+              const rem    = stock[`${key}Remaining` as keyof StockLevel] as number;
+              const total  = stock[`${key}Total`     as keyof StockLevel] as number;
+              const pct    = stock[`${key}Pct`       as keyof StockLevel] as number;
+              const scarce = stock[`${key}Scarce`    as keyof StockLevel] as boolean;
               return (
                 <div key={type} className={`card p-4 ${scarce ? 'border-accent-red/40' : ''}`}>
                   <div className="flex items-center justify-between mb-2">
@@ -326,210 +309,172 @@ function StockTab({
               );
             })}
           </div>
-        ) : <Empty message="No stock record found for this district." />}
+        ) : (
+          <Empty message="No stock record found for this district." />
+        )}
       </div>
-
-      {/* ── Dispatch + Adjust ── */}
+ 
+      {/* ── DISPATCH + ADJUST FORMS ───────────────────────────────────────── */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
         <div className="card p-5">
-          <SectionTitle sub="Record stock arriving from central warehouse">Record Dispatch</SectionTitle>
+          <SectionTitle sub="Moves stock from central warehouse → this sub-warehouse">
+            Record Dispatch
+          </SectionTitle>
+ 
+          {/* Live central availability hint for selected EMK type */}
+          {centralAvailable !== null && (
+            <div className="mb-3 bg-bg-elevated rounded px-3 py-2 border border-bg-border">
+              <p className="font-mono text-[10px] text-text-muted">
+                Central available —{' '}
+                <span className={EMK_COLORS[dispEmkType]}>
+                  {dispEmkType}: {fmt(centralAvailable)} units
+                </span>
+              </p>
+            </div>
+          )}
+ 
           <div className="space-y-3">
             <div className="grid grid-cols-2 gap-3">
               <div>
                 <label className="label">EMK Type</label>
-                <select value={dispEmkType} onChange={e => setDispEmkType(e.target.value as 'EMK1' | 'EMK2' | 'EMK3')} className="input">
+                <select
+                  value={dispEmkType}
+                  onChange={e => setDispEmkType(e.target.value as 'EMK1' | 'EMK2' | 'EMK3')}
+                  className="input"
+                >
                   {EMK_TYPES.map(t => <option key={t} value={t}>{t}</option>)}
                 </select>
               </div>
               <div>
                 <label className="label">Quantity</label>
-                <input type="number" min="1" className="input" placeholder="e.g. 200"
-                  value={dispQty} onChange={e => setDispQty(e.target.value)} />
+                <input
+                  type="number" min="1" className="input"
+                  placeholder="e.g. 200"
+                  value={dispQty}
+                  onChange={e => setDispQty(e.target.value)}
+                />
               </div>
             </div>
             <div>
               <label className="label">Reason (optional)</label>
-              <input type="text" className="input" placeholder="Phase 1 resupply..."
-                value={dispReason} onChange={e => setDispReason(e.target.value)} />
+              <input
+                type="text" className="input"
+                placeholder="Phase 1 resupply..."
+                value={dispReason}
+                onChange={e => setDispReason(e.target.value)}
+              />
             </div>
             <button
-              onClick={() => subWarehouseId && dispQty && dispatchMutation.mutate({
-                subWarehouseId, emkType: dispEmkType, quantity: Number(dispQty), reason: dispReason || undefined,
-              })}
+              onClick={() => {
+                if (!subWarehouseId || !dispQty) return;
+                dispatchMutation.mutate({
+                  subWarehouseId,
+                  emkType: dispEmkType,
+                  quantity: Number(dispQty),
+                  reason: dispReason || undefined,
+                });
+              }}
               disabled={dispatchMutation.isPending || !dispQty || !subWarehouseId}
-              className="btn-primary w-full">
-              {dispatchMutation.isPending ? 'Recording...' : 'Record Dispatch'}
+              className="btn-primary w-full"
+            >
+              {dispatchMutation.isPending ? 'Dispatching...' : 'Dispatch to Sub-Warehouse'}
             </button>
             {!subWarehouseId && (
-              <p className="font-mono text-[10px] text-accent-orange">No sub-warehouse assigned to this district.</p>
+              <p className="font-mono text-[10px] text-accent-orange">
+                No sub-warehouse assigned to this district.
+              </p>
             )}
           </div>
         </div>
-
+ 
         <div className="card p-5">
-          <SectionTitle sub="Manual correction with mandatory reason (Section B.7)">Manual Adjustment</SectionTitle>
+          <SectionTitle sub="Manual correction with mandatory reason (Section B.7)">
+            Manual Adjustment
+          </SectionTitle>
           <div className="space-y-3">
             <div className="grid grid-cols-2 gap-3">
               <div>
                 <label className="label">EMK Type</label>
-                <select value={adjEmkType} onChange={e => setAdjEmkType(e.target.value as 'EMK1' | 'EMK2' | 'EMK3')} className="input">
+                <select
+                  value={adjEmkType}
+                  onChange={e => setAdjEmkType(e.target.value as 'EMK1' | 'EMK2' | 'EMK3')}
+                  className="input"
+                >
                   {EMK_TYPES.map(t => <option key={t} value={t}>{t}</option>)}
                 </select>
               </div>
               <div>
                 <label className="label">Quantity (+/−)</label>
-                <input type="number" className="input" placeholder="-5 or +10"
-                  value={adjQty} onChange={e => setAdjQty(e.target.value)} />
+                <input
+                  type="number" className="input"
+                  placeholder="-5 or +10"
+                  value={adjQty}
+                  onChange={e => setAdjQty(e.target.value)}
+                />
               </div>
             </div>
             <div>
               <label className="label">Reason (required)</label>
-              <input type="text" className="input" placeholder="e.g. Water-damaged kits removed"
-                value={adjReason} onChange={e => setAdjReason(e.target.value)} />
+              <input
+                type="text" className="input"
+                placeholder="e.g. Water-damaged kits removed"
+                value={adjReason}
+                onChange={e => setAdjReason(e.target.value)}
+              />
             </div>
             <button
-              onClick={() => subWarehouseId && adjQty && adjReason.trim() && adjustMutation.mutate({
-                subWarehouseId, emkType: adjEmkType, quantity: Number(adjQty), reason: adjReason,
-              })}
+              onClick={() => {
+                if (!subWarehouseId || !adjQty || !adjReason.trim()) return;
+                adjustMutation.mutate({
+                  subWarehouseId,
+                  emkType: adjEmkType,
+                  quantity: Number(adjQty),
+                  reason: adjReason,
+                });
+              }}
               disabled={adjustMutation.isPending || !adjQty || !adjReason.trim() || !subWarehouseId}
-              className="btn-ghost w-full">
+              className="btn-ghost w-full"
+            >
               {adjustMutation.isPending ? 'Adjusting...' : 'Record Adjustment'}
             </button>
           </div>
         </div>
       </div>
-
-      {/* ── Reallocation — Emergency Coordinator only ── */}
-      {isEC && allSubWarehouses.length > 1 && (
-        <div className="card p-5 border-accent-blue/20">
-          <SectionTitle sub="Cross-district reallocation — Emergency Coordinator only (Section D.4.1)">
-            Reallocate Stock Between Districts
-          </SectionTitle>
-          <div className="space-y-3">
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-              <div>
-                <label className="label">From District</label>
-                <select 
-                  value={reallocFrom} 
-                  onChange={e => setReallocFrom(e.target.value)} 
-                  className="input"
-                >
-                  <option value="">Select source...</option>
-                  {allSubWarehouses.map(d => {
-                    const id = d.subWarehouseId ?? '';
-                    return (
-                      <option key={id} value={id}>
-                        {d.name}
-                      </option>
-                    );
-                  })}
-                </select>
-              </div>
-
-              <div>
-                <label className="label">To District</label>
-                <select 
-                  value={reallocTo} 
-                  onChange={e => setReallocTo(e.target.value)} 
-                  className="input"
-                >
-                  <option value="">Select destination...</option>
-                  {allSubWarehouses
-                    .filter(d => (d.subWarehouseId ?? '') !== reallocFrom)
-                    .map(d => {
-                      const id = d.subWarehouseId ?? '';
-                      return (
-                        <option key={id} value={id}>
-                          {d.name}
-                        </option>
-                      );
-                    })}
-                </select>
-              </div>
-
-              <div>
-                <label className="label">EMK Type</label>
-                <select 
-                  value={reallocEmk} 
-                  onChange={e => setReallocEmk(e.target.value as 'EMK1' | 'EMK2' | 'EMK3')} 
-                  className="input"
-                >
-                  {EMK_TYPES.map(t => <option key={t} value={t}>{t}</option>)}
-                </select>
-              </div>
-            </div>
-            {/* Rest of the form remains the same */}
-            <div className="grid grid-cols-2 gap-3">
-              <div>
-                <label className="label">Quantity</label>
-                <input 
-                  type="number" 
-                  min="1" 
-                  className="input" 
-                  placeholder="e.g. 150"
-                  value={reallocQty} 
-                  onChange={e => setReallocQty(e.target.value)} 
-                />
-              </div>
-              <div>
-                <label className="label">Reason (required)</label>
-                <input 
-                  type="text" 
-                  className="input" 
-                  placeholder="e.g. District 1 EMK3 at 35%"
-                  value={reallocReason} 
-                  onChange={e => setReallocReason(e.target.value)} 
-                />
-              </div>
-            </div>
-            {/* button stays the same */}
-            <button
-              onClick={() =>
-                reallocFrom && reallocTo && reallocQty && reallocReason.trim() &&
-                reallocMutation.mutate({
-                  fromSubWarehouseId: reallocFrom,
-                  toSubWarehouseId: reallocTo,
-                  emkType: reallocEmk,
-                  quantity: Number(reallocQty),
-                  reason: reallocReason,
-                })
-              }
-              disabled={
-                reallocMutation.isPending ||
-                !reallocFrom || !reallocTo ||
-                !reallocQty || !reallocReason.trim() ||
-                reallocFrom === reallocTo
-              }
-              className="btn-primary w-full"
-            >
-              {reallocMutation.isPending ? 'Reallocating...' : `Reallocate ${reallocEmk}`}
-            </button>
-          </div>
-        </div>
-      )}
-
-      {/* ── Audit Log ── */}
+ 
+      {/* ── AUDIT LOG ─────────────────────────────────────────────────────── */}
       <div>
         <SectionTitle sub="Last 50 stock movements for this district">Audit Log</SectionTitle>
         <div className="card divide-y divide-bg-border">
-          {movements.length === 0 ? <Empty message="No movements yet." /> : movements.map((m: StockMovement) => (
-            <div key={m.id} className="px-4 py-3 flex items-start justify-between gap-3">
-              <div className="min-w-0 flex-1">
-                <div className="flex items-center gap-2 flex-wrap mb-0.5">
-                  <span className={`font-mono text-[10px] px-1.5 py-0.5 rounded border ${MOVE_COLORS[m.movementType] ?? 'text-text-muted border-bg-border'}`}>
-                    {m.movementType}
-                  </span>
-                  <span className={`font-mono text-xs font-semibold ${EMK_COLORS[m.emkType]}`}>{m.emkType}</span>
-                  <span className={`font-mono text-sm font-bold ${m.quantity > 0 ? 'text-accent-green' : 'text-accent-red'}`}>
-                    {m.quantity > 0 ? '+' : ''}{fmt(m.quantity)}
-                  </span>
+          {movements.length === 0 ? (
+            <Empty message="No movements yet." />
+          ) : (
+            movements.map((m: StockMovement) => (
+              <div key={m.id} className="px-4 py-3 flex items-start justify-between gap-3">
+                <div className="min-w-0 flex-1">
+                  <div className="flex items-center gap-2 flex-wrap mb-0.5">
+                    <span className={`font-mono text-[10px] px-1.5 py-0.5 rounded border ${MOVE_COLORS[m.movementType] ?? 'text-text-muted border-bg-border'}`}>
+                      {m.movementType}
+                    </span>
+                    <span className={`font-mono text-xs font-semibold ${EMK_COLORS[m.emkType]}`}>
+                      {m.emkType}
+                    </span>
+                    <span className={`font-mono text-sm font-bold ${m.quantity > 0 ? 'text-accent-green' : 'text-accent-red'}`}>
+                      {m.quantity > 0 ? '+' : ''}{fmt(m.quantity)}
+                    </span>
+                  </div>
+                  {m.reason && (
+                    <p className="font-mono text-[10px] text-text-muted truncate">{m.reason}</p>
+                  )}
+                  <p className="font-mono text-[10px] text-text-muted mt-0.5">
+                    by {m.performedBy?.name ?? '—'}
+                  </p>
                 </div>
-                {m.reason && <p className="font-mono text-[10px] text-text-muted truncate">{m.reason}</p>}
-                <p className="font-mono text-[10px] text-text-muted mt-0.5">by {m.performedBy?.name ?? '—'}</p>
+                <span className="font-mono text-[10px] text-text-muted flex-shrink-0">
+                  {timeAgo(m.createdAt)}
+                </span>
               </div>
-              <span className="font-mono text-[10px] text-text-muted flex-shrink-0">{timeAgo(m.createdAt)}</span>
-            </div>
-          ))}
+            ))
+          )}
         </div>
       </div>
     </div>
