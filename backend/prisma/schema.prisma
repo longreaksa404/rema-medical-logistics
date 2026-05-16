@@ -49,6 +49,19 @@ model District {
   @@map("districts")
 }
 
+model CentralWarehouse {
+  id            String   @id @default(cuid())
+  updatedAt     DateTime @updatedAt
+  emk1Total     Int      @default(0)
+  emk1Remaining Int      @default(0)
+  emk2Total     Int      @default(0)
+  emk2Remaining Int      @default(0)
+  emk3Total     Int      @default(0)
+  emk3Remaining Int      @default(0)
+
+  @@map("central_warehouse")
+}
+
 model SubWarehouse {
   id                   String                @id @default(cuid())
   createdAt            DateTime              @default(now())

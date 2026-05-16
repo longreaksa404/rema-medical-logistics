@@ -35,11 +35,6 @@ export async function listVolunteers(filters: {
 
 async function fetchAllVolunteers() {
   return prisma.volunteer.findMany({
-    // Volunteers are always in real districts — no central district volunteers exist,
-    // but guard against it in case of bad data by excluding __central__ district joins.
-    where: {
-      district: { name: { not: '__central__' } },
-    },
     orderBy: [{ districtId: 'asc' }, { role: 'asc' }, { name: 'asc' }],
     include: {
       assignments: {
