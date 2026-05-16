@@ -4,13 +4,21 @@ import bcrypt from 'bcrypt';
 const prisma = new PrismaClient();
 
 // ─── STOCK ALLOCATION (Section B.2) ──────────────────────────────────────────
-// District 1: 8,000 households → EMK1: 6,000 | EMK2: 1,500 | EMK3: 500
-// District 2: 6,000 households → EMK1: 4,500 | EMK2: 1,200 | EMK3: 300
-// District 3: 7,000 households → EMK1: 5,200 | EMK2: 1,400 | EMK3: 400
-// EMK-3 starts at 0 — transferred from MoH only at flood activation
-// Central warehouse holds 30% reserve (not tracked here — tracked in notes)
+// Sub-warehouse opening stock (pre-positioned at Phase 1)
+// District 1: 8,000 households → EMK1: 6,000 | EMK2: 1,500 | EMK3: 0
+// District 2: 6,000 households → EMK1: 4,500 | EMK2: 1,200 | EMK3: 0
+// District 3: 7,000 households → EMK1: 5,200 | EMK2: 1,400 | EMK3: 0
+//
+// Central 30% reserve (Section B.2):
+//   Total dispatched to sub-warehouses: EMK1=15,700 | EMK2=4,100
+//   Grand total = dispatched / 0.70  →  Central = grand_total × 0.30
+//   EMK1: round(15700 / 0.70 × 0.30) = 6,729  → 6,730
+//   EMK2: round(4100  / 0.70 × 0.30) = 1,757  → 1,760
+//   EMK3: starts at 0 — transferred from MoH cold storage at activation only
 
-const STOCK_ALLOCATION = [
+const CENTRAL_STOCK = { emk1: 6730, emk2: 1760, emk3: 0 };
+
+const SUB_WAREHOUSE_STOCK = [
   { districtIndex: 0, emk1: 6000, emk2: 1500, emk3: 0 },
   { districtIndex: 1, emk1: 4500, emk2: 1200, emk3: 0 },
   { districtIndex: 2, emk1: 5200, emk2: 1400, emk3: 0 },
@@ -26,21 +34,67 @@ async function main() {
     update: {},
     create: { name: 'District 1', population: 8000, latitude: 10.762, longitude: 106.660 },
   });
-
   const d2 = await prisma.district.upsert({
     where: { name: 'District 2' },
     update: {},
     create: { name: 'District 2', population: 6000, latitude: 10.770, longitude: 106.670 },
   });
-
   const d3 = await prisma.district.upsert({
     where: { name: 'District 3' },
     update: {},
     create: { name: 'District 3', population: 7000, latitude: 10.755, longitude: 106.650 },
   });
-
   const districts = [d1, d2, d3];
   console.log('Districts seeded:', d1.name, d2.name, d3.name);
+
+  // ─── CENTRAL WAREHOUSE ──────────────────────────────────────────────────────
+  // Stored as a SubWarehouse row so it uses the existing Stock model.
+  // SubWarehouse.districtId is NOT NULL + UNIQUE, so we need a synthetic
+  // "__central__" district (never returned by any UI query — filtered by name).
+  // stock.service.ts finds the central warehouse via name = 'Central Warehouse'.
+
+  const centralDistrict = await prisma.district.upsert({
+    where: { name: '__central__' },
+    update: {},
+    create: { name: '__central__', population: 0, latitude: 10.762, longitude: 106.660 },
+  });
+
+  const centralSW = await prisma.subWarehouse.upsert({
+    where: { districtId: centralDistrict.id },
+    update: {},
+    create: {
+      districtId: centralDistrict.id,
+      name: 'Central Warehouse',
+      address: 'Red Cross HQ, Ho Chi Minh City',
+      latitude: 10.762,
+      longitude: 106.660,
+      capacitySqm: 500,
+      status: 'ACTIVE',
+    },
+  });
+
+  const existingCentralStock = await prisma.stock.findUnique({
+    where: { subWarehouseId: centralSW.id },
+  });
+
+  if (!existingCentralStock) {
+    await prisma.stock.create({
+      data: {
+        subWarehouseId: centralSW.id,
+        emk1Total: CENTRAL_STOCK.emk1,
+        emk1Remaining: CENTRAL_STOCK.emk1,
+        emk2Total: CENTRAL_STOCK.emk2,
+        emk2Remaining: CENTRAL_STOCK.emk2,
+        emk3Total: CENTRAL_STOCK.emk3,
+        emk3Remaining: CENTRAL_STOCK.emk3,
+      },
+    });
+    console.log(
+      `  ✓ Central warehouse stock: EMK1=${CENTRAL_STOCK.emk1} | EMK2=${CENTRAL_STOCK.emk2} | EMK3=0 (MoH-held)`
+    );
+  } else {
+    console.log('  ✓ Central warehouse stock already exists — skipping');
+  }
 
   // ─── SUB-WAREHOUSES ─────────────────────────────────────────────────────────
   const sw1 = await prisma.subWarehouse.upsert({
@@ -55,7 +109,6 @@ async function main() {
       capacitySqm: 50,
     },
   });
-
   const sw2 = await prisma.subWarehouse.upsert({
     where: { districtId: d2.id },
     update: {},
@@ -68,7 +121,6 @@ async function main() {
       capacitySqm: 45,
     },
   });
-
   const sw3 = await prisma.subWarehouse.upsert({
     where: { districtId: d3.id },
     update: {},
@@ -81,21 +133,14 @@ async function main() {
       capacitySqm: 40,
     },
   });
-
   const subWarehouses = [sw1, sw2, sw3];
   console.log('Sub-warehouses seeded');
 
-  // ─── STOCK RECORDS ──────────────────────────────────────────────────────────
-  // EMK-3 starts at 0 at sub-warehouses — MoH holds cold storage until activation.
-  // The stock record exists but emk3Total/Remaining = 0 until MoH transfer.
+  // ─── SUB-WAREHOUSE STOCK ────────────────────────────────────────────────────
   for (let i = 0; i < subWarehouses.length; i++) {
     const sw = subWarehouses[i];
-    const alloc = STOCK_ALLOCATION[i];
-
-    const existing = await prisma.stock.findUnique({
-      where: { subWarehouseId: sw.id },
-    });
-
+    const alloc = SUB_WAREHOUSE_STOCK[i];
+    const existing = await prisma.stock.findUnique({ where: { subWarehouseId: sw.id } });
     if (existing) {
       console.log(`  ✓ Stock already exists for ${sw.name} — skipping`);
     } else {
@@ -106,31 +151,25 @@ async function main() {
           emk1Remaining: alloc.emk1,
           emk2Total: alloc.emk2,
           emk2Remaining: alloc.emk2,
-          emk3Total: alloc.emk3,  // 0 — MoH holds cold stock
+          emk3Total: alloc.emk3,
           emk3Remaining: alloc.emk3,
         },
       });
       console.log(
-        `  ✓ Stock seeded for ${sw.name}: ` +
-        `EMK1=${alloc.emk1} | EMK2=${alloc.emk2} | EMK3=${alloc.emk3} (MoH-held)`
+        `  ✓ Stock seeded for ${sw.name}: EMK1=${alloc.emk1} | EMK2=${alloc.emk2} | EMK3=0 (MoH-held)`
       );
     }
   }
 
   // ─── USERS ──────────────────────────────────────────────────────────────────
-  const users: Array<{
-    email: string;
-    name: string;
-    role: Role;
-    districtId: string | null;
-  }> = [
-    { email: 'admin@rema.vn',       name: 'REMA Super Admin',           role: Role.SUPER_ADMIN,           districtId: null   },
-    { email: 'coordinator@rema.vn', name: 'Emergency Coordinator',      role: Role.EMERGENCY_COORDINATOR, districtId: null   },
-    { email: 'hub1@rema.vn',        name: 'Hub Manager District 1',     role: Role.HUB_MANAGER,           districtId: d1.id  },
-    { email: 'hub2@rema.vn',        name: 'Hub Manager District 2',     role: Role.HUB_MANAGER,           districtId: d2.id  },
-    { email: 'hub3@rema.vn',        name: 'Hub Manager District 3',     role: Role.HUB_MANAGER,           districtId: d3.id  },
-    { email: 'volunteer1@rema.vn',  name: 'Volunteer District 1',       role: Role.VOLUNTEER,             districtId: d1.id  },
-    { email: 'viewer@rema.vn',      name: 'Read-Only Viewer',           role: Role.VIEWER,                districtId: null   },
+  const users: Array<{ email: string; name: string; role: Role; districtId: string | null }> = [
+    { email: 'admin@rema.vn',       name: 'REMA Super Admin',        role: Role.SUPER_ADMIN,           districtId: null  },
+    { email: 'coordinator@rema.vn', name: 'Emergency Coordinator',   role: Role.EMERGENCY_COORDINATOR, districtId: null  },
+    { email: 'hub1@rema.vn',        name: 'Hub Manager District 1',  role: Role.HUB_MANAGER,           districtId: d1.id },
+    { email: 'hub2@rema.vn',        name: 'Hub Manager District 2',  role: Role.HUB_MANAGER,           districtId: d2.id },
+    { email: 'hub3@rema.vn',        name: 'Hub Manager District 3',  role: Role.HUB_MANAGER,           districtId: d3.id },
+    { email: 'volunteer1@rema.vn',  name: 'Volunteer District 1',    role: Role.VOLUNTEER,             districtId: d1.id },
+    { email: 'viewer@rema.vn',      name: 'Read-Only Viewer',        role: Role.VIEWER,                districtId: null  },
   ];
 
   for (const u of users) {
@@ -144,16 +183,13 @@ async function main() {
 
   console.log('\n=== Seed complete ===');
   console.log('All passwords: rema1234');
-  console.log('\nStock summary (Section B.2):');
+  console.log('\nStock summary:');
   for (let i = 0; i < districts.length; i++) {
     const d = districts[i];
-    const alloc = STOCK_ALLOCATION[i];
-    console.log(
-      `  ${d.name}: EMK1=${alloc.emk1} | EMK2=${alloc.emk2} | EMK3=0 (MoH-held until activation)`
-    );
+    const alloc = SUB_WAREHOUSE_STOCK[i];
+    console.log(`  ${d.name}: EMK1=${alloc.emk1} | EMK2=${alloc.emk2} | EMK3=0 (MoH-held)`);
   }
-  console.log('\nCentral warehouse 30% reserve (not in DB):');
-  console.log('  EMK1: 4,710 | EMK2: 1,230 | EMK3: 360');
+  console.log(`  Central:    EMK1=${CENTRAL_STOCK.emk1} | EMK2=${CENTRAL_STOCK.emk2} | EMK3=0 (30% reserve)`);
 }
 
 main()
