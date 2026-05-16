@@ -1,6 +1,7 @@
 import { Router } from 'express';
 import { requireAuth, requireRole } from '../middleware/auth';
 import {
+  getCentral,
   getStatus,
   getByDistrict,
   dispatch,
@@ -13,20 +14,22 @@ import {
 const router = Router();
 
 // ─── IMPORTANT: Fixed paths must come BEFORE :districtId ─────────────────────
-// Express matches top-to-bottom. If :districtId came first, "status" and
-// "movements" would be treated as district IDs.
+// Express matches top-to-bottom. If :districtId came first, "central", "status"
+// and "movements" would be swallowed as district IDs.
 
-// GET /api/stock/status — all sub-warehouses
+// GET /api/stock/central — central warehouse stock (deducted on every dispatch)
+router.get('/central', requireAuth, getCentral);
+
+// GET /api/stock/status — all sub-warehouses aggregate
 router.get('/status', requireAuth, getStatus);
 
 // GET /api/stock/movements — full audit log
-// Must be before /movements/:districtId and before /:districtId
 router.get('/movements', requireAuth, getMovements);
 
 // GET /api/stock/movements/:districtId — per-district audit log
 router.get('/movements/:districtId', requireAuth, getMovementsByDistrictHandler);
 
-// POST /api/stock/dispatch — central → sub-warehouse (any authenticated user can record)
+// POST /api/stock/dispatch — central → sub-warehouse
 router.post('/dispatch', requireAuth, dispatch);
 
 // POST /api/stock/reallocate — Emergency Coordinator only
