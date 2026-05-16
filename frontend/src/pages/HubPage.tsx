@@ -1315,7 +1315,10 @@ export function HubPage() {
     queryFn: () => api.get('/api/alert/status').then(r => r.data),
   });
 
-  const districts: DistrictCard[] = summaryData?.districts ?? [];
+  const districts: DistrictCard[] = (summaryData?.districts ?? []).filter(
+     d => d.name !== '__central__'
+  );
+
 
   const resolvedDistrictId: string = useMemo(() => {
     if (selectedDistrictId) return selectedDistrictId;
