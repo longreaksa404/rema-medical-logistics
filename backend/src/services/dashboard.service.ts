@@ -4,34 +4,18 @@ import { getCached, setCached, deleteCached } from '../utils/cache';
 
 const prisma = new PrismaClient();
 
-// ─── CACHE KEYS ───────────────────────────────────────────────────────────────
 const KEY_SUMMARY = 'dashboard:summary';
 const KEY_DISTRICT_PREFIX = 'dashboard:district:';
 
-/**
- * Invalidate specific dashboard cache keys or clear all dashboard entries.
- * Called by alert.service on phase change and stock.service on dispatch/reallocate.
- *
- * @param key — optional specific key (e.g. 'dashboard:district:abc').
- *              Pass nothing to flush all dashboard:* entries.
- */
 export function invalidateCache(key?: string): void {
   if (key) {
     deleteCached(key);
   } else {
-    // Flush both summary and all per-district entries
     deleteCached(KEY_SUMMARY);
-    deleteCached(KEY_DISTRICT_PREFIX); // prefix match — clears all district keys
+    deleteCached(KEY_DISTRICT_PREFIX);
   }
 }
 
-// ─── EXPORTED SERVICES ───────────────────────────────────────────────────────
-
-/**
- * GET /api/dashboard/summary
- * Cached 15 s — heavy aggregation across all 3 districts.
- * Invalidated on phase change and stock dispatch/reallocate.
- */
 export async function getDashboardSummary() {
   const cached = getCached<Awaited<ReturnType<typeof buildSummary>>>(KEY_SUMMARY);
   if (cached) return cached;
@@ -41,11 +25,6 @@ export async function getDashboardSummary() {
   return result;
 }
 
-/**
- * GET /api/dashboard/district/:id
- * Cached 10 s per district.
- * Key format: dashboard:district:{id} — allows targeted invalidation.
- */
 export async function getDistrictDashboard(districtId: string) {
   const key = `${KEY_DISTRICT_PREFIX}${districtId}`;
   const cached = getCached<Awaited<ReturnType<typeof buildDistrictDashboard>>>(key);
@@ -158,7 +137,9 @@ async function buildSummary() {
   ] = await Promise.all([
     prisma.floodAlert.findFirst({ orderBy: { createdAt: 'desc' } }),
 
+    // ── KEY FIX: exclude the synthetic __central__ district ──────────────────
     prisma.district.findMany({
+      where: { name: { not: '__central__' } },
       orderBy: { name: 'asc' },
       include: { subWarehouse: { include: { stock: true } } },
     }),
