@@ -86,6 +86,19 @@ model Stock {
   @@map("stock")
 }
 
+model CentralStock {
+  id            String   @id @default(cuid())
+  updatedAt     DateTime @updatedAt
+  emk1Total     Int      @default(0)
+  emk1Remaining Int      @default(0)
+  emk2Total     Int      @default(0)
+  emk2Remaining Int      @default(0)
+  emk3Total     Int      @default(0)
+  emk3Remaining Int      @default(0)
+
+  @@map("central_stock")
+}
+
 model StockMovement {
   id             String       @id @default(cuid())
   createdAt      DateTime     @default(now())
