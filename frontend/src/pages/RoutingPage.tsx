@@ -201,7 +201,10 @@ export function RoutingPage() {
     queryKey: queryKeys.dashboard.summary(),
     queryFn: () => import('../api/dashboard').then(m => m.dashboardApi.getSummary()),
   });
-  const districts: DistrictCard[] = summaryData?.districts ?? [];
+  const districts: DistrictCard[] = (summaryData?.districts ?? []).filter(
+    (d) => d.name !== '__central__'
+  );
+
 
   // Initialise zone depths from backend routes
   useEffect(() => {

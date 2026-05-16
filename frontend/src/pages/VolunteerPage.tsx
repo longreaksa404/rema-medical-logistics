@@ -682,8 +682,9 @@ export function VolunteerPage() {
     enabled: !user?.districtId, // only fetch summary if no direct district
   });
 
-  const districtId = user?.districtId ?? summaryData?.districts?.[0]?.districtId ?? '';
-  const districtName = districtData?.name ?? summaryData?.districts?.[0]?.name ?? 'Your District';
+  const realDistricts = (summaryData?.districts ?? []).filter(d => d.name !== '__central__');
+  const districtId = user?.districtId ?? realDistricts[0]?.districtId ?? '';
+  const districtName = districtData?.name ?? realDistricts[0]?.name ?? 'Your District';
   const isLoading = user?.districtId ? districtLoading : summaryLoading;
 
   const TABS: Array<{ id: TabId; icon: string; label: string }> = [

@@ -522,7 +522,7 @@ export function DashboardPage() {
 
   const topStats = useMemo(() => {
     if (!data) return null;
-    const totalScheduled = data.districts.length * 4;
+    const totalScheduled = data.districts.filter(d => d.name !== '__central__').length * 4;
     return {
       activeRuns:      data.activeDeliveryRuns,
       pendingDelivery: data.households.pendingDelivery,
@@ -691,7 +691,7 @@ export function DashboardPage() {
           </div>
 
           {/* 5 ── Stock chart */}
-          <StockChart districts={data.districts} />
+          <StockChart districts={data.districts.filter(d => d.name !== '__central__')} />
 
           {/* 6 ── Delivery runs + Radio */}
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
@@ -707,7 +707,7 @@ export function DashboardPage() {
               Districts
             </p>
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-              {data.districts.map((d) => (
+              {data.districts.filter(d => d.name !== '__central__').map((d) => (
                 <DistrictCard key={d.districtId} d={d} />
               ))}
             </div>
@@ -718,7 +718,7 @@ export function DashboardPage() {
             <p className="font-mono text-[10px] text-text-muted uppercase tracking-widest mb-3">
               Household Priority Queue
             </p>
-            <PriorityQueueTable districts={data.districts} />
+            <PriorityQueueTable districts={data.districts.filter(d => d.name !== '__central__')} />
           </div>
 
           {/* 9 ── Incidents */}

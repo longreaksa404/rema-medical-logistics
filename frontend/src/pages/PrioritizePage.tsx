@@ -248,7 +248,7 @@ export function PrioritizePage() {
   // Load districts
   useEffect(() => {
     api.get('/api/dashboard/summary').then((res) => {
-      const d = res.data.districts ?? [];
+      const d = (res.data.districts ?? []).filter((d: DistrictCard) => d.name !== '__central__');
       setDistricts(d);
       if (d.length > 0 && !selectedDistrictId) {
         setSelectedDistrictId(d[0].districtId);
