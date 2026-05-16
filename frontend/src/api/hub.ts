@@ -22,6 +22,24 @@ export interface StockLevel {
   updatedAt: string;
 }
 
+// NEW — returned by GET /api/stock/central
+export interface CentralStockLevel {
+  subWarehouseId: string;
+  emk1Total: number;
+  emk1Remaining: number;
+  emk1Pct: number;
+  emk1Scarce: boolean;
+  emk2Total: number;
+  emk2Remaining: number;
+  emk2Pct: number;
+  emk2Scarce: boolean;
+  emk3Total: number;
+  emk3Remaining: number;
+  emk3Pct: number;
+  emk3Scarce: boolean;
+  updatedAt: string;
+}
+
 export interface StockMovement {
   id: string;
   createdAt: string;
@@ -116,6 +134,13 @@ export interface RadioCheckin {
 
 export const hubApi = {
   // Stock
+
+  // NEW — central warehouse stock; decrements on every dispatch
+  getCentralStock: async (): Promise<CentralStockLevel> => {
+    const res = await api.get<CentralStockLevel>('/api/stock/central');
+    return res.data;
+  },
+
   getDistrictStock: async (districtId: string): Promise<StockLevel> => {
     const res = await api.get<StockLevel>(`/api/stock/${districtId}`);
     return res.data;
