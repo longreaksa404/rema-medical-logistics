@@ -2,28 +2,18 @@ import { VolunteerRole, VolunteerStatus } from '@prisma/client';
 import { prisma } from '../lib/prisma';
 import { getCached, setCached, deleteCached } from '../utils/cache';
 
-// ─── CACHE KEYS ───────────────────────────────────────────────────────────────
-// Volunteer list is polled by the Hub Manager portal every 30–60 s.
-// Roster is per-district, so we key by district. The flat list is separate.
-// Both are busted on any volunteer write (create, update, assign).
-
 const KEY_LIST = 'volunteers:list';
 const KEY_ROSTER_PREFIX = 'volunteers:roster:';
-const TTL = 30_000; // 30 s
+const TTL = 30_000;
 
 function invalidateVolunteerCache(districtId?: string): void {
   deleteCached(KEY_LIST);
   if (districtId) {
     deleteCached(`${KEY_ROSTER_PREFIX}${districtId}`);
   } else {
-    // Bust all roster keys (e.g. after a cross-district assign)
     deleteCached(KEY_ROSTER_PREFIX);
   }
 }
-
-// ─── LIST VOLUNTEERS ──────────────────────────────────────────────────────────
-// Cached 30 s. Filters are applied post-cache because the full list is small
-// enough to filter in-memory and avoids a separate cache entry per filter combo.
 
 export async function listVolunteers(filters: {
   districtId?: string;
@@ -36,7 +26,6 @@ export async function listVolunteers(filters: {
     return result;
   })();
 
-  // Apply filters in-memory
   return all.filter(v => {
     if (filters.districtId && v.districtId !== filters.districtId) return false;
     if (filters.status && v.status !== filters.status) return false;
@@ -46,6 +35,11 @@ export async function listVolunteers(filters: {
 
 async function fetchAllVolunteers() {
   return prisma.volunteer.findMany({
+    // Volunteers are always in real districts — no central district volunteers exist,
+    // but guard against it in case of bad data by excluding __central__ district joins.
+    where: {
+      district: { name: { not: '__central__' } },
+    },
     orderBy: [{ districtId: 'asc' }, { role: 'asc' }, { name: 'asc' }],
     include: {
       assignments: {
@@ -59,15 +53,16 @@ async function fetchAllVolunteers() {
   });
 }
 
-// ─── ADD VOLUNTEER TO ROSTER ──────────────────────────────────────────────────
-
 export async function createVolunteer(data: {
   districtId: string;
   name: string;
   phone: string;
   role?: VolunteerRole;
 }) {
-  const district = await prisma.district.findUnique({ where: { id: data.districtId } });
+  // Only allow creating volunteers in real districts, not the synthetic __central__ one
+  const district = await prisma.district.findFirst({
+    where: { id: data.districtId, name: { not: '__central__' } },
+  });
   if (!district) throw new Error(`District not found: ${data.districtId}`);
 
   const volunteer = await prisma.volunteer.create({
@@ -83,8 +78,6 @@ export async function createVolunteer(data: {
   invalidateVolunteerCache(data.districtId);
   return volunteer;
 }
-
-// ─── UPDATE VOLUNTEER INFO OR STATUS ─────────────────────────────────────────
 
 export async function updateVolunteer(
   id: string,
@@ -111,9 +104,6 @@ export async function updateVolunteer(
   invalidateVolunteerCache(existing.districtId);
   return updated;
 }
-
-// ─── ASSIGN VOLUNTEER TO ZONE + TEAM ─────────────────────────────────────────
-// Section D.6: cross-ward assignment reduces favoritism (Section C fairness safeguard).
 
 export async function assignVolunteer(data: {
   volunteerId: string;
@@ -154,9 +144,6 @@ export async function assignVolunteer(data: {
   return assignment;
 }
 
-// ─── FULL ROSTER FOR A DISTRICT ───────────────────────────────────────────────
-// Cached per district for 30 s.
-
 export async function getDistrictRoster(districtId: string) {
   const key = `${KEY_ROSTER_PREFIX}${districtId}`;
   const cached = getCached<Awaited<ReturnType<typeof buildRoster>>>(key);
@@ -168,7 +155,10 @@ export async function getDistrictRoster(districtId: string) {
 }
 
 async function buildRoster(districtId: string) {
-  const district = await prisma.district.findUnique({ where: { id: districtId } });
+  // Guard: do not build a roster for the synthetic central district
+  const district = await prisma.district.findFirst({
+    where: { id: districtId, name: { not: '__central__' } },
+  });
   if (!district) throw new Error('District not found');
 
   const volunteers = await prisma.volunteer.findMany({
