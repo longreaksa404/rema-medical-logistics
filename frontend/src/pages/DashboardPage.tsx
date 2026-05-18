@@ -694,11 +694,13 @@ export function DashboardPage() {
           <StockChart districts={data.districts.filter(d => d.name !== '__central__')} />
 
           {/* 6 ── Delivery runs + Radio */}
-          <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
-            <div className="lg:col-span-2">
+          <div className="grid grid-cols-1 lg:grid-cols-5 gap-4">
+            <div className="lg:col-span-3">
               <DeliveryRunsPanel activeRuns={data.activeDeliveryRuns} districts={data.districts} />
             </div>
-            <RadioCompliancePanel />
+            <div className="lg:col-span-2">
+              <RadioCompliancePanel />
+            </div>
           </div>
 
           {/* 7 ── Districts */}
