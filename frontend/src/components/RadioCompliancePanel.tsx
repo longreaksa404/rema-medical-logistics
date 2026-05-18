@@ -104,7 +104,7 @@ export function RadioCompliancePanel() {
         <div className="mb-4 flex items-start gap-2 bg-accent-red/10 border border-accent-red/25 rounded-lg px-3 py-2.5">
           <span className="w-1.5 h-1.5 rounded-full bg-accent-red animate-pulse-slow flex-shrink-0 mt-0.5" />
           <p className="font-mono text-[10px] text-accent-red leading-snug">
-            One or more districts missed 2+ check-ins — contact Hub Manager immediately
+            Missed 2+ check-ins — contact Hub Manager immediately
           </p>
         </div>
       )}

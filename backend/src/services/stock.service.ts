@@ -43,15 +43,16 @@ export interface StockWithScarcity {
   subWarehouseId: string;
   districtId: string;
   districtName: string;
-  emk1Total: number; emk1Remaining: number; emk1Pct: number; emk1Scarce: boolean;
-  emk2Total: number; emk2Remaining: number; emk2Pct: number; emk2Scarce: boolean;
-  emk3Total: number; emk3Remaining: number; emk3Pct: number; emk3Scarce: boolean;
+  emk1Total: number; emk1Remaining: number; emk1Pct: number; emk1Scarce: boolean; emk1AboveAllocation: boolean;
+  emk2Total: number; emk2Remaining: number; emk2Pct: number; emk2Scarce: boolean; emk2AboveAllocation: boolean;
+  emk3Total: number; emk3Remaining: number; emk3Pct: number; emk3Scarce: boolean; emk3AboveAllocation: boolean;
   anyScarce: boolean;
   updatedAt: Date;
 }
 
 function pct(rem: number, total: number) {
-  return total > 0 ? Math.round((rem / total) * 100) : 0;
+  // Cap at 100 for display — remaining can exceed total if extra resupply arrives
+  return total > 0 ? Math.min(Math.round((rem / total) * 100), 100) : 0;
 }
 
 function enrichStock(stock: {
@@ -73,14 +74,17 @@ function enrichStock(stock: {
     emk1Remaining:  stock.emk1Remaining,
     emk1Pct:        pct(stock.emk1Remaining, stock.emk1Total),
     emk1Scarce,
+    emk1AboveAllocation: stock.emk1Remaining > stock.emk1Total,
     emk2Total:      stock.emk2Total,
     emk2Remaining:  stock.emk2Remaining,
     emk2Pct:        pct(stock.emk2Remaining, stock.emk2Total),
     emk2Scarce,
+    emk2AboveAllocation: stock.emk2Remaining > stock.emk2Total,
     emk3Total:      stock.emk3Total,
     emk3Remaining:  stock.emk3Remaining,
     emk3Pct:        pct(stock.emk3Remaining, stock.emk3Total),
     emk3Scarce,
+    emk3AboveAllocation: stock.emk3Remaining > stock.emk3Total,
     anyScarce:      emk1Scarce || emk2Scarce || emk3Scarce,
     updatedAt:      stock.updatedAt,
   };
@@ -191,27 +195,24 @@ export async function dispatchStock(data: {
   });
   if (!stock) throw new Error(`No stock record found for sub-warehouse ${subWarehouseId}`);
 
-  const currentTotal     = stock[totalField     as keyof typeof stock] as number;
   const currentRemaining = stock[remainingField as keyof typeof stock] as number;
 
   // ── 3. Transaction: deduct central, add to sub-warehouse, log movement ────
   const [updatedStock, movement] = await prisma.$transaction([
-    // Add to sub-warehouse
+    // Add to sub-warehouse — only Remaining increases, Total stays fixed (seed allocation)
     prisma.stock.update({
       where: { subWarehouseId },
       data: {
-        [totalField]:     currentTotal     + quantity,
         [remainingField]: currentRemaining + quantity,
       },
       include: {
         subWarehouse: { include: { district: { select: { name: true } } } },
       },
     }),
-    // Deduct from central_warehouse table
+    // Deduct from central — only Remaining decreases, Total stays fixed (tracks cumulative received)
     prisma.centralWarehouse.update({
       where: { id: central.id },
       data: {
-        [totalField]:     { decrement: quantity },
         [remainingField]: { decrement: quantity },
       },
     }),
@@ -265,10 +266,10 @@ export async function reallocateStock(data: {
   const reasonText = reason ?? 'Cross-district reallocation';
 
   const [updatedFrom, updatedTo] = await prisma.$transaction([
+    // Only Remaining changes — Total stays fixed (seed allocation)
     prisma.stock.update({
       where: { subWarehouseId: fromSubWarehouseId },
       data: {
-        [totalField]:     { decrement: quantity },
         [remainingField]: fromRemaining - quantity,
       },
       include: { subWarehouse: { include: { district: { select: { name: true } } } } },
@@ -276,7 +277,6 @@ export async function reallocateStock(data: {
     prisma.stock.update({
       where: { subWarehouseId: toSubWarehouseId },
       data: {
-        [totalField]:     { increment: quantity },
         [remainingField]: toRemaining + quantity,
       },
       include: { subWarehouse: { include: { district: { select: { name: true } } } } },
@@ -418,92 +418,4 @@ export async function recordDelivery(data: {
   deleteCached(KEY_STATUS);
   const enriched = enrichStock(updatedStock);
   return { stock: enriched, movement, scarcityWarning: enriched.anyScarce };
-}
-
-
-// ─── REPLENISH CENTRAL WAREHOUSE ─────────────────────────────────────────────
-// Called when new EMK stock arrives at central (donor shipment, MoH delivery).
-// Increases both Total and Remaining — this is new stock entering the system.
-
-export async function replenishCentral(data: {
-  emkType: EmkType;
-  quantity: number;
-  reason: string;
-}) {
-  const { emkType, quantity, reason } = data;
-  if (quantity <= 0) throw new Error('Quantity must be positive for replenishment');
-
-  const { totalField, remainingField } = getFields(emkType);
-
-  const central = await prisma.centralWarehouse.findFirst();
-  if (!central) throw new Error('Central warehouse not found. Run seed.');
-
-  const updated = await prisma.centralWarehouse.update({
-    where: { id: central.id },
-    data: {
-      [totalField]:     { increment: quantity },
-      [remainingField]: { increment: quantity },
-    },
-  });
-
-  deleteCached(KEY_CENTRAL);
-  invalidateCache('dashboard:summary');
-
-  return {
-    emkType,
-    quantity,
-    reason,
-    updatedStock: {
-      emk1Total: updated.emk1Total, emk1Remaining: updated.emk1Remaining,
-      emk2Total: updated.emk2Total, emk2Remaining: updated.emk2Remaining,
-      emk3Total: updated.emk3Total, emk3Remaining: updated.emk3Remaining,
-    },
-  };
-}
-
-// ─── ADJUST CENTRAL WAREHOUSE ─────────────────────────────────────────────────
-// Manual correction only — signed quantity (+/-).
-// Does NOT change Total — only Remaining (same as sub-warehouse adjust).
-
-export async function adjustCentral(data: {
-  emkType: EmkType;
-  quantity: number;  // signed: positive = add, negative = remove
-  reason: string;
-}) {
-  const { emkType, quantity, reason } = data;
-  if (quantity === 0) throw new Error('Adjustment quantity cannot be 0');
-  if (!reason?.trim()) throw new Error('Reason is required for manual adjustment');
-
-  const { remainingField } = getFields(emkType);
-
-  const central = await prisma.centralWarehouse.findFirst();
-  if (!central) throw new Error('Central warehouse not found. Run seed.');
-
-  const currentRemaining = central[remainingField as keyof typeof central] as number;
-  const newRemaining = currentRemaining + quantity;
-
-  if (newRemaining < 0) {
-    throw new Error(
-      `Adjustment would result in negative stock: current=${currentRemaining}, adjustment=${quantity}`
-    );
-  }
-
-  const updated = await prisma.centralWarehouse.update({
-    where: { id: central.id },
-    data: { [remainingField]: newRemaining },
-  });
-
-  deleteCached(KEY_CENTRAL);
-  invalidateCache('dashboard:summary');
-
-  return {
-    emkType,
-    quantity,
-    reason,
-    updatedStock: {
-      emk1Total: updated.emk1Total, emk1Remaining: updated.emk1Remaining,
-      emk2Total: updated.emk2Total, emk2Remaining: updated.emk2Remaining,
-      emk3Total: updated.emk3Total, emk3Remaining: updated.emk3Remaining,
-    },
-  };
 }

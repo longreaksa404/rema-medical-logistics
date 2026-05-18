@@ -452,17 +452,23 @@ function StockTab({ districtId, subWarehouseId, allSubWarehouses }: {
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
             {EMK_TYPES.map((type) => {
               const key    = type.toLowerCase() as 'emk1' | 'emk2' | 'emk3';
-              const rem    = stock[`${key}Remaining` as keyof StockLevel] as number;
-              const total  = stock[`${key}Total`     as keyof StockLevel] as number;
-              const pct    = stock[`${key}Pct`       as keyof StockLevel] as number;
-              const scarce = stock[`${key}Scarce`    as keyof StockLevel] as boolean;
+              const rem    = stock[`${key}Remaining`        as keyof StockLevel] as number;
+              const total  = stock[`${key}Total`            as keyof StockLevel] as number;
+              const pct    = stock[`${key}Pct`              as keyof StockLevel] as number;
+              const scarce = stock[`${key}Scarce`           as keyof StockLevel] as boolean;
+              const above  = stock[`${key}AboveAllocation`  as keyof StockLevel] as boolean;
               return (
-                <div key={type} className={`card p-4 ${scarce ? 'border-accent-red/40' : ''}`}>
+                <div key={type} className={`card p-4 ${scarce ? 'border-accent-red/40' : above ? 'border-accent-blue/30' : ''}`}>
                   <div className="flex items-center justify-between mb-2">
                     <span className={`font-mono text-sm font-bold ${EMK_COLORS[type]}`}>{type}</span>
                     {scarce && (
                       <span className="font-mono text-[9px] text-accent-red bg-accent-red/10 px-1.5 py-0.5 rounded border border-accent-red/30 animate-pulse">
                         ⚠ SCARCE
+                      </span>
+                    )}
+                    {!scarce && above && (
+                      <span className="font-mono text-[9px] text-accent-blue bg-accent-blue/10 px-1.5 py-0.5 rounded border border-accent-blue/30">
+                        ↑ EXTRA
                       </span>
                     )}
                   </div>
@@ -471,11 +477,16 @@ function StockTab({ districtId, subWarehouseId, allSubWarehouses }: {
                   <div className="mt-2 h-1.5 bg-bg-border rounded-full overflow-hidden">
                     <div
                       className={`h-full rounded-full transition-all duration-500 ${
-                        scarce ? 'bg-accent-red' : pct > 60 ? 'bg-accent-green' : pct > 30 ? 'bg-accent-yellow' : 'bg-accent-orange'
+                        scarce ? 'bg-accent-red' : above ? 'bg-accent-blue' : pct > 60 ? 'bg-accent-green' : pct > 30 ? 'bg-accent-yellow' : 'bg-accent-orange'
                       }`}
                       style={{ width: `${Math.max(pct, 2)}%` }}
                     />
                   </div>
+                  {above && (
+                    <p className="font-mono text-[9px] text-accent-blue mt-1.5">
+                      ↑ Above initial allocation — extra resupply received
+                    </p>
+                  )}
                   {type === 'EMK3' && total === 0 && (
                     <p className="font-mono text-[9px] text-text-muted mt-1.5">
                       MoH cold storage — transferred at activation

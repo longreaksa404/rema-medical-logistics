@@ -6,9 +6,9 @@ export interface StockLevel {
   subWarehouseId: string;
   districtId: string;
   districtName: string;
-  emk1Total: number; emk1Remaining: number; emk1Pct: number; emk1Scarce: boolean;
-  emk2Total: number; emk2Remaining: number; emk2Pct: number; emk2Scarce: boolean;
-  emk3Total: number; emk3Remaining: number; emk3Pct: number; emk3Scarce: boolean;
+  emk1Total: number; emk1Remaining: number; emk1Pct: number; emk1Scarce: boolean; emk1AboveAllocation: boolean;
+  emk2Total: number; emk2Remaining: number; emk2Pct: number; emk2Scarce: boolean; emk2AboveAllocation: boolean;
+  emk3Total: number; emk3Remaining: number; emk3Pct: number; emk3Scarce: boolean; emk3AboveAllocation: boolean;
   anyScarce: boolean;
   updatedAt: string;
 }
