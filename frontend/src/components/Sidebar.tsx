@@ -4,7 +4,6 @@ import { useAuth } from '../context/AuthContext';
 import {
   LayoutDashboard,
   Map,
-  ListChecks,
   Building2,
   UserCheck,
   Warehouse,
@@ -47,12 +46,6 @@ const NAV_GROUPS: NavGroup[] = [
         to: '/routing',
         Icon: Map,
         roles: ['EMERGENCY_COORDINATOR', 'HUB_MANAGER', 'SUPER_ADMIN'],
-      },
-      {
-        label: 'Prioritize',
-        to: '/prioritize',
-        Icon: ListChecks,
-        roles: ['EMERGENCY_COORDINATOR', 'HUB_MANAGER', 'VOLUNTEER', 'SUPER_ADMIN'],
       },
       {
         label: 'Hub Portal',

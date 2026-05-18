@@ -89,3 +89,15 @@ Last updated: Chat 21 complete — FINAL (reset endpoint added)
 | 21 | Phase direction | Phase advances forward only (0→1→2) via frontend; reset is the only way back, SUPER_ADMIN only |
 | Post-21 | Phase controls on dashboard | PhaseControls component below PhaseBanner — advance button for EC+, reset button for SUPER_ADMIN only, confirm dialog before reset |
 | Post-21 | alert.ts API file | Created new frontend/src/api/alert.ts covering all 4 alert endpoints |
+
+
+## Architecture Decision — V4 PrioritizePage Removed
+
+Date: Chat [current]
+Decision: PrioritizePage (V4) removed entirely.
+Reason: Assessment is a VOLUNTEER field task — already in VolunteerPage AssessTab.
+         Priority queue is already on DashboardPage. V4 was a mixed-role, mixed-purpose
+         page with no clear owner.
+Result: VolunteerPage is the single place for household assessment.
+        DashboardPage is the single place to view the priority queue.
+        No logic was lost — only the duplicate page wrapper was removed.

@@ -382,7 +382,7 @@ V1 | Operations Dashboard | EC, SUPER_ADMIN, VIEWER | Phase banner, phase contro
 incidents, notifications, AI Brief button (EC + SUPER_ADMIN only) |
 | V2 | Routing Map | EC, HUB_MANAGER | Leaflet map, district overlays, water depth input, delivery mode per zone |
 | V3 | Warehouse Layout | All | Static draw.io diagram — central + sub-warehouse floor plans |
-| V4 | Prioritization Tool | EC, HUB_MANAGER, VOLUNTEER | Assessment form, live scoring, score band result, priority table |
+| V4 | ~~Prioritization Tool~~ | Removed | Merged into VolunteerPage (assessment) and DashboardPage (priority queue) |
 | V5 | Stakeholder Flowchart | All | Static draw.io swimlane diagram — actor decision flows |
 | V6 | Operating Protocol | All | PDF document — activation checklist, radio script, delivery runsheet |
 | V7 | Hub Manager Portal | HUB_MANAGER | Per-district: stock, volunteers, delivery runs, incidents, radio check-ins |

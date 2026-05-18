@@ -10,7 +10,6 @@ import { LoginPage } from './pages/LoginPage';
 import { ChangePasswordPage } from './pages/ChangePasswordPage';
 import { DashboardPage } from './pages/DashboardPage';
 import { RoutingPage } from './pages/RoutingPage';
-import { PrioritizePage } from './pages/PrioritizePage';
 import { HubPage } from './pages/HubPage';
 import { VolunteerPage } from './pages/VolunteerPage';
 import { UsersPage } from './pages/UsersPage';
@@ -49,11 +48,6 @@ export function App() {
 
               {/* V3 — Warehouse Layout (static — Chat 15) */}
               <Route path="/warehouse" element={<WarehouseLayoutPage />} />
-
-              {/* V4 — Prioritization Tool */}
-              <Route element={<ProtectedRoute roles={['EMERGENCY_COORDINATOR', 'HUB_MANAGER', 'VOLUNTEER', 'SUPER_ADMIN']} />}>
-                <Route path="/prioritize" element={<PrioritizePage />} />
-              </Route>
 
               {/* V5 — Stakeholder Flowchart (static — Chat 16) */}
               <Route path="/stakeholders" element={<StakeholderPage />} />
