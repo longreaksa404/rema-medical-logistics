@@ -1248,6 +1248,27 @@ paths:
         "403":
           description: Requires EMERGENCY_COORDINATOR or above
 
+  /api/alert/reset:
+    post:
+      tags: [Flood Alert]
+      summary: Reset system to Phase 0 standby — SUPER_ADMIN only
+      description: |
+        Resets all trigger conditions, deactivates REMA, and returns phase to 0.
+        Does NOT delete the flood_alerts record — all history is preserved.
+        Use this after a drill or to restart the activation sequence.
+        **SUPER_ADMIN only.**
+      responses:
+        "200":
+          description: System reset to Phase 0 standby
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/FloodAlertStatus'
+        "401":
+          description: Unauthorized
+        "403":
+          description: Requires SUPER_ADMIN
+          
   # ── SCORING ENGINE ───────────────────────────────────────────────────────────
   /api/score/household:
     post:
