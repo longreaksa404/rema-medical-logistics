@@ -340,6 +340,124 @@ components:
           type: string
           format: date-time
 
+    CentralStockLevel:
+      type: object
+      description: |
+        Stock levels at the central warehouse.
+        Total = cumulative stock ever received (increases only on replenishment).
+        Remaining = current available to dispatch (decreases on dispatch, increases on replenishment).
+        AboveAllocation flag is not applicable here — central warehouse has no fixed allocation cap.
+      properties:
+        id:
+          type: string
+        emk1Total:
+          type: integer
+          description: "Cumulative EMK-1 received at central warehouse"
+        emk1Remaining:
+          type: integer
+          description: "EMK-1 available for dispatch"
+        emk1Pct:
+          type: integer
+          description: "% remaining (capped at 100)"
+        emk1Scarce:
+          type: boolean
+          description: "True when EMK-1 remaining < 30% of total"
+        emk2Total:
+          type: integer
+        emk2Remaining:
+          type: integer
+        emk2Pct:
+          type: integer
+        emk2Scarce:
+          type: boolean
+        emk3Total:
+          type: integer
+          description: "0 until MoH transfer at flood activation (Section B.10)"
+        emk3Remaining:
+          type: integer
+        emk3Pct:
+          type: integer
+        emk3Scarce:
+          type: boolean
+        updatedAt:
+          type: string
+          format: date-time
+
+    ReplenishCentralRequest:
+      type: object
+      required: [emkType, quantity, reason]
+      properties:
+        emkType:
+          type: string
+          enum: [EMK1, EMK2, EMK3]
+        quantity:
+          type: integer
+          minimum: 1
+          description: "Units of new stock arriving at central warehouse"
+        reason:
+          type: string
+          description: "Mandatory — source of new stock (donor, MoH, etc.)"
+          example: "UNICEF donation batch 3 — 1,000 EMK-1 kits"
+ 
+    AdjustCentralRequest:
+      type: object
+      required: [emkType, quantity, reason]
+      properties:
+        emkType:
+          type: string
+          enum: [EMK1, EMK2, EMK3]
+        quantity:
+          type: integer
+          description: "Signed — positive to add, negative to remove. Does NOT change Total."
+          example: -10
+        reason:
+          type: string
+          description: "Mandatory — reason for correction"
+          example: "10 EMK-2 kits damaged by flood water in storage"
+ 
+    ReplenishCentralResponse:
+      type: object
+      properties:
+        emkType:
+          type: string
+          enum: [EMK1, EMK2, EMK3]
+        quantity:
+          type: integer
+        reason:
+          type: string
+        updatedStock:
+          type: object
+          properties:
+            emk1Total: { type: integer }
+            emk1Remaining: { type: integer }
+            emk2Total: { type: integer }
+            emk2Remaining: { type: integer }
+            emk3Total: { type: integer }
+            emk3Remaining: { type: integer }
+
+    SetAllocationRequest:
+      type: object
+      required: [target, emkType, newTotal, reason]
+      properties:
+        target:
+          type: string
+          enum: [central, subWarehouse]
+          description: "Which warehouse to update allocation for"
+        subWarehouseId:
+          type: string
+          description: "Required when target is 'subWarehouse'"
+        emkType:
+          type: string
+          enum: [EMK1, EMK2, EMK3]
+        newTotal:
+          type: integer
+          minimum: 0
+          description: "The new Total allocation number. Does NOT change Remaining."
+        reason:
+          type: string
+          description: "Mandatory — must justify the allocation change"
+          example: "New donor agreement increases District 1 EMK1 allocation to 8,000"
+
     StockMovement:
       type: object
       properties:
@@ -562,7 +680,7 @@ components:
           type: string
           format: date-time
 
-        AiBriefResponse:
+    AiBriefResponse:
       type: object
       properties:
         summary:
@@ -1622,6 +1740,106 @@ paths:
           description: Unauthorized
 
   # ── STOCK ───────────────────────────────────────────────────────────────────
+  /api/stock/allocation:
+    patch:
+      tags: [Stock]
+      summary: Set Total allocation for central or sub-warehouse — SUPER_ADMIN only
+      description: |
+        Changes the **Total** reference number for a warehouse — the baseline used
+        to calculate scarcity percentage and display progress bars.
+ 
+        **Does NOT change Remaining** — only the Total allocation reference.
+ 
+        Use when a formal capacity decision changes:
+        - New donor agreement increases a district's kit quota
+        - Phase planning sets a new allocation target
+        - Seed data had an error and needs correcting
+ 
+        | Field | Changes | Use case |
+        |---|---|---|
+        | Total | ✅ This endpoint | Formal allocation change |
+        | Remaining | ❌ Not this endpoint | Use replenish / adjust / dispatch |
+ 
+        **target values:**
+        - `central` — updates Central Warehouse Total
+        - `subWarehouse` — updates a specific sub-warehouse Stock Total (requires `subWarehouseId`)
+ 
+        **Warning:** If new Total is less than current Remaining, the warehouse will
+        show as "above allocation" (↑ EXTRA badge) until stock is consumed or adjusted.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SetAllocationRequest'
+            examples:
+              setCentralEMK1:
+                summary: Set Central Warehouse EMK1 allocation to 8,000
+                value:
+                  target: "central"
+                  emkType: "EMK1"
+                  newTotal: 8000
+                  reason: "New UNICEF agreement increases central EMK1 capacity to 8,000 units"
+              setSubWarehouseEMK2:
+                summary: Set District 1 sub-warehouse EMK2 allocation to 2,000
+                value:
+                  target: "subWarehouse"
+                  subWarehouseId: "REPLACE_WITH_SUBWAREHOUSE_ID"
+                  emkType: "EMK2"
+                  newTotal: 2000
+                  reason: "Phase 2 plan increases District 1 EMK2 allocation based on updated vulnerability assessment"
+              correctSeedError:
+                summary: Correct a seed allocation error
+                value:
+                  target: "subWarehouse"
+                  subWarehouseId: "REPLACE_WITH_SUBWAREHOUSE_ID"
+                  emkType: "EMK3"
+                  newTotal: 500
+                  reason: "Seed data set EMK3 total to 0 — correcting to 500 per MoH cold storage transfer agreement"
+      responses:
+        "200":
+          description: Allocation updated — returns target, emkType, newTotal, and updated stock
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  target:
+                    type: string
+                    enum: [central, subWarehouse]
+                  subWarehouseId:
+                    type: string
+                    nullable: true
+                  emkType:
+                    type: string
+                    enum: [EMK1, EMK2, EMK3]
+                  newTotal:
+                    type: integer
+                  reason:
+                    type: string
+                  updatedStock:
+                    oneOf:
+                      - $ref: '#/components/schemas/StockLevel'
+                      - type: object
+                        description: Central warehouse stock totals
+                        properties:
+                          emk1Total: { type: integer }
+                          emk1Remaining: { type: integer }
+                          emk2Total: { type: integer }
+                          emk2Remaining: { type: integer }
+                          emk3Total: { type: integer }
+                          emk3Remaining: { type: integer }
+        "400":
+          description: Missing fields, invalid target, or stock record not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        "401":
+          description: Unauthorized
+        "403":
+          description: Requires SUPER_ADMIN
+
   /api/stock/status:
     get:
       tags: [Stock]
@@ -1645,6 +1863,154 @@ paths:
                   $ref: '#/components/schemas/StockLevel'
         "401":
           description: Unauthorized
+
+  /api/stock/central:
+    get:
+      tags: [Stock]
+      summary: Central warehouse stock levels
+      description: |
+        Returns current EMK levels at the central warehouse.
+        
+        **Total** = cumulative stock ever received (set at seed, increases only on replenishment).
+        **Remaining** = what is currently available to dispatch to sub-warehouses.
+        
+        Each dispatch reduces Remaining. Each replenishment increases both Total and Remaining.
+        Manual adjustments change only Remaining (correction for damage/loss).
+        
+        **Role:** Any authenticated user can view. Replenish and adjust require SUPER_ADMIN.
+      responses:
+        "200":
+          description: Central warehouse stock with scarcity flags
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CentralStockLevel'
+        "500":
+          description: Central warehouse not initialised — run seed
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        "401":
+          description: Unauthorized
+ 
+  /api/stock/central/replenish:
+    post:
+      tags: [Stock]
+      summary: Replenish central warehouse — new stock arriving — SUPER_ADMIN only
+      description: |
+        Records new stock physically arriving at the central warehouse
+        (donor shipment, MoH delivery, Red Cross HQ transfer).
+        
+        **Increases both Total and Remaining** — this represents net new stock
+        entering the system. Use this when a shipment arrives.
+        
+        **Do NOT use this for corrections** — use PATCH /api/stock/central for that.
+        
+        | Operation | Total | Remaining | When to use |
+        |---|---|---|---|
+        | Replenish | ✅ Increases | ✅ Increases | New stock arrives |
+        | Adjust | ❌ No change | ✅ Changes | Correction for damage/loss |
+        | Dispatch | ❌ No change | ✅ Decreases (central) | Send to sub-warehouse |
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ReplenishCentralRequest'
+            examples:
+              donorShipment:
+                summary: UNICEF donation of 1,000 EMK-1 kits
+                value:
+                  emkType: "EMK1"
+                  quantity: 1000
+                  reason: "UNICEF donation batch 3 — arrived central warehouse 15 May 2026"
+              mohTransfer:
+                summary: MoH transfers EMK-3 cold storage kits at activation
+                value:
+                  emkType: "EMK3"
+                  quantity: 500
+                  reason: "MoH cold storage transfer — flood activation Phase 1 order #4521"
+              resupply:
+                summary: Red Cross HQ resupply during active flood
+                value:
+                  emkType: "EMK2"
+                  quantity: 300
+                  reason: "Red Cross HQ emergency resupply — Phase 2 demand exceeded forecast"
+      responses:
+        "200":
+          description: Replenishment recorded — returns EMK type, quantity, and updated stock totals
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ReplenishCentralResponse'
+        "400":
+          description: Invalid input or negative quantity
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        "401":
+          description: Unauthorized
+        "403":
+          description: Requires SUPER_ADMIN
+ 
+  /api/stock/central/adjust:
+    patch:
+      tags: [Stock]
+      summary: Manual correction at central warehouse — SUPER_ADMIN only
+      description: |
+        Signed quantity correction at the central warehouse.
+        Positive = add remaining, negative = remove remaining.
+        
+        **Does NOT change Total** — only Remaining is adjusted.
+        Use this for: damaged kits, miscounts, expired stock removal.
+        Use POST /api/stock/central/replenish for new stock arriving.
+        
+        Will fail if adjustment would result in negative remaining stock.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AdjustCentralRequest'
+            examples:
+              removeDamaged:
+                summary: Remove 10 water-damaged EMK-2 kits
+                value:
+                  emkType: "EMK2"
+                  quantity: -10
+                  reason: "10 EMK-2 kits water-damaged in central storage — removed from manifest"
+              correctCount:
+                summary: Correct a counting error (add back)
+                value:
+                  emkType: "EMK1"
+                  quantity: 50
+                  reason: "Counting error corrected — 50 EMK-1 kits found in secondary storage bay"
+      responses:
+        "200":
+          description: Adjustment recorded — returns updated stock totals
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ReplenishCentralResponse'
+        "422":
+          description: Adjustment would result in negative stock
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        "400":
+          description: Invalid input or zero quantity
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        "401":
+          description: Unauthorized
+        "403":
+          description: Requires SUPER_ADMIN
+
 
   /api/stock/movements:
     get:

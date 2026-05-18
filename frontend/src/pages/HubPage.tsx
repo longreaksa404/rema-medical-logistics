@@ -110,25 +110,31 @@ function StockTab({ districtId, subWarehouseId, allSubWarehouses }: {
   const queryClient = useQueryClient();
   const [success, setSuccess] = useState('');
  
-  // ── Dispatch form state ───────────────────────────────────────────────────
+  // ── Dispatch form ─────────────────────────────────────────────────────────
   const [dispEmkType, setDispEmkType] = useState<'EMK1' | 'EMK2' | 'EMK3'>('EMK1');
   const [dispQty, setDispQty] = useState('');
   const [dispReason, setDispReason] = useState('');
  
-  // ── Sub-warehouse adjust form state ───────────────────────────────────────
+  // ── Sub-warehouse adjust form ─────────────────────────────────────────────
   const [adjEmkType, setAdjEmkType] = useState<'EMK1' | 'EMK2' | 'EMK3'>('EMK1');
   const [adjQty, setAdjQty] = useState('');
   const [adjReason, setAdjReason] = useState('');
  
-  // ── Central replenish form state (SUPER_ADMIN only) ───────────────────────
+  // ── Central replenish form (SUPER_ADMIN) ──────────────────────────────────
   const [repEmkType, setRepEmkType] = useState<'EMK1' | 'EMK2' | 'EMK3'>('EMK1');
   const [repQty, setRepQty] = useState('');
   const [repReason, setRepReason] = useState('');
  
-  // ── Central adjust form state (SUPER_ADMIN only) ──────────────────────────
+  // ── Central adjust form (SUPER_ADMIN) ─────────────────────────────────────
   const [cadEmkType, setCadEmkType] = useState<'EMK1' | 'EMK2' | 'EMK3'>('EMK1');
   const [cadQty, setCadQty] = useState('');
   const [cadReason, setCadReason] = useState('');
+ 
+  // ── Set allocation form (SUPER_ADMIN) ─────────────────────────────────────
+  const [allocTarget, setAllocTarget] = useState<'central' | 'subWarehouse'>('subWarehouse');
+  const [allocEmkType, setAllocEmkType] = useState<'EMK1' | 'EMK2' | 'EMK3'>('EMK1');
+  const [allocNewTotal, setAllocNewTotal] = useState('');
+  const [allocReason, setAllocReason] = useState('');
  
   // ── Queries ───────────────────────────────────────────────────────────────
   const { data: centralStock, isLoading: centralLoading } = useQuery({
@@ -164,7 +170,7 @@ function StockTab({ districtId, subWarehouseId, allSubWarehouses }: {
   const dispatchMutation = useMutation({
     mutationFn: hubApi.dispatch,
     onSuccess: (_, vars) => {
-      setSuccess(`Dispatched ${vars.quantity}× ${vars.emkType} from central warehouse to sub-warehouse.`);
+      setSuccess(`Dispatched ${vars.quantity}× ${vars.emkType} from central to sub-warehouse.`);
       setDispQty(''); setDispReason('');
       invalidateStock();
     },
@@ -191,19 +197,25 @@ function StockTab({ districtId, subWarehouseId, allSubWarehouses }: {
   const centralAdjustMutation = useMutation({
     mutationFn: hubApi.adjustCentral,
     onSuccess: (_, vars) => {
-      setSuccess(`Central warehouse adjustment: ${Number(vars.quantity) > 0 ? '+' : ''}${vars.quantity}× ${vars.emkType}.`);
+      setSuccess(`Central warehouse adjusted: ${Number(vars.quantity) > 0 ? '+' : ''}${vars.quantity}× ${vars.emkType}.`);
       setCadQty(''); setCadReason('');
+      invalidateStock();
+    },
+  });
+ 
+  const allocationMutation = useMutation({
+    mutationFn: hubApi.setAllocation,
+    onSuccess: (_, vars) => {
+      const target = vars.target === 'central' ? 'Central warehouse' : 'Sub-warehouse';
+      setSuccess(`${target} ${vars.emkType} allocation set to ${vars.newTotal}.`);
+      setAllocNewTotal(''); setAllocReason('');
       invalidateStock();
     },
   });
  
   // ── Constants ─────────────────────────────────────────────────────────────
   const EMK_TYPES: Array<'EMK1' | 'EMK2' | 'EMK3'> = ['EMK1', 'EMK2', 'EMK3'];
-  const EMK_COLORS = {
-    EMK1: 'text-accent-blue',
-    EMK2: 'text-accent-green',
-    EMK3: 'text-accent-yellow',
-  };
+  const EMK_COLORS = { EMK1: 'text-accent-blue', EMK2: 'text-accent-green', EMK3: 'text-accent-yellow' };
   const MOVE_COLORS: Record<string, string> = {
     DISPATCH:     'text-accent-green border-accent-green/30 bg-accent-green/5',
     MOH_TRANSFER: 'text-accent-yellow border-accent-yellow/30 bg-accent-yellow/5',
@@ -212,7 +224,6 @@ function StockTab({ districtId, subWarehouseId, allSubWarehouses }: {
     ADJUSTMENT:   'text-accent-orange border-accent-orange/30 bg-accent-orange/5',
   };
  
-  // ── Loading skeleton ──────────────────────────────────────────────────────
   if (isLoading) {
     return (
       <div className="space-y-4">
@@ -228,17 +239,27 @@ function StockTab({ districtId, subWarehouseId, allSubWarehouses }: {
     );
   }
  
-  // ── Error messages ────────────────────────────────────────────────────────
-  const dispatchError     = (dispatchMutation.error      as { response?: { data?: { error?: string } } } | null)?.response?.data?.error ?? '';
-  const adjustError       = (adjustMutation.error        as { response?: { data?: { error?: string } } } | null)?.response?.data?.error ?? '';
-  const replenishError    = (replenishMutation.error     as { response?: { data?: { error?: string } } } | null)?.response?.data?.error ?? '';
-  const centralAdjError   = (centralAdjustMutation.error as { response?: { data?: { error?: string } } } | null)?.response?.data?.error ?? '';
-  const mutationError     = dispatchError || adjustError || replenishError || centralAdjError;
+  const allErrors = [
+    (dispatchMutation.error       as { response?: { data?: { error?: string } } } | null)?.response?.data?.error,
+    (adjustMutation.error         as { response?: { data?: { error?: string } } } | null)?.response?.data?.error,
+    (replenishMutation.error      as { response?: { data?: { error?: string } } } | null)?.response?.data?.error,
+    (centralAdjustMutation.error  as { response?: { data?: { error?: string } } } | null)?.response?.data?.error,
+    (allocationMutation.error     as { response?: { data?: { error?: string } } } | null)?.response?.data?.error,
+  ].filter(Boolean);
+  const mutationError = allErrors[0] ?? '';
  
-  // Central availability for currently selected dispatch EMK type
   const centralAvailable = centralStock
     ? (centralStock[`${dispEmkType.toLowerCase()}Remaining` as keyof CentralStockLevel] as number)
     : null;
+ 
+  // Current total for selected allocation target — shown as hint
+  const currentAllocTotal = allocTarget === 'central'
+    ? centralStock
+      ? (centralStock[`${allocEmkType.toLowerCase()}Total` as keyof CentralStockLevel] as number)
+      : null
+    : stock
+      ? (stock[`${allocEmkType.toLowerCase()}Total` as keyof StockLevel] as number)
+      : null;
  
   return (
     <div className="space-y-6">
@@ -246,10 +267,9 @@ function StockTab({ districtId, subWarehouseId, allSubWarehouses }: {
         <ErrorBox
           msg={mutationError}
           onDismiss={() => {
-            dispatchMutation.reset();
-            adjustMutation.reset();
-            replenishMutation.reset();
-            centralAdjustMutation.reset();
+            dispatchMutation.reset(); adjustMutation.reset();
+            replenishMutation.reset(); centralAdjustMutation.reset();
+            allocationMutation.reset();
           }}
         />
       )}
@@ -261,7 +281,7 @@ function StockTab({ districtId, subWarehouseId, allSubWarehouses }: {
           <div>
             <h3 className="font-sans font-bold text-text-primary">Central Warehouse</h3>
             <p className="font-mono text-[10px] text-text-muted mt-0.5">
-              Master stock — each dispatch reduces this balance
+              Master stock — each dispatch reduces Remaining. Total = allocation reference.
             </p>
           </div>
           <span className="font-mono text-[10px] text-text-muted bg-bg-elevated px-2 py-1 rounded border border-bg-border">
@@ -277,13 +297,19 @@ function StockTab({ districtId, subWarehouseId, allSubWarehouses }: {
               const total  = centralStock[`${key}Total`     as keyof CentralStockLevel] as number;
               const pct    = centralStock[`${key}Pct`       as keyof CentralStockLevel] as number;
               const scarce = centralStock[`${key}Scarce`    as keyof CentralStockLevel] as boolean;
+              const above  = rem > total;
               return (
-                <div key={type} className={`bg-bg-elevated rounded-lg border p-4 ${scarce ? 'border-accent-red/40' : 'border-bg-border'}`}>
+                <div key={type} className={`bg-bg-elevated rounded-lg border p-4 ${scarce ? 'border-accent-red/40' : above ? 'border-accent-blue/30' : 'border-bg-border'}`}>
                   <div className="flex items-center justify-between mb-2">
                     <span className={`font-mono text-sm font-bold ${EMK_COLORS[type]}`}>{type}</span>
                     {scarce && (
                       <span className="font-mono text-[9px] text-accent-red bg-accent-red/10 px-1.5 py-0.5 rounded border border-accent-red/30 animate-pulse">
                         ⚠ SCARCE
+                      </span>
+                    )}
+                    {!scarce && above && (
+                      <span className="font-mono text-[9px] text-accent-blue bg-accent-blue/10 px-1.5 py-0.5 rounded border border-accent-blue/30">
+                        ↑ EXTRA
                       </span>
                     )}
                   </div>
@@ -292,7 +318,7 @@ function StockTab({ districtId, subWarehouseId, allSubWarehouses }: {
                   <div className="mt-2 h-1.5 bg-bg-border rounded-full overflow-hidden">
                     <div
                       className={`h-full rounded-full transition-all duration-500 ${
-                        scarce ? 'bg-accent-red' : pct > 60 ? 'bg-accent-blue' : pct > 30 ? 'bg-accent-yellow' : 'bg-accent-orange'
+                        scarce ? 'bg-accent-red' : above ? 'bg-accent-blue' : pct > 60 ? 'bg-accent-blue' : pct > 30 ? 'bg-accent-yellow' : 'bg-accent-orange'
                       }`}
                       style={{ width: `${Math.max(pct, 2)}%` }}
                     />
@@ -309,15 +335,15 @@ function StockTab({ districtId, subWarehouseId, allSubWarehouses }: {
         ) : (
           <div className="bg-accent-orange/10 border border-accent-orange/30 rounded px-3 py-2">
             <p className="font-mono text-xs text-accent-orange">
-              Central warehouse not found. Run <code>npm run seed</code> on the backend.
+              Central warehouse not found. Run <code>npm run seed</code>.
             </p>
           </div>
         )}
       </div>
  
-      {/* ── CENTRAL WAREHOUSE MANAGEMENT (SUPER_ADMIN only) ───────────────── */}
+      {/* ── SUPER_ADMIN MANAGEMENT PANELS ─────────────────────────────────── */}
       {isSuperAdmin && (
-        <div className="space-y-3">
+        <div className="space-y-4">
           <div className="flex items-center gap-2">
             <span className="font-mono text-[10px] text-text-muted uppercase tracking-widest">
               Central Warehouse Management
@@ -328,63 +354,43 @@ function StockTab({ districtId, subWarehouseId, allSubWarehouses }: {
           </div>
  
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
-            {/* Replenish — new stock arriving, increases Total + Remaining */}
+            {/* ── Replenish ─────────────────────────────────────────────── */}
             <div className="card p-5 border-accent-blue/20">
-              <SectionTitle sub="New shipment received — increases Total and Remaining">
+              <SectionTitle sub="New shipment received — increases Remaining only">
                 Replenish Central Stock
               </SectionTitle>
               <p className="font-mono text-[10px] text-text-muted mb-3">
-                Use when a donor shipment or MoH delivery arrives at the central warehouse.
+                Use when a donor shipment or MoH delivery arrives. Total stays fixed.
               </p>
               <div className="space-y-3">
                 <div className="grid grid-cols-2 gap-3">
                   <div>
                     <label className="label">EMK Type</label>
-                    <select
-                      value={repEmkType}
-                      onChange={e => setRepEmkType(e.target.value as 'EMK1' | 'EMK2' | 'EMK3')}
-                      className="input"
-                    >
+                    <select value={repEmkType} onChange={e => setRepEmkType(e.target.value as 'EMK1' | 'EMK2' | 'EMK3')} className="input">
                       {EMK_TYPES.map(t => <option key={t} value={t}>{t}</option>)}
                     </select>
                   </div>
                   <div>
                     <label className="label">Quantity</label>
-                    <input
-                      type="number" min="1" className="input"
-                      placeholder="e.g. 1000"
-                      value={repQty}
-                      onChange={e => setRepQty(e.target.value)}
-                    />
+                    <input type="number" min="1" className="input" placeholder="e.g. 1000"
+                      value={repQty} onChange={e => setRepQty(e.target.value)} />
                   </div>
                 </div>
                 <div>
                   <label className="label">Reason (required)</label>
-                  <input
-                    type="text" className="input"
-                    placeholder="e.g. UNICEF donation batch 3, MoH transfer order #4521"
-                    value={repReason}
-                    onChange={e => setRepReason(e.target.value)}
-                  />
+                  <input type="text" className="input" placeholder="e.g. UNICEF donation batch 3"
+                    value={repReason} onChange={e => setRepReason(e.target.value)} />
                 </div>
                 <button
-                  onClick={() => {
-                    if (!repQty || !repReason.trim()) return;
-                    replenishMutation.mutate({
-                      emkType: repEmkType,
-                      quantity: Number(repQty),
-                      reason: repReason.trim(),
-                    });
-                  }}
+                  onClick={() => { if (!repQty || !repReason.trim()) return; replenishMutation.mutate({ emkType: repEmkType, quantity: Number(repQty), reason: repReason.trim() }); }}
                   disabled={replenishMutation.isPending || !repQty || !repReason.trim()}
-                  className="btn-primary w-full"
-                >
+                  className="btn-primary w-full">
                   {replenishMutation.isPending ? 'Recording...' : '+ Replenish Central Stock'}
                 </button>
               </div>
             </div>
  
-            {/* Central adjust — correction only, does NOT change Total */}
+            {/* ── Central Adjust ────────────────────────────────────────── */}
             <div className="card p-5">
               <SectionTitle sub="Correction only — changes Remaining but NOT Total">
                 Adjust Central Stock
@@ -396,48 +402,126 @@ function StockTab({ districtId, subWarehouseId, allSubWarehouses }: {
                 <div className="grid grid-cols-2 gap-3">
                   <div>
                     <label className="label">EMK Type</label>
-                    <select
-                      value={cadEmkType}
-                      onChange={e => setCadEmkType(e.target.value as 'EMK1' | 'EMK2' | 'EMK3')}
-                      className="input"
-                    >
+                    <select value={cadEmkType} onChange={e => setCadEmkType(e.target.value as 'EMK1' | 'EMK2' | 'EMK3')} className="input">
                       {EMK_TYPES.map(t => <option key={t} value={t}>{t}</option>)}
                     </select>
                   </div>
                   <div>
                     <label className="label">Quantity (+/−)</label>
-                    <input
-                      type="number" className="input"
-                      placeholder="-10 or +5"
-                      value={cadQty}
-                      onChange={e => setCadQty(e.target.value)}
-                    />
+                    <input type="number" className="input" placeholder="-10 or +5"
+                      value={cadQty} onChange={e => setCadQty(e.target.value)} />
                   </div>
                 </div>
                 <div>
                   <label className="label">Reason (required)</label>
-                  <input
-                    type="text" className="input"
-                    placeholder="e.g. 10 EMK2 kits damaged in storage — flood water"
-                    value={cadReason}
-                    onChange={e => setCadReason(e.target.value)}
-                  />
+                  <input type="text" className="input" placeholder="e.g. 10 EMK2 kits water-damaged"
+                    value={cadReason} onChange={e => setCadReason(e.target.value)} />
                 </div>
                 <button
-                  onClick={() => {
-                    if (!cadQty || !cadReason.trim()) return;
-                    centralAdjustMutation.mutate({
-                      emkType: cadEmkType,
-                      quantity: Number(cadQty),
-                      reason: cadReason.trim(),
-                    });
-                  }}
+                  onClick={() => { if (!cadQty || !cadReason.trim()) return; centralAdjustMutation.mutate({ emkType: cadEmkType, quantity: Number(cadQty), reason: cadReason.trim() }); }}
                   disabled={centralAdjustMutation.isPending || !cadQty || !cadReason.trim()}
-                  className="btn-ghost w-full"
-                >
+                  className="btn-ghost w-full">
                   {centralAdjustMutation.isPending ? 'Adjusting...' : 'Record Central Adjustment'}
                 </button>
               </div>
+            </div>
+          </div>
+ 
+          {/* ── Set Allocation ──────────────────────────────────────────── */}
+          <div className="card p-5 border-accent-orange/20">
+            <div className="flex items-start justify-between mb-1">
+              <SectionTitle sub="Changes Total reference only — Remaining is unaffected">
+                Set Stock Allocation
+              </SectionTitle>
+            </div>
+            <p className="font-mono text-[10px] text-text-muted mb-4">
+              Use when a formal capacity decision changes — e.g. new donor agreement, district reallocation plan, or correcting the seed allocation. 
+              This changes the <span className="text-text-primary">Total</span> reference number used for the scarcity % calculation.
+            </p>
+ 
+            <div className="space-y-3">
+              {/* Target toggle */}
+              <div>
+                <label className="label">Target</label>
+                <div className="flex gap-2">
+                  {(['central', 'subWarehouse'] as const).map(t => (
+                    <button key={t} onClick={() => setAllocTarget(t)}
+                      className={`flex-1 font-mono text-xs py-2 rounded border transition-all ${
+                        allocTarget === t
+                          ? 'bg-accent-orange/10 border-accent-orange/40 text-accent-orange'
+                          : 'bg-bg-elevated border-bg-border text-text-secondary hover:text-text-primary'
+                      }`}>
+                      {t === 'central' ? '🏛 Central Warehouse' : '🏪 This Sub-Warehouse'}
+                    </button>
+                  ))}
+                </div>
+              </div>
+ 
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="label">EMK Type</label>
+                  <select value={allocEmkType} onChange={e => setAllocEmkType(e.target.value as 'EMK1' | 'EMK2' | 'EMK3')} className="input">
+                    {EMK_TYPES.map(t => <option key={t} value={t}>{t}</option>)}
+                  </select>
+                </div>
+                <div>
+                  <label className="label">
+                    New Total
+                    {currentAllocTotal !== null && (
+                      <span className="ml-2 font-mono text-[10px] text-text-muted normal-case">
+                        current: {fmt(currentAllocTotal)}
+                      </span>
+                    )}
+                  </label>
+                  <input type="number" min="0" className="input" placeholder="e.g. 8000"
+                    value={allocNewTotal} onChange={e => setAllocNewTotal(e.target.value)} />
+                </div>
+              </div>
+ 
+              <div>
+                <label className="label">Reason (required)</label>
+                <input type="text" className="input"
+                  placeholder="e.g. New donor agreement increases District 1 EMK1 allocation to 8,000"
+                  value={allocReason} onChange={e => setAllocReason(e.target.value)} />
+              </div>
+ 
+              {/* Warning if new total is lower than remaining */}
+              {allocNewTotal && currentAllocTotal !== null && (() => {
+                const newT = Number(allocNewTotal);
+                const curRem = allocTarget === 'central'
+                  ? centralStock ? (centralStock[`${allocEmkType.toLowerCase()}Remaining` as keyof CentralStockLevel] as number) : 0
+                  : stock ? (stock[`${allocEmkType.toLowerCase()}Remaining` as keyof StockLevel] as number) : 0;
+                return newT < curRem ? (
+                  <div className="bg-accent-orange/10 border border-accent-orange/30 rounded px-3 py-2">
+                    <p className="font-mono text-[10px] text-accent-orange">
+                      ⚠ New total ({fmt(newT)}) is less than current remaining ({fmt(curRem)}).
+                      This will show the stock as above allocation (↑ EXTRA badge).
+                    </p>
+                  </div>
+                ) : null;
+              })()}
+ 
+              <button
+                onClick={() => {
+                  if (!allocNewTotal || !allocReason.trim()) return;
+                  allocationMutation.mutate({
+                    target: allocTarget,
+                    subWarehouseId: allocTarget === 'subWarehouse' ? (subWarehouseId ?? undefined) : undefined,
+                    emkType: allocEmkType,
+                    newTotal: Number(allocNewTotal),
+                    reason: allocReason.trim(),
+                  });
+                }}
+                disabled={allocationMutation.isPending || !allocNewTotal || !allocReason.trim() || (allocTarget === 'subWarehouse' && !subWarehouseId)}
+                className="btn-ghost w-full border-accent-orange/40 text-accent-orange hover:bg-accent-orange/10">
+                {allocationMutation.isPending ? 'Updating...' : 'Set Allocation'}
+              </button>
+ 
+              {allocTarget === 'subWarehouse' && !subWarehouseId && (
+                <p className="font-mono text-[10px] text-accent-orange">
+                  No sub-warehouse found for this district.
+                </p>
+              )}
             </div>
           </div>
         </div>
@@ -445,18 +529,18 @@ function StockTab({ districtId, subWarehouseId, allSubWarehouses }: {
  
       {/* ── SUB-WAREHOUSE STOCK LEVELS ─────────────────────────────────────── */}
       <div>
-        <SectionTitle sub="Current remaining / total dispatched to this sub-warehouse">
+        <SectionTitle sub="Current remaining / total allocation for this sub-warehouse">
           Sub-Warehouse Stock Levels
         </SectionTitle>
         {stock ? (
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
             {EMK_TYPES.map((type) => {
               const key    = type.toLowerCase() as 'emk1' | 'emk2' | 'emk3';
-              const rem    = stock[`${key}Remaining`        as keyof StockLevel] as number;
-              const total  = stock[`${key}Total`            as keyof StockLevel] as number;
-              const pct    = stock[`${key}Pct`              as keyof StockLevel] as number;
-              const scarce = stock[`${key}Scarce`           as keyof StockLevel] as boolean;
-              const above  = stock[`${key}AboveAllocation`  as keyof StockLevel] as boolean;
+              const rem    = stock[`${key}Remaining`       as keyof StockLevel] as number;
+              const total  = stock[`${key}Total`           as keyof StockLevel] as number;
+              const pct    = stock[`${key}Pct`             as keyof StockLevel] as number;
+              const scarce = stock[`${key}Scarce`          as keyof StockLevel] as boolean;
+              const above  = stock[`${key}AboveAllocation` as keyof StockLevel] as boolean;
               return (
                 <div key={type} className={`card p-4 ${scarce ? 'border-accent-red/40' : above ? 'border-accent-blue/30' : ''}`}>
                   <div className="flex items-center justify-between mb-2">
@@ -484,7 +568,7 @@ function StockTab({ districtId, subWarehouseId, allSubWarehouses }: {
                   </div>
                   {above && (
                     <p className="font-mono text-[9px] text-accent-blue mt-1.5">
-                      ↑ Above initial allocation — extra resupply received
+                      ↑ Above allocation — extra resupply received
                     </p>
                   )}
                   {type === 'EMK3' && total === 0 && (
@@ -507,7 +591,6 @@ function StockTab({ districtId, subWarehouseId, allSubWarehouses }: {
           <SectionTitle sub="Moves stock from central warehouse → this sub-warehouse">
             Record Dispatch
           </SectionTitle>
- 
           {centralAvailable !== null && (
             <div className="mb-3 bg-bg-elevated rounded px-3 py-2 border border-bg-border">
               <p className="font-mono text-[10px] text-text-muted">
@@ -518,57 +601,33 @@ function StockTab({ districtId, subWarehouseId, allSubWarehouses }: {
               </p>
             </div>
           )}
- 
           <div className="space-y-3">
             <div className="grid grid-cols-2 gap-3">
               <div>
                 <label className="label">EMK Type</label>
-                <select
-                  value={dispEmkType}
-                  onChange={e => setDispEmkType(e.target.value as 'EMK1' | 'EMK2' | 'EMK3')}
-                  className="input"
-                >
+                <select value={dispEmkType} onChange={e => setDispEmkType(e.target.value as 'EMK1' | 'EMK2' | 'EMK3')} className="input">
                   {EMK_TYPES.map(t => <option key={t} value={t}>{t}</option>)}
                 </select>
               </div>
               <div>
                 <label className="label">Quantity</label>
-                <input
-                  type="number" min="1" className="input"
-                  placeholder="e.g. 200"
-                  value={dispQty}
-                  onChange={e => setDispQty(e.target.value)}
-                />
+                <input type="number" min="1" className="input" placeholder="e.g. 200"
+                  value={dispQty} onChange={e => setDispQty(e.target.value)} />
               </div>
             </div>
             <div>
               <label className="label">Reason (optional)</label>
-              <input
-                type="text" className="input"
-                placeholder="Phase 1 resupply..."
-                value={dispReason}
-                onChange={e => setDispReason(e.target.value)}
-              />
+              <input type="text" className="input" placeholder="Phase 1 resupply..."
+                value={dispReason} onChange={e => setDispReason(e.target.value)} />
             </div>
             <button
-              onClick={() => {
-                if (!subWarehouseId || !dispQty) return;
-                dispatchMutation.mutate({
-                  subWarehouseId,
-                  emkType: dispEmkType,
-                  quantity: Number(dispQty),
-                  reason: dispReason || undefined,
-                });
-              }}
+              onClick={() => { if (!subWarehouseId || !dispQty) return; dispatchMutation.mutate({ subWarehouseId, emkType: dispEmkType, quantity: Number(dispQty), reason: dispReason || undefined }); }}
               disabled={dispatchMutation.isPending || !dispQty || !subWarehouseId}
-              className="btn-primary w-full"
-            >
+              className="btn-primary w-full">
               {dispatchMutation.isPending ? 'Dispatching...' : 'Dispatch to Sub-Warehouse'}
             </button>
             {!subWarehouseId && (
-              <p className="font-mono text-[10px] text-accent-orange">
-                No sub-warehouse assigned to this district.
-              </p>
+              <p className="font-mono text-[10px] text-accent-orange">No sub-warehouse assigned.</p>
             )}
           </div>
         </div>
@@ -581,46 +640,25 @@ function StockTab({ districtId, subWarehouseId, allSubWarehouses }: {
             <div className="grid grid-cols-2 gap-3">
               <div>
                 <label className="label">EMK Type</label>
-                <select
-                  value={adjEmkType}
-                  onChange={e => setAdjEmkType(e.target.value as 'EMK1' | 'EMK2' | 'EMK3')}
-                  className="input"
-                >
+                <select value={adjEmkType} onChange={e => setAdjEmkType(e.target.value as 'EMK1' | 'EMK2' | 'EMK3')} className="input">
                   {EMK_TYPES.map(t => <option key={t} value={t}>{t}</option>)}
                 </select>
               </div>
               <div>
                 <label className="label">Quantity (+/−)</label>
-                <input
-                  type="number" className="input"
-                  placeholder="-5 or +10"
-                  value={adjQty}
-                  onChange={e => setAdjQty(e.target.value)}
-                />
+                <input type="number" className="input" placeholder="-5 or +10"
+                  value={adjQty} onChange={e => setAdjQty(e.target.value)} />
               </div>
             </div>
             <div>
               <label className="label">Reason (required)</label>
-              <input
-                type="text" className="input"
-                placeholder="e.g. Water-damaged kits removed"
-                value={adjReason}
-                onChange={e => setAdjReason(e.target.value)}
-              />
+              <input type="text" className="input" placeholder="e.g. Water-damaged kits removed"
+                value={adjReason} onChange={e => setAdjReason(e.target.value)} />
             </div>
             <button
-              onClick={() => {
-                if (!subWarehouseId || !adjQty || !adjReason.trim()) return;
-                adjustMutation.mutate({
-                  subWarehouseId,
-                  emkType: adjEmkType,
-                  quantity: Number(adjQty),
-                  reason: adjReason,
-                });
-              }}
+              onClick={() => { if (!subWarehouseId || !adjQty || !adjReason.trim()) return; adjustMutation.mutate({ subWarehouseId, emkType: adjEmkType, quantity: Number(adjQty), reason: adjReason }); }}
               disabled={adjustMutation.isPending || !adjQty || !adjReason.trim() || !subWarehouseId}
-              className="btn-ghost w-full"
-            >
+              className="btn-ghost w-full">
               {adjustMutation.isPending ? 'Adjusting...' : 'Record Adjustment'}
             </button>
           </div>
@@ -641,23 +679,15 @@ function StockTab({ districtId, subWarehouseId, allSubWarehouses }: {
                     <span className={`font-mono text-[10px] px-1.5 py-0.5 rounded border ${MOVE_COLORS[m.movementType] ?? 'text-text-muted border-bg-border'}`}>
                       {m.movementType}
                     </span>
-                    <span className={`font-mono text-xs font-semibold ${EMK_COLORS[m.emkType]}`}>
-                      {m.emkType}
-                    </span>
+                    <span className={`font-mono text-xs font-semibold ${EMK_COLORS[m.emkType]}`}>{m.emkType}</span>
                     <span className={`font-mono text-sm font-bold ${m.quantity > 0 ? 'text-accent-green' : 'text-accent-red'}`}>
                       {m.quantity > 0 ? '+' : ''}{fmt(m.quantity)}
                     </span>
                   </div>
-                  {m.reason && (
-                    <p className="font-mono text-[10px] text-text-muted truncate">{m.reason}</p>
-                  )}
-                  <p className="font-mono text-[10px] text-text-muted mt-0.5">
-                    by {m.performedBy?.name ?? '—'}
-                  </p>
+                  {m.reason && <p className="font-mono text-[10px] text-text-muted truncate">{m.reason}</p>}
+                  <p className="font-mono text-[10px] text-text-muted mt-0.5">by {m.performedBy?.name ?? '—'}</p>
                 </div>
-                <span className="font-mono text-[10px] text-text-muted flex-shrink-0">
-                  {timeAgo(m.createdAt)}
-                </span>
+                <span className="font-mono text-[10px] text-text-muted flex-shrink-0">{timeAgo(m.createdAt)}</span>
               </div>
             ))
           )}

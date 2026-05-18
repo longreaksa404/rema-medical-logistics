@@ -109,7 +109,9 @@ export interface RadioCheckin {
 // ─── API METHODS ──────────────────────────────────────────────────────────────
 
 export const hubApi = {
-  // Stock
+
+  // ── Stock ──────────────────────────────────────────────────────────────────
+
   getCentralStock: async (): Promise<CentralStockLevel> => {
     const res = await api.get<CentralStockLevel>('/api/stock/central');
     return res.data;
@@ -156,8 +158,7 @@ export const hubApi = {
     return res.data;
   },
 
-  // New stock arriving at central (donor shipment, MoH delivery).
-  // Increases both Total and Remaining. SUPER_ADMIN only.
+  // New stock arriving at central — increases Remaining only, Total stays fixed
   replenishCentral: async (data: {
     emkType: 'EMK1' | 'EMK2' | 'EMK3';
     quantity: number;
@@ -167,8 +168,7 @@ export const hubApi = {
     return res.data;
   },
 
-  // Manual correction at central warehouse — signed quantity (+/-).
-  // Does NOT change Total, only Remaining. SUPER_ADMIN only.
+  // Manual correction at central — signed quantity, only Remaining changes
   adjustCentral: async (data: {
     emkType: 'EMK1' | 'EMK2' | 'EMK3';
     quantity: number;
@@ -178,7 +178,20 @@ export const hubApi = {
     return res.data;
   },
 
-  // Volunteers
+  // Set Total allocation reference — changes only Total, not Remaining
+  setAllocation: async (data: {
+    target: 'central' | 'subWarehouse';
+    subWarehouseId?: string;
+    emkType: 'EMK1' | 'EMK2' | 'EMK3';
+    newTotal: number;
+    reason: string;
+  }) => {
+    const res = await api.patch('/api/stock/allocation', data);
+    return res.data;
+  },
+
+  // ── Volunteers ─────────────────────────────────────────────────────────────
+
   getRoster: async (districtId: string): Promise<DistrictRoster> => {
     const res = await api.get<DistrictRoster>(`/api/volunteers/${districtId}/roster`);
     return res.data;
@@ -207,7 +220,8 @@ export const hubApi = {
     return res.data;
   },
 
-  // Deliveries
+  // ── Deliveries ─────────────────────────────────────────────────────────────
+
   getDeliveryRuns: async (districtId: string): Promise<DeliveryRun[]> => {
     const res = await api.get<DeliveryRun[]>('/api/delivery/runs', { params: { districtId } });
     return res.data;
@@ -230,7 +244,8 @@ export const hubApi = {
     return res.data;
   },
 
-  // Incidents
+  // ── Incidents ──────────────────────────────────────────────────────────────
+
   getIncidents: async (districtId: string): Promise<Incident[]> => {
     const res = await api.get<Incident[]>('/api/incidents', { params: { districtId } });
     return res.data;
@@ -248,7 +263,8 @@ export const hubApi = {
     return res.data;
   },
 
-  // Radio
+  // ── Radio ──────────────────────────────────────────────────────────────────
+
   getCheckins: async (districtId: string, date?: string): Promise<RadioCheckin[]> => {
     const today = date ?? new Date().toISOString().split('T')[0];
     const res = await api.get<RadioCheckin[]>('/api/radio/checkins', {

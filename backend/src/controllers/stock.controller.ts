@@ -10,7 +10,8 @@ import {
   getAllMovements,
   getMovementsByDistrict,
   replenishCentral as replenishCentralStock,
-  adjustCentral as adjustCentralStock,
+  adjustCentral   as adjustCentralStock,
+  setAllocation   as setAllocationStock,
 } from '../services/stock.service';
 
 // ─── GET /api/stock/central ───────────────────────────────────────────────────
@@ -163,8 +164,8 @@ export async function getMovementsByDistrictHandler(req: Request, res: Response)
 }
 
 // ─── POST /api/stock/central/replenish ───────────────────────────────────────
-// New stock arriving at central warehouse (donor shipment, MoH delivery).
-// Increases both Total and Remaining — this is new stock entering the system.
+// New stock arriving at central (donor shipment, MoH delivery).
+// Increases only Remaining — Total stays fixed as seed allocation reference.
 // SUPER_ADMIN only.
 
 export async function replenishCentral(req: Request, res: Response): Promise<void> {
@@ -195,8 +196,7 @@ export async function replenishCentral(req: Request, res: Response): Promise<voi
 }
 
 // ─── PATCH /api/stock/central ────────────────────────────────────────────────
-// Manual correction at central warehouse — signed quantity (+/-).
-// Does NOT change Total, only Remaining (correction for damaged/lost kits).
+// Manual correction at central — signed quantity, changes only Remaining.
 // SUPER_ADMIN only.
 
 export async function adjustCentral(req: Request, res: Response): Promise<void> {
@@ -218,5 +218,52 @@ export async function adjustCentral(req: Request, res: Response): Promise<void> 
     const message = err instanceof Error ? err.message : 'Adjustment failed';
     const status = message.includes('negative') ? 422 : 400;
     res.status(status).json({ error: message });
+  }
+}
+
+// ─── PATCH /api/stock/allocation ─────────────────────────────────────────────
+// Set Total allocation reference for central or a sub-warehouse.
+// Used when formal capacity decisions change (new donor agreement, reallocation plan).
+// Changes ONLY Total — Remaining is unaffected.
+// SUPER_ADMIN only.
+
+export async function setAllocation(req: Request, res: Response): Promise<void> {
+  const { target, subWarehouseId, emkType, newTotal, reason } = req.body;
+
+  if (!target || !emkType || newTotal === undefined || !reason) {
+    res.status(400).json({
+      error: 'target, emkType, newTotal, and reason are required',
+    });
+    return;
+  }
+
+  if (!['central', 'subWarehouse'].includes(target)) {
+    res.status(400).json({ error: 'target must be "central" or "subWarehouse"' });
+    return;
+  }
+
+  if (target === 'subWarehouse' && !subWarehouseId) {
+    res.status(400).json({ error: 'subWarehouseId is required when target is "subWarehouse"' });
+    return;
+  }
+
+  const validEmkTypes: EmkType[] = ['EMK1', 'EMK2', 'EMK3'];
+  if (!validEmkTypes.includes(emkType)) {
+    res.status(400).json({ error: 'emkType must be EMK1, EMK2, or EMK3' });
+    return;
+  }
+
+  try {
+    const result = await setAllocationStock({
+      target,
+      subWarehouseId,
+      emkType: emkType as EmkType,
+      newTotal: Number(newTotal),
+      reason,
+    });
+    res.json(result);
+  } catch (err) {
+    const message = err instanceof Error ? err.message : 'Failed to set allocation';
+    res.status(400).json({ error: message });
   }
 }

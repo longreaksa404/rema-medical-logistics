@@ -9,16 +9,26 @@ import {
   adjust,
   getMovements,
   getMovementsByDistrictHandler,
-  replenishCentral,   // ← ADD
-  adjustCentral,      // ← ADD
+  replenishCentral,
+  adjustCentral,
+  setAllocation,
 } from '../controllers/stock.controller';
 
 const router = Router();
 
 // ─── IMPORTANT: fixed paths BEFORE :districtId wildcard ──────────────────────
 
-// GET /api/stock/central — central warehouse stock (own table, not a district)
+// GET /api/stock/central — central warehouse stock
 router.get('/central', requireAuth, getCentral);
+
+// POST /api/stock/central/replenish — new stock arriving (SUPER_ADMIN)
+router.post('/central/replenish', requireAuth, requireRole('SUPER_ADMIN'), replenishCentral);
+
+// PATCH /api/stock/central — manual correction at central (SUPER_ADMIN)
+router.patch('/central', requireAuth, requireRole('SUPER_ADMIN'), adjustCentral);
+
+// PATCH /api/stock/allocation — set Total allocation for central or sub-warehouse (SUPER_ADMIN)
+router.patch('/allocation', requireAuth, requireRole('SUPER_ADMIN'), setAllocation);
 
 // GET /api/stock/status — all sub-warehouses aggregate
 router.get('/status', requireAuth, getStatus);
@@ -38,14 +48,7 @@ router.post('/reallocate', requireAuth, requireRole('EMERGENCY_COORDINATOR'), re
 // POST /api/stock/adjust — Hub Manager or above
 router.post('/adjust', requireAuth, requireRole('HUB_MANAGER'), adjust);
 
-// POST /api/stock/central/replenish — new stock arriving at central (SUPER_ADMIN only)
-router.post('/central/replenish', requireAuth, requireRole('SUPER_ADMIN'), replenishCentral);
-
-// PATCH /api/stock/central — manual correction at central (SUPER_ADMIN only)
-router.patch('/central', requireAuth, requireRole('SUPER_ADMIN'), adjustCentral);
-
 // GET /api/stock/:districtId — LAST, after all fixed paths
 router.get('/:districtId', requireAuth, getByDistrict);
-
 
 export default router;
