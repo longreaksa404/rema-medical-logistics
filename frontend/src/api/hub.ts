@@ -6,37 +6,18 @@ export interface StockLevel {
   subWarehouseId: string;
   districtId: string;
   districtName: string;
-  emk1Total: number;
-  emk1Remaining: number;
-  emk1Pct: number;
-  emk1Scarce: boolean;
-  emk2Total: number;
-  emk2Remaining: number;
-  emk2Pct: number;
-  emk2Scarce: boolean;
-  emk3Total: number;
-  emk3Remaining: number;
-  emk3Pct: number;
-  emk3Scarce: boolean;
+  emk1Total: number; emk1Remaining: number; emk1Pct: number; emk1Scarce: boolean;
+  emk2Total: number; emk2Remaining: number; emk2Pct: number; emk2Scarce: boolean;
+  emk3Total: number; emk3Remaining: number; emk3Pct: number; emk3Scarce: boolean;
   anyScarce: boolean;
   updatedAt: string;
 }
 
-// NEW — returned by GET /api/stock/central
 export interface CentralStockLevel {
-  subWarehouseId: string;
-  emk1Total: number;
-  emk1Remaining: number;
-  emk1Pct: number;
-  emk1Scarce: boolean;
-  emk2Total: number;
-  emk2Remaining: number;
-  emk2Pct: number;
-  emk2Scarce: boolean;
-  emk3Total: number;
-  emk3Remaining: number;
-  emk3Pct: number;
-  emk3Scarce: boolean;
+  id: string;
+  emk1Total: number; emk1Remaining: number; emk1Pct: number; emk1Scarce: boolean;
+  emk2Total: number; emk2Remaining: number; emk2Pct: number; emk2Scarce: boolean;
+  emk3Total: number; emk3Remaining: number; emk3Pct: number; emk3Scarce: boolean;
   updatedAt: string;
 }
 
@@ -91,12 +72,7 @@ export interface DeliveryRun {
   status: 'IN_PROGRESS' | 'COMPLETE' | 'ABORTED';
   leadVolunteer: { name: string; phone: string };
   subWarehouse: { district: { name: string } };
-  receipts: {
-    id: string;
-    emkType: string;
-    quantity: number;
-    deliveredAt: string;
-  }[];
+  receipts: { id: string; emkType: string; quantity: number; deliveredAt: string }[];
 }
 
 // ─── INCIDENTS ────────────────────────────────────────────────────────────────
@@ -134,8 +110,6 @@ export interface RadioCheckin {
 
 export const hubApi = {
   // Stock
-
-  // NEW — central warehouse stock; decrements on every dispatch
   getCentralStock: async (): Promise<CentralStockLevel> => {
     const res = await api.get<CentralStockLevel>('/api/stock/central');
     return res.data;
@@ -182,6 +156,28 @@ export const hubApi = {
     return res.data;
   },
 
+  // New stock arriving at central (donor shipment, MoH delivery).
+  // Increases both Total and Remaining. SUPER_ADMIN only.
+  replenishCentral: async (data: {
+    emkType: 'EMK1' | 'EMK2' | 'EMK3';
+    quantity: number;
+    reason: string;
+  }) => {
+    const res = await api.post('/api/stock/central/replenish', data);
+    return res.data;
+  },
+
+  // Manual correction at central warehouse — signed quantity (+/-).
+  // Does NOT change Total, only Remaining. SUPER_ADMIN only.
+  adjustCentral: async (data: {
+    emkType: 'EMK1' | 'EMK2' | 'EMK3';
+    quantity: number;
+    reason: string;
+  }) => {
+    const res = await api.patch('/api/stock/central', data);
+    return res.data;
+  },
+
   // Volunteers
   getRoster: async (districtId: string): Promise<DistrictRoster> => {
     const res = await api.get<DistrictRoster>(`/api/volunteers/${districtId}/roster`);
@@ -189,10 +185,7 @@ export const hubApi = {
   },
 
   createVolunteer: async (data: {
-    districtId: string;
-    name: string;
-    phone: string;
-    role?: 'TEAM_LEADER' | 'VOLUNTEER';
+    districtId: string; name: string; phone: string; role?: 'TEAM_LEADER' | 'VOLUNTEER';
   }): Promise<Volunteer> => {
     const res = await api.post<Volunteer>('/api/volunteers', data);
     return res.data;
@@ -207,11 +200,8 @@ export const hubApi = {
   },
 
   assignVolunteer: async (data: {
-    volunteerId: string;
-    subWarehouseId: string;
-    alertId: string;
-    zone: string;
-    teamNumber: number;
+    volunteerId: string; subWarehouseId: string; alertId: string;
+    zone: string; teamNumber: number;
   }) => {
     const res = await api.post('/api/volunteers/assign', data);
     return res.data;
@@ -219,17 +209,12 @@ export const hubApi = {
 
   // Deliveries
   getDeliveryRuns: async (districtId: string): Promise<DeliveryRun[]> => {
-    const res = await api.get<DeliveryRun[]>('/api/delivery/runs', {
-      params: { districtId },
-    });
+    const res = await api.get<DeliveryRun[]>('/api/delivery/runs', { params: { districtId } });
     return res.data;
   },
 
   startRun: async (data: {
-    subWarehouseId: string;
-    teamNumber: number;
-    zone: string;
-    leadVolunteerId: string;
+    subWarehouseId: string; teamNumber: number; zone: string; leadVolunteerId: string;
   }): Promise<DeliveryRun> => {
     const res = await api.post<DeliveryRun>('/api/delivery/runs', data);
     return res.data;
@@ -247,16 +232,12 @@ export const hubApi = {
 
   // Incidents
   getIncidents: async (districtId: string): Promise<Incident[]> => {
-    const res = await api.get<Incident[]>('/api/incidents', {
-      params: { districtId },
-    });
+    const res = await api.get<Incident[]>('/api/incidents', { params: { districtId } });
     return res.data;
   },
 
   reportIncident: async (data: {
-    districtId: string;
-    type: Incident['type'];
-    description: string;
+    districtId: string; type: Incident['type']; description: string;
   }): Promise<Incident> => {
     const res = await api.post<Incident>('/api/incidents', data);
     return res.data;

@@ -19,7 +19,6 @@ export const queryKeys = {
   // ── Hub (all tabs) ─────────────────────────────────────────────────────────
   hub: {
     all: (districtId: string) => ['hub', districtId] as const,
-    // NEW — central warehouse stock is not district-specific
     centralStock: () => ['hub', 'central-stock'] as const,
     stock: (districtId: string) => ['hub', districtId, 'stock'] as const,
     movements: (districtId: string) => ['hub', districtId, 'movements'] as const,

@@ -1,14 +1,17 @@
 import { prisma } from '../lib/prisma';
 import { getCached, setCached, deleteCached } from '../utils/cache';
 
-const KEY_LIST = 'districts:list';
+const KEY_LIST   = 'districts:list';
 const KEY_PREFIX = 'districts:';
-const TTL = 300_000;
+const TTL        = 300_000;
 
 function invalidateDistrictCache(id?: string): void {
   deleteCached(KEY_LIST);
   if (id) deleteCached(`${KEY_PREFIX}${id}`);
 }
+
+// ─── LIST ALL DISTRICTS ───────────────────────────────────────────────────────
+// No filter needed — central warehouse now lives in its own table.
 
 export async function listDistricts() {
   const cached = getCached<Awaited<ReturnType<typeof fetchDistricts>>>(KEY_LIST);
@@ -21,7 +24,6 @@ export async function listDistricts() {
 
 async function fetchDistricts() {
   return prisma.district.findMany({
-    where: { name: { not: '__central__' } },  // exclude synthetic central district
     orderBy: { name: 'asc' },
     include: {
       subWarehouse: {
@@ -37,6 +39,8 @@ async function fetchDistricts() {
   });
 }
 
+// ─── GET SINGLE DISTRICT ──────────────────────────────────────────────────────
+
 export async function getDistrict(id: string) {
   const key = `${KEY_PREFIX}detail:${id}`;
   const cached = getCached<Awaited<ReturnType<typeof fetchDistrict>>>(key);
@@ -50,13 +54,13 @@ export async function getDistrict(id: string) {
 async function fetchDistrict(id: string) {
   const district = await prisma.district.findUnique({
     where: { id },
-    include: {
-      subWarehouse: { include: { stock: true } },
-    },
+    include: { subWarehouse: { include: { stock: true } } },
   });
   if (!district) throw new Error('District not found');
   return district;
 }
+
+// ─── GET DISTRICT SUMMARY ─────────────────────────────────────────────────────
 
 export async function getDistrictSummary(id: string) {
   const district = await prisma.district.findUnique({
@@ -65,7 +69,7 @@ export async function getDistrictSummary(id: string) {
   });
   if (!district) throw new Error('District not found');
 
-  const sw = district.subWarehouse;
+  const sw    = district.subWarehouse;
   const stock = sw?.stock;
 
   let stockPct = 0;
@@ -95,12 +99,9 @@ export async function getDistrictSummary(id: string) {
     subWarehouseStatus: sw?.status ?? null,
     stockPct,
     stock: stock ? {
-      emk1Total: stock.emk1Total,
-      emk1Remaining: stock.emk1Remaining,
-      emk2Total: stock.emk2Total,
-      emk2Remaining: stock.emk2Remaining,
-      emk3Total: stock.emk3Total,
-      emk3Remaining: stock.emk3Remaining,
+      emk1Total: stock.emk1Total, emk1Remaining: stock.emk1Remaining,
+      emk2Total: stock.emk2Total, emk2Remaining: stock.emk2Remaining,
+      emk3Total: stock.emk3Total, emk3Remaining: stock.emk3Remaining,
     } : null,
     householdsAssessed,
     deliveredCount,

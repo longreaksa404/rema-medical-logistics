@@ -4,8 +4,8 @@ import { getCached, setCached, deleteCached } from '../utils/cache';
 
 const prisma = new PrismaClient();
 
-const KEY_SUMMARY = 'dashboard:summary';
-const KEY_DISTRICT_PREFIX = 'dashboard:district:';
+const KEY_SUMMARY          = 'dashboard:summary';
+const KEY_DISTRICT_PREFIX  = 'dashboard:district:';
 
 export function invalidateCache(key?: string): void {
   if (key) {
@@ -40,14 +40,11 @@ export async function getDistrictDashboard(districtId: string) {
 async function buildDistrictDashboard(districtId: string) {
   const district = await prisma.district.findUnique({
     where: { id: districtId },
-    include: {
-      subWarehouse: { include: { stock: true } },
-    },
+    include: { subWarehouse: { include: { stock: true } } },
   });
-
   if (!district) throw new Error('District not found');
 
-  const sw = district.subWarehouse;
+  const sw    = district.subWarehouse;
   const stock = sw?.stock;
 
   let stockPct = 0;
@@ -80,10 +77,7 @@ async function buildDistrictDashboard(districtId: string) {
       where: { districtId, status: { in: ['OPEN', 'ESCALATED'] } },
     }),
     prisma.deliveryRun.count({
-      where: {
-        subWarehouseId: sw?.id,
-        status: 'IN_PROGRESS',
-      },
+      where: { subWarehouseId: sw?.id, status: 'IN_PROGRESS' },
     }),
   ]);
 
@@ -94,9 +88,7 @@ async function buildDistrictDashboard(districtId: string) {
     where: { districtId },
     orderBy: { createdAt: 'desc' },
     take: 4,
-    include: {
-      submittedBy: { select: { name: true } },
-    },
+    include: { submittedBy: { select: { name: true } } },
   });
 
   return {
@@ -107,16 +99,11 @@ async function buildDistrictDashboard(districtId: string) {
     subWarehouseStatus: sw?.status ?? null,
     stockPct,
     anyScarce,
-    stock: stock
-      ? {
-          emk1Total: stock.emk1Total,
-          emk1Remaining: stock.emk1Remaining,
-          emk2Total: stock.emk2Total,
-          emk2Remaining: stock.emk2Remaining,
-          emk3Total: stock.emk3Total,
-          emk3Remaining: stock.emk3Remaining,
-        }
-      : null,
+    stock: stock ? {
+      emk1Total: stock.emk1Total, emk1Remaining: stock.emk1Remaining,
+      emk2Total: stock.emk2Total, emk2Remaining: stock.emk2Remaining,
+      emk3Total: stock.emk3Total, emk3Remaining: stock.emk3Remaining,
+    } : null,
     householdsAssessed,
     deliveredCount,
     openIncidents,
@@ -128,7 +115,7 @@ async function buildDistrictDashboard(districtId: string) {
 async function buildSummary() {
   const [
     alert,
-    districts,
+    districts,               // ← no filter needed — central_warehouse is its own table now
     globalHouseholdCounts,
     districtHouseholdCounts,
     districtIncidentCounts,
@@ -137,9 +124,7 @@ async function buildSummary() {
   ] = await Promise.all([
     prisma.floodAlert.findFirst({ orderBy: { createdAt: 'desc' } }),
 
-    // ── KEY FIX: exclude the synthetic __central__ district ──────────────────
     prisma.district.findMany({
-      where: { name: { not: '__central__' } },
       orderBy: { name: 'asc' },
       include: { subWarehouse: { include: { stock: true } } },
     }),
@@ -174,28 +159,23 @@ async function buildSummary() {
   ]);
 
   let critical = 0, high = 0, medium = 0, standard = 0, delivered = 0;
-
   for (const row of globalHouseholdCounts) {
     const n = row._count._all;
-    if (row.delivered) {
-      delivered += n;
-    } else {
-      switch (row.priorityBand) {
-        case 'CRITICAL': critical += n; break;
-        case 'HIGH':     high    += n; break;
-        case 'MEDIUM':   medium  += n; break;
-        case 'STANDARD': standard += n; break;
-      }
+    if (row.delivered) { delivered += n; continue; }
+    switch (row.priorityBand) {
+      case 'CRITICAL': critical += n; break;
+      case 'HIGH':     high     += n; break;
+      case 'MEDIUM':   medium   += n; break;
+      case 'STANDARD': standard += n; break;
     }
   }
 
   const householdMap = new Map<string, { total: number; deliveredCount: number }>();
   for (const row of districtHouseholdCounts) {
-    const id = row.districtId;
-    const existing = householdMap.get(id) ?? { total: 0, deliveredCount: 0 };
+    const existing = householdMap.get(row.districtId) ?? { total: 0, deliveredCount: 0 };
     existing.total += row._count._all;
     if (row.delivered) existing.deliveredCount += row._count._all;
-    householdMap.set(id, existing);
+    householdMap.set(row.districtId, existing);
   }
 
   const incidentMap = new Map<string, number>();
@@ -214,10 +194,10 @@ async function buildSummary() {
   });
 
   const districtCards = districts.map((d) => {
-    const sw = d.subWarehouse;
+    const sw    = d.subWarehouse;
     const stock = sw?.stock ?? null;
 
-    let stockPct = 0;
+    let stockPct  = 0;
     let anyScarce = false;
 
     if (stock) {
@@ -238,50 +218,39 @@ async function buildSummary() {
     }
 
     const householdData = householdMap.get(d.id) ?? { total: 0, deliveredCount: 0 };
-    const openCount = incidentMap.get(d.id) ?? 0;
+    const openCount     = incidentMap.get(d.id) ?? 0;
 
     return {
-      districtId: d.id,
-      name: d.name,
-      population: d.population,
-      subWarehouseId: sw?.id ?? null,
+      districtId:        d.id,
+      name:              d.name,
+      population:        d.population,
+      subWarehouseId:    sw?.id ?? null,
       subWarehouseStatus: sw?.status ?? null,
       stockPct,
       anyScarce,
-      stock: stock
-        ? {
-            emk1Total: stock.emk1Total,
-            emk1Remaining: stock.emk1Remaining,
-            emk2Total: stock.emk2Total,
-            emk2Remaining: stock.emk2Remaining,
-            emk3Total: stock.emk3Total,
-            emk3Remaining: stock.emk3Remaining,
-          }
-        : null,
+      stock: stock ? {
+        emk1Total: stock.emk1Total, emk1Remaining: stock.emk1Remaining,
+        emk2Total: stock.emk2Total, emk2Remaining: stock.emk2Remaining,
+        emk3Total: stock.emk3Total, emk3Remaining: stock.emk3Remaining,
+      } : null,
       householdsAssessed: householdData.total,
-      deliveredCount: householdData.deliveredCount,
-      openIncidents: openCount,
+      deliveredCount:     householdData.deliveredCount,
+      openIncidents:      openCount,
     };
   });
 
   return {
-    phase: alert?.phase ?? 0,
-    activated: alert?.activated ?? false,
+    phase:       alert?.phase       ?? 0,
+    activated:   alert?.activated   ?? false,
     activatedAt: alert?.activatedAt ?? null,
-    triggerConditions: alert
-      ? {
-          warningLevelTwo: alert.warningLevelTwo,
-          rainfallExceeds100mm: alert.rainfallExceeds100mm,
-          streetFloodingReport: alert.streetFloodingReport,
-        }
-      : null,
+    triggerConditions: alert ? {
+      warningLevelTwo:      alert.warningLevelTwo,
+      rainfallExceeds100mm: alert.rainfallExceeds100mm,
+      streetFloodingReport: alert.streetFloodingReport,
+    } : null,
     households: {
-      critical,
-      high,
-      medium,
-      standard,
-      delivered,
-      total: critical + high + medium + standard + delivered,
+      critical, high, medium, standard, delivered,
+      total:           critical + high + medium + standard + delivered,
       pendingDelivery: critical + high + medium + standard,
     },
     activeDeliveryRuns: activeRuns,

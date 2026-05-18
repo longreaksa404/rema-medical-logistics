@@ -1,14 +1,16 @@
 import { Request, Response } from 'express';
 import { EmkType } from '@prisma/client';
 import {
+  getCentralStock,
   getAllStock,
   getStockByDistrict,
-  getCentralStock,
   dispatchStock,
   reallocateStock,
   adjustStock,
   getAllMovements,
   getMovementsByDistrict,
+  replenishCentral as replenishCentralStock,
+  adjustCentral as adjustCentralStock,
 } from '../services/stock.service';
 
 // ─── GET /api/stock/central ───────────────────────────────────────────────────
@@ -74,7 +76,6 @@ export async function dispatch(req: Request, res: Response): Promise<void> {
     res.json(result);
   } catch (err) {
     const message = err instanceof Error ? err.message : 'Dispatch failed';
-    // Insufficient stock is a client error (422), not a server error
     const status = message.includes('Insufficient') ? 422 : 400;
     res.status(status).json({ error: message });
   }
@@ -158,5 +159,64 @@ export async function getMovementsByDistrictHandler(req: Request, res: Response)
   } catch (err) {
     const message = err instanceof Error ? err.message : 'Not found';
     res.status(404).json({ error: message });
+  }
+}
+
+// ─── POST /api/stock/central/replenish ───────────────────────────────────────
+// New stock arriving at central warehouse (donor shipment, MoH delivery).
+// Increases both Total and Remaining — this is new stock entering the system.
+// SUPER_ADMIN only.
+
+export async function replenishCentral(req: Request, res: Response): Promise<void> {
+  const { emkType, quantity, reason } = req.body;
+
+  if (!emkType || quantity === undefined || !reason) {
+    res.status(400).json({ error: 'emkType, quantity, and reason are required' });
+    return;
+  }
+
+  const validEmkTypes: EmkType[] = ['EMK1', 'EMK2', 'EMK3'];
+  if (!validEmkTypes.includes(emkType)) {
+    res.status(400).json({ error: 'emkType must be EMK1, EMK2, or EMK3' });
+    return;
+  }
+
+  try {
+    const result = await replenishCentralStock({
+      emkType: emkType as EmkType,
+      quantity: Number(quantity),
+      reason,
+    });
+    res.json(result);
+  } catch (err) {
+    const message = err instanceof Error ? err.message : 'Replenishment failed';
+    res.status(400).json({ error: message });
+  }
+}
+
+// ─── PATCH /api/stock/central ────────────────────────────────────────────────
+// Manual correction at central warehouse — signed quantity (+/-).
+// Does NOT change Total, only Remaining (correction for damaged/lost kits).
+// SUPER_ADMIN only.
+
+export async function adjustCentral(req: Request, res: Response): Promise<void> {
+  const { emkType, quantity, reason } = req.body;
+
+  if (!emkType || quantity === undefined || !reason) {
+    res.status(400).json({ error: 'emkType, quantity, and reason are required' });
+    return;
+  }
+
+  try {
+    const result = await adjustCentralStock({
+      emkType: emkType as EmkType,
+      quantity: Number(quantity),
+      reason,
+    });
+    res.json(result);
+  } catch (err) {
+    const message = err instanceof Error ? err.message : 'Adjustment failed';
+    const status = message.includes('negative') ? 422 : 400;
+    res.status(status).json({ error: message });
   }
 }

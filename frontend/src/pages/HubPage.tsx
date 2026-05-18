@@ -99,21 +99,38 @@ function SuccessBox({ msg, onDismiss }: { msg: string; onDismiss: () => void }) 
 
 // ─── TAB: STOCK ───────────────────────────────────────────────────────────────
 
-function StockTab({ districtId, subWarehouseId, allSubWarehouses }: { 
-  districtId: string; 
+function StockTab({ districtId, subWarehouseId, allSubWarehouses }: {
+  districtId: string;
   subWarehouseId: string | null;
-  allSubWarehouses?: unknown;  // accepted but unused — central stock comes from API now
+  allSubWarehouses?: unknown;
 }) {
+  const { isRole } = useAuth();
+  const isSuperAdmin = isRole('SUPER_ADMIN');
+ 
   const queryClient = useQueryClient();
   const [success, setSuccess] = useState('');
+ 
+  // ── Dispatch form state ───────────────────────────────────────────────────
   const [dispEmkType, setDispEmkType] = useState<'EMK1' | 'EMK2' | 'EMK3'>('EMK1');
   const [dispQty, setDispQty] = useState('');
   const [dispReason, setDispReason] = useState('');
+ 
+  // ── Sub-warehouse adjust form state ───────────────────────────────────────
   const [adjEmkType, setAdjEmkType] = useState<'EMK1' | 'EMK2' | 'EMK3'>('EMK1');
   const [adjQty, setAdjQty] = useState('');
   const [adjReason, setAdjReason] = useState('');
  
-  // ── Three parallel queries ────────────────────────────────────────────────
+  // ── Central replenish form state (SUPER_ADMIN only) ───────────────────────
+  const [repEmkType, setRepEmkType] = useState<'EMK1' | 'EMK2' | 'EMK3'>('EMK1');
+  const [repQty, setRepQty] = useState('');
+  const [repReason, setRepReason] = useState('');
+ 
+  // ── Central adjust form state (SUPER_ADMIN only) ──────────────────────────
+  const [cadEmkType, setCadEmkType] = useState<'EMK1' | 'EMK2' | 'EMK3'>('EMK1');
+  const [cadQty, setCadQty] = useState('');
+  const [cadReason, setCadReason] = useState('');
+ 
+  // ── Queries ───────────────────────────────────────────────────────────────
   const { data: centralStock, isLoading: centralLoading } = useQuery({
     queryKey: queryKeys.hub.centralStock(),
     queryFn: () => hubApi.getCentralStock(),
@@ -135,7 +152,7 @@ function StockTab({ districtId, subWarehouseId, allSubWarehouses }: {
  
   const isLoading = centralLoading || stockLoading || movementsLoading;
  
-  // Invalidate central + sub-warehouse + dashboard on any write
+  // ── Cache invalidation ────────────────────────────────────────────────────
   const invalidateStock = useCallback(() => {
     queryClient.invalidateQueries({ queryKey: queryKeys.hub.centralStock() });
     queryClient.invalidateQueries({ queryKey: queryKeys.hub.stock(districtId) });
@@ -143,6 +160,7 @@ function StockTab({ districtId, subWarehouseId, allSubWarehouses }: {
     queryClient.invalidateQueries({ queryKey: queryKeys.dashboard.summary() });
   }, [queryClient, districtId]);
  
+  // ── Mutations ─────────────────────────────────────────────────────────────
   const dispatchMutation = useMutation({
     mutationFn: hubApi.dispatch,
     onSuccess: (_, vars) => {
@@ -155,22 +173,46 @@ function StockTab({ districtId, subWarehouseId, allSubWarehouses }: {
   const adjustMutation = useMutation({
     mutationFn: hubApi.adjust,
     onSuccess: (_, vars) => {
-      setSuccess(`Adjustment recorded: ${Number(vars.quantity) > 0 ? '+' : ''}${vars.quantity}× ${vars.emkType}.`);
+      setSuccess(`Sub-warehouse adjustment: ${Number(vars.quantity) > 0 ? '+' : ''}${vars.quantity}× ${vars.emkType}.`);
       setAdjQty(''); setAdjReason('');
       invalidateStock();
     },
   });
  
+  const replenishMutation = useMutation({
+    mutationFn: hubApi.replenishCentral,
+    onSuccess: (_, vars) => {
+      setSuccess(`Central warehouse replenished: +${vars.quantity}× ${vars.emkType}.`);
+      setRepQty(''); setRepReason('');
+      invalidateStock();
+    },
+  });
+ 
+  const centralAdjustMutation = useMutation({
+    mutationFn: hubApi.adjustCentral,
+    onSuccess: (_, vars) => {
+      setSuccess(`Central warehouse adjustment: ${Number(vars.quantity) > 0 ? '+' : ''}${vars.quantity}× ${vars.emkType}.`);
+      setCadQty(''); setCadReason('');
+      invalidateStock();
+    },
+  });
+ 
+  // ── Constants ─────────────────────────────────────────────────────────────
   const EMK_TYPES: Array<'EMK1' | 'EMK2' | 'EMK3'> = ['EMK1', 'EMK2', 'EMK3'];
-  const EMK_COLORS = { EMK1: 'text-accent-blue', EMK2: 'text-accent-green', EMK3: 'text-accent-yellow' };
+  const EMK_COLORS = {
+    EMK1: 'text-accent-blue',
+    EMK2: 'text-accent-green',
+    EMK3: 'text-accent-yellow',
+  };
   const MOVE_COLORS: Record<string, string> = {
-    DISPATCH: 'text-accent-green border-accent-green/30 bg-accent-green/5',
+    DISPATCH:     'text-accent-green border-accent-green/30 bg-accent-green/5',
     MOH_TRANSFER: 'text-accent-yellow border-accent-yellow/30 bg-accent-yellow/5',
-    DELIVERY: 'text-text-muted border-bg-border bg-bg-elevated',
+    DELIVERY:     'text-text-muted border-bg-border bg-bg-elevated',
     REALLOCATION: 'text-accent-blue border-accent-blue/30 bg-accent-blue/5',
-    ADJUSTMENT: 'text-accent-orange border-accent-orange/30 bg-accent-orange/5',
+    ADJUSTMENT:   'text-accent-orange border-accent-orange/30 bg-accent-orange/5',
   };
  
+  // ── Loading skeleton ──────────────────────────────────────────────────────
   if (isLoading) {
     return (
       <div className="space-y-4">
@@ -186,13 +228,14 @@ function StockTab({ districtId, subWarehouseId, allSubWarehouses }: {
     );
   }
  
-  const dispatchError = (dispatchMutation.error as { response?: { data?: { error?: string } } } | null)
-    ?.response?.data?.error ?? '';
-  const adjustError = (adjustMutation.error as { response?: { data?: { error?: string } } } | null)
-    ?.response?.data?.error ?? '';
-  const mutationError = dispatchError || adjustError;
+  // ── Error messages ────────────────────────────────────────────────────────
+  const dispatchError     = (dispatchMutation.error      as { response?: { data?: { error?: string } } } | null)?.response?.data?.error ?? '';
+  const adjustError       = (adjustMutation.error        as { response?: { data?: { error?: string } } } | null)?.response?.data?.error ?? '';
+  const replenishError    = (replenishMutation.error     as { response?: { data?: { error?: string } } } | null)?.response?.data?.error ?? '';
+  const centralAdjError   = (centralAdjustMutation.error as { response?: { data?: { error?: string } } } | null)?.response?.data?.error ?? '';
+  const mutationError     = dispatchError || adjustError || replenishError || centralAdjError;
  
-  // Central availability for the currently selected EMK type
+  // Central availability for currently selected dispatch EMK type
   const centralAvailable = centralStock
     ? (centralStock[`${dispEmkType.toLowerCase()}Remaining` as keyof CentralStockLevel] as number)
     : null;
@@ -202,12 +245,17 @@ function StockTab({ districtId, subWarehouseId, allSubWarehouses }: {
       {mutationError && (
         <ErrorBox
           msg={mutationError}
-          onDismiss={() => { dispatchMutation.reset(); adjustMutation.reset(); }}
+          onDismiss={() => {
+            dispatchMutation.reset();
+            adjustMutation.reset();
+            replenishMutation.reset();
+            centralAdjustMutation.reset();
+          }}
         />
       )}
       {success && <SuccessBox msg={success} onDismiss={() => setSuccess('')} />}
  
-      {/* ── CENTRAL WAREHOUSE ─────────────────────────────────────────────── */}
+      {/* ── CENTRAL WAREHOUSE DISPLAY ──────────────────────────────────────── */}
       <div className="card p-5 border-accent-blue/20 bg-bg-elevated/40">
         <div className="flex items-start justify-between mb-4">
           <div>
@@ -224,7 +272,7 @@ function StockTab({ districtId, subWarehouseId, allSubWarehouses }: {
         {centralStock ? (
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
             {EMK_TYPES.map((type) => {
-              const key = type.toLowerCase() as 'emk1' | 'emk2' | 'emk3';
+              const key    = type.toLowerCase() as 'emk1' | 'emk2' | 'emk3';
               const rem    = centralStock[`${key}Remaining` as keyof CentralStockLevel] as number;
               const total  = centralStock[`${key}Total`     as keyof CentralStockLevel] as number;
               const pct    = centralStock[`${key}Pct`       as keyof CentralStockLevel] as number;
@@ -267,7 +315,135 @@ function StockTab({ districtId, subWarehouseId, allSubWarehouses }: {
         )}
       </div>
  
-      {/* ── SUB-WAREHOUSE STOCK ───────────────────────────────────────────── */}
+      {/* ── CENTRAL WAREHOUSE MANAGEMENT (SUPER_ADMIN only) ───────────────── */}
+      {isSuperAdmin && (
+        <div className="space-y-3">
+          <div className="flex items-center gap-2">
+            <span className="font-mono text-[10px] text-text-muted uppercase tracking-widest">
+              Central Warehouse Management
+            </span>
+            <span className="font-mono text-[9px] text-accent-blue bg-accent-blue/10 px-2 py-0.5 rounded border border-accent-blue/30">
+              SUPER_ADMIN
+            </span>
+          </div>
+ 
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
+            {/* Replenish — new stock arriving, increases Total + Remaining */}
+            <div className="card p-5 border-accent-blue/20">
+              <SectionTitle sub="New shipment received — increases Total and Remaining">
+                Replenish Central Stock
+              </SectionTitle>
+              <p className="font-mono text-[10px] text-text-muted mb-3">
+                Use when a donor shipment or MoH delivery arrives at the central warehouse.
+              </p>
+              <div className="space-y-3">
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="label">EMK Type</label>
+                    <select
+                      value={repEmkType}
+                      onChange={e => setRepEmkType(e.target.value as 'EMK1' | 'EMK2' | 'EMK3')}
+                      className="input"
+                    >
+                      {EMK_TYPES.map(t => <option key={t} value={t}>{t}</option>)}
+                    </select>
+                  </div>
+                  <div>
+                    <label className="label">Quantity</label>
+                    <input
+                      type="number" min="1" className="input"
+                      placeholder="e.g. 1000"
+                      value={repQty}
+                      onChange={e => setRepQty(e.target.value)}
+                    />
+                  </div>
+                </div>
+                <div>
+                  <label className="label">Reason (required)</label>
+                  <input
+                    type="text" className="input"
+                    placeholder="e.g. UNICEF donation batch 3, MoH transfer order #4521"
+                    value={repReason}
+                    onChange={e => setRepReason(e.target.value)}
+                  />
+                </div>
+                <button
+                  onClick={() => {
+                    if (!repQty || !repReason.trim()) return;
+                    replenishMutation.mutate({
+                      emkType: repEmkType,
+                      quantity: Number(repQty),
+                      reason: repReason.trim(),
+                    });
+                  }}
+                  disabled={replenishMutation.isPending || !repQty || !repReason.trim()}
+                  className="btn-primary w-full"
+                >
+                  {replenishMutation.isPending ? 'Recording...' : '+ Replenish Central Stock'}
+                </button>
+              </div>
+            </div>
+ 
+            {/* Central adjust — correction only, does NOT change Total */}
+            <div className="card p-5">
+              <SectionTitle sub="Correction only — changes Remaining but NOT Total">
+                Adjust Central Stock
+              </SectionTitle>
+              <p className="font-mono text-[10px] text-text-muted mb-3">
+                Use for damaged, lost, or miscounted kits. Use Replenish for new stock.
+              </p>
+              <div className="space-y-3">
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="label">EMK Type</label>
+                    <select
+                      value={cadEmkType}
+                      onChange={e => setCadEmkType(e.target.value as 'EMK1' | 'EMK2' | 'EMK3')}
+                      className="input"
+                    >
+                      {EMK_TYPES.map(t => <option key={t} value={t}>{t}</option>)}
+                    </select>
+                  </div>
+                  <div>
+                    <label className="label">Quantity (+/−)</label>
+                    <input
+                      type="number" className="input"
+                      placeholder="-10 or +5"
+                      value={cadQty}
+                      onChange={e => setCadQty(e.target.value)}
+                    />
+                  </div>
+                </div>
+                <div>
+                  <label className="label">Reason (required)</label>
+                  <input
+                    type="text" className="input"
+                    placeholder="e.g. 10 EMK2 kits damaged in storage — flood water"
+                    value={cadReason}
+                    onChange={e => setCadReason(e.target.value)}
+                  />
+                </div>
+                <button
+                  onClick={() => {
+                    if (!cadQty || !cadReason.trim()) return;
+                    centralAdjustMutation.mutate({
+                      emkType: cadEmkType,
+                      quantity: Number(cadQty),
+                      reason: cadReason.trim(),
+                    });
+                  }}
+                  disabled={centralAdjustMutation.isPending || !cadQty || !cadReason.trim()}
+                  className="btn-ghost w-full"
+                >
+                  {centralAdjustMutation.isPending ? 'Adjusting...' : 'Record Central Adjustment'}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+ 
+      {/* ── SUB-WAREHOUSE STOCK LEVELS ─────────────────────────────────────── */}
       <div>
         <SectionTitle sub="Current remaining / total dispatched to this sub-warehouse">
           Sub-Warehouse Stock Levels
@@ -314,14 +490,13 @@ function StockTab({ districtId, subWarehouseId, allSubWarehouses }: {
         )}
       </div>
  
-      {/* ── DISPATCH + ADJUST FORMS ───────────────────────────────────────── */}
+      {/* ── DISPATCH + SUB-WAREHOUSE ADJUST ───────────────────────────────── */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
         <div className="card p-5">
           <SectionTitle sub="Moves stock from central warehouse → this sub-warehouse">
             Record Dispatch
           </SectionTitle>
  
-          {/* Live central availability hint for selected EMK type */}
           {centralAvailable !== null && (
             <div className="mb-3 bg-bg-elevated rounded px-3 py-2 border border-bg-border">
               <p className="font-mono text-[10px] text-text-muted">
@@ -388,7 +563,7 @@ function StockTab({ districtId, subWarehouseId, allSubWarehouses }: {
         </div>
  
         <div className="card p-5">
-          <SectionTitle sub="Manual correction with mandatory reason (Section B.7)">
+          <SectionTitle sub="Manual correction at sub-warehouse with mandatory reason (Section B.7)">
             Manual Adjustment
           </SectionTitle>
           <div className="space-y-3">
@@ -480,6 +655,7 @@ function StockTab({ districtId, subWarehouseId, allSubWarehouses }: {
     </div>
   );
 }
+
 
 // ─── TAB: VOLUNTEERS ──────────────────────────────────────────────────────────
 

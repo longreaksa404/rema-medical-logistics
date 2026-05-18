@@ -15,22 +15,13 @@ export async function submitCheckin(data: {
 }) {
   const { districtId, submittedById, scheduledTime, status, notes } = data;
 
-  // Only allow check-ins for real districts, not the synthetic __central__ one
-  const district = await prisma.district.findFirst({
-    where: { id: districtId, name: { not: '__central__' } },
-  });
+  const district = await prisma.district.findUnique({ where: { id: districtId } });
   if (!district) throw new Error(`District not found: ${districtId}`);
 
   const result = await prisma.radioCheckin.create({
-    data: {
-      districtId,
-      submittedById,
-      scheduledTime,
-      status,
-      notes: notes ?? null,
-    },
+    data: { districtId, submittedById, scheduledTime, status, notes: notes ?? null },
     include: {
-      district: { select: { name: true } },
+      district:    { select: { name: true } },
       submittedBy: { select: { name: true, role: true } },
     },
   });
@@ -44,14 +35,10 @@ export async function listCheckins(filters: {
   date?: string;
 }) {
   const where: Record<string, unknown> = {};
-
   if (filters.districtId) where.districtId = filters.districtId;
-
   if (filters.date) {
-    const start = new Date(filters.date);
-    start.setHours(0, 0, 0, 0);
-    const end = new Date(filters.date);
-    end.setHours(23, 59, 59, 999);
+    const start = new Date(filters.date); start.setHours(0, 0, 0, 0);
+    const end   = new Date(filters.date); end.setHours(23, 59, 59, 999);
     where.createdAt = { gte: start, lte: end };
   }
 
@@ -59,7 +46,7 @@ export async function listCheckins(filters: {
     where,
     orderBy: { createdAt: 'desc' },
     include: {
-      district: { select: { name: true } },
+      district:    { select: { name: true } },
       submittedBy: { select: { name: true, role: true } },
     },
   });
@@ -75,21 +62,16 @@ export async function getTodayComplianceSummary() {
 }
 
 async function buildComplianceSummary() {
-  const today = new Date();
-  today.setHours(0, 0, 0, 0);
-  const tomorrow = new Date(today);
-  tomorrow.setDate(tomorrow.getDate() + 1);
+  const today = new Date(); today.setHours(0, 0, 0, 0);
+  const tomorrow = new Date(today); tomorrow.setDate(tomorrow.getDate() + 1);
 
   const [checkins, districts] = await Promise.all([
     prisma.radioCheckin.findMany({
       where: { createdAt: { gte: today, lt: tomorrow } },
       include: { district: { select: { name: true } } },
     }),
-    // ── KEY FIX: only real districts have radio check-in obligations ─────────
-    prisma.district.findMany({
-      where: { name: { not: '__central__' } },
-      select: { id: true, name: true },
-    }),
+    // No filter needed — central_warehouse has no district row anymore
+    prisma.district.findMany({ select: { id: true, name: true } }),
   ]);
 
   const slots: RadioCheckTime[] = ['T0800', 'T1200', 'T1600', 'T2000'];
@@ -102,12 +84,12 @@ async function buildComplianceSummary() {
     const issues = districtCheckins.filter(c => c.status === 'ISSUE_REPORTED');
 
     return {
-      districtId: district.id,
-      districtName: district.name,
+      districtId:     district.id,
+      districtName:   district.name,
       completedSlots: completed,
-      missingSlots: slots.filter(s => !completed.includes(s)),
+      missingSlots:   slots.filter(s => !completed.includes(s)),
       issuesReported: issues.length > 0,
-      compliance: `${completed.length}/${slots.length}`,
+      compliance:     `${completed.length}/${slots.length}`,
     };
   });
 }
