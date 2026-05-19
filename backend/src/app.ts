@@ -15,14 +15,11 @@ import { scoreRouter, householdRouter } from './routes/household.routes';
 import userRoutes from './routes/user.routes';
 import { publicStatus } from './controllers/user.controller';
 
-// Chat 7
 import volunteerRoutes from './routes/volunteer.routes';
 import incidentRoutes from './routes/incident.routes';
 import radioRoutes from './routes/radio.routes';
 import notificationRoutes from './routes/notification.routes';
 import dashboardRoutes from './routes/dashboard.routes';
-
-// Chat 20
 import aiRoutes from './routes/ai.routes';
 
 const app = express();
@@ -53,21 +50,16 @@ app.get('/api/status', publicStatus);
 
 // ─── ROUTES ───────────────────────────────────────────────────────────────────
 app.use('/api/auth', authRoutes);
-app.use('/api/test', testRoutes); // remove before final deployment
 
-// User management
 app.use('/api/users', userRoutes);
 
-// Chat 4
 app.use('/api/alert', alertRoutes);
 app.use('/api/score', scoreRouter);
 app.use('/api/households', householdRouter);
 
-// Chat 5
 app.use('/api/stock', stockRoutes);
 app.use('/api/districts', districtRoutes);
 
-// Chat 6
 app.use('/api/delivery', deliveryRoutes);
 app.use('/api/route', routeRoutes);
 
