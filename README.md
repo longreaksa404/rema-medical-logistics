@@ -20,13 +20,13 @@ All passwords: `rema1234`
 
 | Email | Role | District |
 |---|---|---|
-| admin@rema.vn | SUPER_ADMIN | - |
-| coordinator@rema.vn | EMERGENCY_COORDINATOR | - |
-| hub1@rema.vn | HUB_MANAGER | District 1 |
-| hub2@rema.vn | HUB_MANAGER | District 2 |
-| hub3@rema.vn | HUB_MANAGER | District 3 |
-| volunteer1@rema.vn | VOLUNTEER | District 1 |
-| viewer@rema.vn | VIEWER | - |
+| admin@rema.kh | SUPER_ADMIN | - |
+| coordinator@rema.kh | EMERGENCY_COORDINATOR | - |
+| hub1@rema.kh | HUB_MANAGER | Dangkao |
+| hub2@rema.kh | HUB_MANAGER | Mean Chey |
+| hub3@rema.kh | HUB_MANAGER | Pou Senchey |
+| volunteer1@rema.kh | VOLUNTEER | Dangkao |
+| viewer@rema.kh | VIEWER | - |
 
 > **Demo tip:** Log in as `admin@rema.vn` to reset the system to Phase 0 before a demo run. Log in as `coordinator@rema.vn` to trigger activation and advance phases.
 

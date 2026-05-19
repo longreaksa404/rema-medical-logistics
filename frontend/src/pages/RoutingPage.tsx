@@ -320,7 +320,7 @@ export function RoutingPage() {
           <div className="xl:col-span-8 space-y-6">
             <div>
               <h2 className="font-mono text-xs text-text-muted uppercase tracking-widest mb-3">
-                Ho Chi Minh City — Flood Zone Map
+                Phnom Penh — Flood Zone Map
                 <span className="ml-2 font-normal normal-case">click a district to adjust water depth</span>
               </h2>
               <div className="card p-0 overflow-hidden rounded">

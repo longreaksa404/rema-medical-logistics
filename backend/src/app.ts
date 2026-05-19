@@ -50,27 +50,20 @@ app.get('/api/status', publicStatus);
 
 // ─── ROUTES ───────────────────────────────────────────────────────────────────
 app.use('/api/auth', authRoutes);
-
 app.use('/api/users', userRoutes);
-
 app.use('/api/alert', alertRoutes);
 app.use('/api/score', scoreRouter);
 app.use('/api/households', householdRouter);
-
 app.use('/api/stock', stockRoutes);
 app.use('/api/districts', districtRoutes);
-
 app.use('/api/delivery', deliveryRoutes);
 app.use('/api/route', routeRoutes);
-
-// Chat 7
 app.use('/api/volunteers', volunteerRoutes);
 app.use('/api/incidents', incidentRoutes);
 app.use('/api/radio', radioRoutes);
 app.use('/api/notifications', notificationRoutes);
 app.use('/api/dashboard', dashboardRoutes);
 
-// Chat 20
 app.use('/api/ai', aiRoutes);
 
 // ─── 404 FALLBACK ────────────────────────────────────────────────────────────
