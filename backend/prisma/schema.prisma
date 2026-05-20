@@ -25,6 +25,7 @@ model User {
   incidentsReported Incident[]            @relation("ReportedBy")
   incidentsResolved Incident[]            @relation("ResolvedBy")
   notifications     Notification[]
+  refreshTokens     RefreshToken[]
   radioCheckins     RadioCheckin[]
   routeLogs         RouteLog[]
   stockMovements    StockMovement[]
@@ -328,6 +329,19 @@ model Notification {
 
   @@index([userId, read])
   @@map("notifications")
+}
+
+model RefreshToken {
+  id        String   @id @default(cuid())
+  tokenHash String   @unique
+  userId    String
+  expiresAt DateTime
+  revoked   Boolean  @default(false)
+  createdAt DateTime @default(now())
+  user      User     @relation(fields: [userId], references: [id])
+
+  @@index([userId])
+  @@map("refresh_tokens")
 }
 
 enum Role {

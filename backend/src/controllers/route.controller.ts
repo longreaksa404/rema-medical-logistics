@@ -39,7 +39,7 @@ export async function recommend(req: Request, res: Response): Promise<void> {
     res.status(400).json({ error: 'waterDepthCm must be a non-negative number' });
     return;
   }
-
+  
   res.json(recommendMode(depth));
 }
 

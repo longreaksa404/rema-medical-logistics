@@ -354,7 +354,7 @@ function TriggerPanel({
 
 export function DashboardPage() {
   usePageTitle('Dashboard');
-  const { user } = useAuth();
+  const { user, onSocketEvent } = useAuth();
 
   const [data,             setData]             = useState<DashboardSummary | null>(null);
   const [isRefreshing,     setIsRefreshing]     = useState(false);
@@ -495,6 +495,16 @@ export function DashboardPage() {
   }, [data, fetchAll]);
 
   // ── Init + polling ────────────────────────────────────────────────────────
+
+  // instant refresh on WebSocket events — no waiting for the 30s poll
+  useEffect(() => {
+    const unsubs = [
+      onSocketEvent('phase_changed',     () => fetchAll(true)),
+      onSocketEvent('scarcity_triggered', () => fetchAll(true)),
+      onSocketEvent('incident_reported',  () => fetchAll(true)),
+    ];
+    return () => unsubs.forEach(fn => fn());
+  }, [onSocketEvent, fetchAll]);
 
   useEffect(() => {
     const init = async () => {

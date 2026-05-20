@@ -23,6 +23,7 @@ import radioRoutes from './routes/radio.routes';
 import notificationRoutes from './routes/notification.routes';
 import dashboardRoutes from './routes/dashboard.routes';
 import aiRoutes from './routes/ai.routes';
+import cookieParser from 'cookie-parser';
 
 const app = express();
 
@@ -51,6 +52,7 @@ app.use(cors({
   credentials: true,
 }));
 app.use(express.json());
+app.use(cookieParser());
 
 // ─── SWAGGER ──────────────────────────────────────────────────────────────────
 const swaggerDocument = YAML.load(path.join(__dirname, '../swagger.yaml'));
