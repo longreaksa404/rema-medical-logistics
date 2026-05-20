@@ -38,6 +38,40 @@ export function recommendMode(waterDepthCm: number) {
   return { waterDepthCm, ...getDeliveryMode(waterDepthCm) };
 }
 
+// ─── RECOMMEND PER ZONE FOR A DISTRICT ───────────────────────────────────────
+// Reads actual zone records from DB and returns one entry per zone.
+// Falls back gracefully when no routes exist yet for the district.
+
+export async function recommendByDistrict(districtId: string) {
+  const district = await prisma.district.findUnique({ where: { id: districtId } });
+  if (!district) throw new Error(`District not found: ${districtId}`);
+
+  const routes = await prisma.route.findMany({
+    where: { districtId, active: true },
+    orderBy: { zone: 'asc' },
+  });
+
+  const zones = routes.map((r) => ({
+    zone: r.zone,
+    waterDepthCm: r.waterDepthCm,
+    deliveryMode: r.deliveryMode,
+    active: r.active,
+    ...(r.deliveryMode === 'SUSPENDED'
+      ? {
+          warning:
+            'Water depth exceeds 80cm - all delivery suspended per Section A.4. ' +
+            'Escalate to civil defense. Volunteer safety is a hard constraint.',
+        }
+      : {}),
+  }));
+
+  return {
+    districtId: district.id,
+    districtName: district.name,
+    zones,
+  };
+}
+
 // ─── UPDATE WATER DEPTH FOR A ZONE ───────────────────────────────────────────
 
 export async function updateRouteDepth(data: {

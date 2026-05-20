@@ -2537,40 +2537,61 @@ paths:
   # ── ROUTING ─────────────────────────────────────────────────────────────────
   /api/route/recommend:
     get:
-      tags: [Routing]
-      summary: Delivery mode recommendation by water depth (stateless)
-      description: |
-        Returns delivery mode based on Section A.4 locked tiers.
-        | Depth | Mode |
-        |-------|------|
-        | 0–30 cm | MOTORBIKE |
-        | 30–60 cm | BICYCLE_OR_FOOT |
-        | 60–80 cm | BOAT |
-        | > 80 cm | SUSPENDED |
+      summary: Recommend delivery mode
+      tags: [Routes]
+      security:
+        - bearerAuth: []
       parameters:
         - in: query
-          name: waterDepthCm
-          required: true
+          name: districtId
           schema:
-            type: integer
-            minimum: 0
+            type: string
+          description: District ID - returns per-zone breakdown (primary use)
+        - in: query
+          name: waterDepthCm
+          schema:
+            type: number
+          description: Single depth lookup (fallback - for testing only)
       responses:
-        "200":
-          description: Delivery mode recommendation
+        '200':
+          description: Per-zone recommendation (when districtId provided)
           content:
             application/json:
               schema:
-                type: object
-                properties:
-                  waterDepthCm: { type: integer }
-                  deliveryMode:
-                    type: string
-                    enum: [MOTORBIKE, BICYCLE_OR_FOOT, BOAT, SUSPENDED]
-                  warning: { type: string, nullable: true }
-        "400":
-          description: Missing or invalid waterDepthCm
-        "401":
-          description: Unauthorized
+                oneOf:
+                  - type: object
+                    description: Per-zone response
+                    properties:
+                      districtId:
+                        type: string
+                      districtName:
+                        type: string
+                      zones:
+                        type: array
+                        items:
+                          type: object
+                          properties:
+                            zone:
+                              type: string
+                            waterDepthCm:
+                              type: number
+                            deliveryMode:
+                              type: string
+                              enum: [MOTORBIKE, BICYCLE_OR_FOOT, BOAT, SUSPENDED]
+                            active:
+                              type: boolean
+                            warning:
+                              type: string
+                  - type: object
+                    description: Single-depth response
+                    properties:
+                      waterDepthCm:
+                        type: number
+                      deliveryMode:
+                        type: string
+                        enum: [MOTORBIKE, BICYCLE_OR_FOOT, BOAT, SUSPENDED]
+                      warning:
+                        type: string
 
   /api/route/update:
     post:

@@ -1,20 +1,36 @@
 import { Request, Response } from 'express';
 import {
   recommendMode,
+  recommendByDistrict,
   updateRouteDepth,
   getRouteLogs,
   getDistrictRoutes,
 } from '../services/route.service';
 
 // ─── GET /api/route/recommend ─────────────────────────────────────────────────
-// Stateless — just applies Section A.4 tier logic to the given depth.
-// No DB read required.
+// With districtId: returns per-zone breakdown for that district.
+// With waterDepthCm only: stateless single-depth lookup (kept for Swagger testing).
 
 export async function recommend(req: Request, res: Response): Promise<void> {
-  const depthRaw = req.query.waterDepthCm;
+  const { districtId, waterDepthCm: depthRaw } = req.query;
 
+  // per-zone mode — primary use case for V2 Routing Map
+  if (districtId) {
+    try {
+      const result = await recommendByDistrict(districtId as string);
+      res.json(result);
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'Error fetching route recommendation';
+      res.status(400).json({ error: message });
+    }
+    return;
+  }
+
+  // single-depth fallback — kept for Swagger manual testing
   if (depthRaw === undefined) {
-    res.status(400).json({ error: 'waterDepthCm query parameter is required' });
+    res.status(400).json({
+      error: 'Provide districtId for per-zone recommendation, or waterDepthCm for a single-depth lookup',
+    });
     return;
   }
 
@@ -24,8 +40,7 @@ export async function recommend(req: Request, res: Response): Promise<void> {
     return;
   }
 
-  const result = recommendMode(depth);
-  res.json(result);
+  res.json(recommendMode(depth));
 }
 
 // ─── POST /api/route/update ───────────────────────────────────────────────────
