@@ -8,6 +8,21 @@ export interface RouteRecommendation {
   warning?: string;
 }
 
+// per-zone entry returned by GET /api/route/recommend?districtId=...
+export interface ZoneRecommendation {
+  zone: string;
+  waterDepthCm: number;
+  deliveryMode: DeliveryMode;
+  active: boolean;
+  warning?: string;
+}
+
+export interface DistrictRecommendation {
+  districtId: string;
+  districtName: string;
+  zones: ZoneRecommendation[];
+}
+
 export interface Route {
   id: string;
   districtId: string;
@@ -47,9 +62,18 @@ export interface UpdateRouteResponse {
 }
 
 export const routesApi = {
+  // single-depth stateless lookup — kept for Swagger testing
   recommend: async (waterDepthCm: number): Promise<RouteRecommendation> => {
     const res = await api.get<RouteRecommendation>('/api/route/recommend', {
       params: { waterDepthCm },
+    });
+    return res.data;
+  },
+
+  // per-zone breakdown for a district — used by RoutingPage
+  getRecommendByDistrict: async (districtId: string): Promise<DistrictRecommendation> => {
+    const res = await api.get<DistrictRecommendation>('/api/route/recommend', {
+      params: { districtId },
     });
     return res.data;
   },

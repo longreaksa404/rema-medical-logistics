@@ -1,6 +1,7 @@
 import { IncidentType, IncidentStatus } from '@prisma/client';
 import { prisma } from '../lib/prisma';
 import { getCached, setCached, deleteCached } from '../utils/cache';
+import { io } from '../app';  
 
 // ─── CACHE KEYS ───────────────────────────────────────────────────────────────
 // Incidents are polled by V1 dashboard and Hub Manager portal.
@@ -10,6 +11,48 @@ import { getCached, setCached, deleteCached } from '../utils/cache';
 const KEY_ALL = 'incidents:all';
 const KEY_DISTRICT_PREFIX = 'incidents:district:';
 const TTL = 20_000; // 20 s
+
+// ─── INCIDENT NOTIFICATION ────────────────────────────────────────────────────
+// Notifies the hub manager for the affected district when an incident is reported.
+// Also notifies EC for escalated types (VOLUNTEER_SAFETY, BUILDING_FLOODED).
+
+async function notifyDistrictHub(
+  districtId: string,
+  type: string,
+  description: string
+): Promise<void> {
+  const hubManagers = await prisma.user.findMany({
+    where: { districtId, role: 'HUB_MANAGER', active: true },
+    select: { id: true },
+  });
+
+  const escalated = type === 'VOLUNTEER_SAFETY' || type === 'BUILDING_FLOODED';
+
+  // also pull EC + SUPER_ADMIN for high-severity incidents
+  const ecRecipients = escalated
+    ? await prisma.user.findMany({
+        where: {
+          role: { in: ['EMERGENCY_COORDINATOR', 'SUPER_ADMIN'] },
+          active: true,
+        },
+        select: { id: true },
+      })
+    : [];
+
+  const recipients = [...hubManagers, ...ecRecipients];
+  if (recipients.length === 0) return;
+
+  const shortDesc =
+    description.length > 80 ? description.slice(0, 80) + '...' : description;
+
+  await prisma.notification.createMany({
+    data: recipients.map((u) => ({
+      userId: u.id,
+      type: 'INCIDENT_REPORTED',
+      message: `${escalated ? '[ESCALATED] ' : ''}New incident reported: ${type.replace(/_/g, ' ')} - ${shortDesc}`,
+    })),
+  });
+}
 
 function invalidateIncidentCache(districtId?: string): void {
   deleteCached(KEY_ALL);
@@ -49,6 +92,9 @@ export async function reportIncident(data: {
   });
 
   invalidateIncidentCache(districtId);
+  io.emit('incident_reported', { districtId, type, status: 'OPEN' });
+  await notifyDistrictHub(districtId, type, description);
+
 
   // Auto-escalate VOLUNTEER_SAFETY incidents (Section A.4 hard constraint)
   if (type === IncidentType.VOLUNTEER_SAFETY) {

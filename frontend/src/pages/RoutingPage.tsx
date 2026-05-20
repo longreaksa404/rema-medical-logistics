@@ -1,6 +1,4 @@
 // RoutingPage.tsx — V2 Routing Map
-// LeafletMap is now a separate component in LeafletMap.tsx with proper
-// destroy-before-unmount lifecycle. This fixes sign-out freeze from routing page.
 
 import { useState, useEffect, useCallback, useMemo } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
@@ -17,13 +15,20 @@ const MODE_CONFIG: Record<DeliveryMode, {
   label: string; color: string; bgColor: string; borderColor: string;
   icon: string; depth: string; fillColor: string; opacity: number;
 }> = {
-  MOTORBIKE:       { label: 'Motorbike',      color: 'text-accent-green',  bgColor: 'bg-accent-green/10',  borderColor: 'border-accent-green/30',  icon: '🏍',  depth: '0–30 cm',  fillColor: '#3fb950', opacity: 0.35 },
-  BICYCLE_OR_FOOT: { label: 'Bicycle / Foot', color: 'text-accent-yellow', bgColor: 'bg-accent-yellow/10', borderColor: 'border-accent-yellow/30', icon: '🚲', depth: '30–60 cm', fillColor: '#d29922', opacity: 0.45 },
-  BOAT:            { label: 'Boat',            color: 'text-accent-orange', bgColor: 'bg-accent-orange/10', borderColor: 'border-accent-orange/30', icon: '⛵', depth: '60–80 cm', fillColor: '#f0883e', opacity: 0.50 },
+  MOTORBIKE:       { label: 'Motorbike',      color: 'text-accent-green',  bgColor: 'bg-accent-green/10',  borderColor: 'border-accent-green/30',  icon: '🏍',  depth: '0-30 cm',  fillColor: '#3fb950', opacity: 0.35 },
+  BICYCLE_OR_FOOT: { label: 'Bicycle / Foot', color: 'text-accent-yellow', bgColor: 'bg-accent-yellow/10', borderColor: 'border-accent-yellow/30', icon: '🚲', depth: '30-60 cm', fillColor: '#d29922', opacity: 0.45 },
+  BOAT:            { label: 'Boat',            color: 'text-accent-orange', bgColor: 'bg-accent-orange/10', borderColor: 'border-accent-orange/30', icon: '⛵', depth: '60-80 cm', fillColor: '#f0883e', opacity: 0.50 },
   SUSPENDED:       { label: 'SUSPENDED',       color: 'text-accent-red',    bgColor: 'bg-accent-red/10',    borderColor: 'border-accent-red/30',    icon: '⛔', depth: '> 80 cm',  fillColor: '#f85149', opacity: 0.55 },
 };
 
 const ZONES = ['Zone A', 'Zone B', 'Zone C'] as const;
+
+// safe fallbacks when no route record exists yet for a zone
+const ZONE_FALLBACKS: Record<string, number> = {
+  'Zone A': 15,
+  'Zone B': 25,
+  'Zone C': 45,
+};
 
 function depthToMode(depth: number): DeliveryMode {
   if (depth <= 30) return 'MOTORBIKE';
@@ -101,13 +106,13 @@ function RouteLogRow({ log }: { log: RouteLog }) {
     <div className="px-4 py-3 flex items-start justify-between gap-4 hover:bg-bg-elevated/40 transition-colors duration-100">
       <div className="min-w-0">
         <p className="font-mono text-[10px] text-text-muted mb-0.5">
-          {log.route?.district?.name ?? '—'} &bull; {log.route?.zone ?? '—'}
+          {log.route?.district?.name ?? '-'} &bull; {log.route?.zone ?? '-'}
         </p>
         <div className="flex items-center gap-2 flex-wrap">
           <span className={`font-mono text-xs ${prevCfg.color}`}>{prevCfg.icon} {log.previousDepth}cm</span>
-          <span className="text-text-muted font-mono text-[10px]">→</span>
+          <span className="text-text-muted font-mono text-[10px]">-&gt;</span>
           <span className={`font-mono text-xs font-semibold ${newCfg.color}`}>
-            {newCfg.icon} {log.newDepth}cm &mdash; {newCfg.label}
+            {newCfg.icon} {log.newDepth}cm - {newCfg.label}
           </span>
         </div>
       </div>
@@ -167,7 +172,7 @@ function DistrictSummaryCard({ district, depths, isSelected, onClick }: {
       </div>
       {isSelected && (
         <p className="font-mono text-[9px] text-accent-blue mt-2 animate-pulse-slow">
-          Adjusting in sidebar →
+          Adjusting in sidebar -&gt;
         </p>
       )}
     </button>
@@ -181,7 +186,12 @@ export function RoutingPage() {
   const [selectedDistrictId, setSelectedDistrictId] = useState<string | null>(null);
   const [selectedDistrictName, setSelectedDistrictName] = useState<string | null>(null);
   const [leafletLoaded, setLeafletLoaded] = useState(false);
+
+  // zoneDepths keyed by districtName -> zone -> depth
+  // populated from the API, not hardcoded
   const [zoneDepths, setZoneDepths] = useState<Record<string, Record<string, number>>>({});
+  // track which districts have been loaded from API (avoid re-fetching)
+  const [loadedDistricts, setLoadedDistricts] = useState<Set<string>>(new Set());
 
   // Load Leaflet script once
   useEffect(() => {
@@ -201,38 +211,58 @@ export function RoutingPage() {
     queryKey: queryKeys.dashboard.summary(),
     queryFn: () => import('../api/dashboard').then(m => m.dashboardApi.getSummary()),
   });
+
   const districts: DistrictCard[] = (summaryData?.districts ?? []).filter(
     (d) => d.name !== '__central__'
   );
 
-
-  // Initialise zone depths from backend routes
+  // Load per-zone depths from API for each district
+  // Uses GET /api/route/recommend?districtId=... which now returns per-zone array
   useEffect(() => {
     if (districts.length === 0) return;
-    const initial: Record<string, Record<string, number>> = {};
+
     districts.forEach((d: DistrictCard) => {
-      initial[d.name] = { 'Zone A': 15, 'Zone B': 25, 'Zone C': 45 };
-    });
-    setZoneDepths(initial);
-    Promise.all(
-      districts.map((d: DistrictCard) =>
-        routesApi.getDistrictRoutes(d.districtId).then(routes => ({ district: d, routes }))
-      )
-    ).then(results => {
-      setZoneDepths(prev => {
-        const next = { ...prev };
-        results.forEach(({ district, routes }) => {
-          if (routes.length > 0) {
-            next[district.name] = {
-              'Zone A': routes.find(r => r.zone === 'Zone A')?.waterDepthCm ?? 15,
-              'Zone B': routes.find(r => r.zone === 'Zone B')?.waterDepthCm ?? 25,
-              'Zone C': routes.find(r => r.zone === 'Zone C')?.waterDepthCm ?? 45,
-            };
-          }
+      // skip if already loaded
+      if (loadedDistricts.has(d.districtId)) return;
+
+      routesApi.getRecommendByDistrict(d.districtId)
+        .then((result) => {
+          setZoneDepths(prev => {
+            const next = { ...prev };
+
+            if (result.zones && result.zones.length > 0) {
+              // real data from DB — use it
+              const zoneMap: Record<string, number> = {};
+              result.zones.forEach((z: { zone: string; waterDepthCm: number }) => {
+                // API returns "A", "B", "C" — map to "Zone A" etc for display
+                const displayZone = z.zone.startsWith('Zone') ? z.zone : `Zone ${z.zone}`;
+                zoneMap[displayZone] = z.waterDepthCm;
+              });
+              // fill any missing zones with fallbacks
+              ZONES.forEach(zone => {
+                if (!(zone in zoneMap)) zoneMap[zone] = ZONE_FALLBACKS[zone];
+              });
+              next[d.name] = zoneMap;
+            } else {
+              // no route records yet — use fallbacks
+              next[d.name] = { ...ZONE_FALLBACKS };
+            }
+
+            return next;
+          });
+
+          setLoadedDistricts(prev => new Set([...prev, d.districtId]));
+        })
+        .catch(() => {
+          // if API fails for this district, use fallbacks silently
+          setZoneDepths(prev => ({
+            ...prev,
+            [d.name]: prev[d.name] ?? { ...ZONE_FALLBACKS },
+          }));
+          setLoadedDistricts(prev => new Set([...prev, d.districtId]));
         });
-        return next;
-      });
-    }).catch(console.error);
+    });
+  // only re-run when district list length changes
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [districts.length]);
 
@@ -244,7 +274,6 @@ export function RoutingPage() {
     refetchInterval: 30_000,
   });
 
-  // Mutation for saving depth
   const updateMutation = useMutation({
     mutationFn: routesApi.update,
     onSuccess: () => {
@@ -306,21 +335,21 @@ export function RoutingPage() {
         {anySuspended && (
           <div className="bg-accent-red/10 border border-accent-red/30 rounded px-4 py-3 animate-slide-in flex items-center gap-3">
             <span className="font-mono text-[10px] font-semibold text-accent-red uppercase tracking-widest px-2 py-0.5 bg-accent-red/20 rounded flex-shrink-0">
-              ⛔ SUSPENDED
+              SUSPENDED
             </span>
             <p className="font-mono text-xs text-accent-red">
-              Water depth exceeds 80 cm in one or more zones — delivery suspended. Escalate to civil defense.
+              Water depth exceeds 80 cm in one or more zones - delivery suspended. Escalate to civil defense.
             </p>
           </div>
         )}
 
         <div className="grid grid-cols-1 xl:grid-cols-12 gap-6">
 
-          {/* ── LEFT: map + district cards ── */}
+          {/* left: map + district cards */}
           <div className="xl:col-span-8 space-y-6">
             <div>
               <h2 className="font-mono text-xs text-text-muted uppercase tracking-widest mb-3">
-                Phnom Penh — Flood Zone Map
+                Phnom Penh - Flood Zone Map
                 <span className="ml-2 font-normal normal-case">click a district to adjust water depth</span>
               </h2>
               <div className="card p-0 overflow-hidden rounded">
@@ -343,7 +372,7 @@ export function RoutingPage() {
                     />
                   ) : (
                     <div className="h-full flex items-center justify-center bg-bg-elevated">
-                      <p className="font-mono text-xs text-text-muted">Loading map…</p>
+                      <p className="font-mono text-xs text-text-muted">Loading map...</p>
                     </div>
                   )}
                 </div>
@@ -366,14 +395,14 @@ export function RoutingPage() {
             </div>
           </div>
 
-          {/* ── RIGHT SIDEBAR ── */}
+          {/* right sidebar */}
           <div className="xl:col-span-4 space-y-6">
 
             <div>
               <h2 className="font-mono text-xs text-text-muted uppercase tracking-widest mb-3">
                 Zone Water Depth
                 {selectedDistrictName && (
-                  <span className="ml-2 text-text-primary normal-case font-normal">— {selectedDistrictName}</span>
+                  <span className="ml-2 text-text-primary normal-case font-normal">- {selectedDistrictName}</span>
                 )}
               </h2>
               {!selectedDistrictName ? (
@@ -406,7 +435,7 @@ export function RoutingPage() {
                               'bg-bg-elevated border-bg-border text-text-muted hover:border-text-muted/30 hover:text-text-secondary'
                             }`}
                           >
-                            {status === 'saving' ? 'Saving…' : status === 'saved' ? '✓ Saved' : status === 'error' ? '✗ Failed' : 'Save'}
+                            {status === 'saving' ? 'Saving...' : status === 'saved' ? 'Saved' : status === 'error' ? 'Failed' : 'Save'}
                           </button>
                         </div>
                       </div>
@@ -418,7 +447,7 @@ export function RoutingPage() {
 
             <div>
               <h2 className="font-mono text-xs text-text-muted uppercase tracking-widest mb-3">
-                Section A.4 — Delivery Tiers
+                Section A.4 - Delivery Tiers
               </h2>
               <div className="card divide-y divide-bg-border">
                 {Object.values(MODE_CONFIG).map(cfg => (

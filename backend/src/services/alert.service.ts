@@ -1,7 +1,9 @@
 import { prisma } from '../lib/prisma';
 import { invalidateCache } from './dashboard.service';
+import { Role } from '@prisma/client';
+import { io } from '../app';
 
-// ─── VALID TRIGGER CONDITIONS ─────────────────────────────────────────────────
+
 export type TriggerCondition =
   | 'warningLevelTwo'
   | 'rainfallExceeds100mm'
@@ -17,9 +19,27 @@ export function isValidCondition(val: string): val is TriggerCondition {
   return VALID_CONDITIONS.includes(val as TriggerCondition);
 }
 
+// ─── NOTIFICATION HELPERS ─────────────────────────────────────────────────────
+
+// Notify all users with a given role
+async function notifyByRole(
+  roles: Role[],
+  type: string,
+  message: string
+): Promise<void> {
+  const recipients = await prisma.user.findMany({
+    where: { role: { in: roles }, active: true },
+    select: { id: true },
+  });
+
+  if (recipients.length === 0) return;
+
+  await prisma.notification.createMany({
+    data: recipients.map((u) => ({ userId: u.id, type, message })),
+  });
+}
+
 // ─── GET OR CREATE ACTIVE ALERT ───────────────────────────────────────────────
-// REMA operates on a single active FloodAlert record at a time.
-// If none exists, create one in standby (phase 0, not activated).
 
 async function getOrCreateActiveAlert() {
   const existing = await prisma.floodAlert.findFirst({
@@ -40,8 +60,6 @@ async function getOrCreateActiveAlert() {
 }
 
 // ─── SUBMIT TRIGGER CONDITION ─────────────────────────────────────────────────
-// Section A.3: REMA activates when ANY TWO of the three conditions are true.
-// Conditions are additive — once set true, they stay true for the alert lifetime.
 
 export async function submitTrigger(condition: TriggerCondition) {
   const alert = await getOrCreateActiveAlert();
@@ -63,13 +81,13 @@ export async function submitTrigger(condition: TriggerCondition) {
     current.streetFloodingReport,
   ].filter(Boolean).length;
 
-  // Auto-activate when 2 of 3 conditions met (Section A.3)
+  let justActivated = false;
+
   if (!alert.activated && trueCount >= 2) {
     update.activated = true;
     update.activatedAt = new Date();
     update.phase = 1;
-
-    // Invalidate dashboard cache — phase and activation state have changed
+    justActivated = true;
     invalidateCache();
   }
 
@@ -78,25 +96,32 @@ export async function submitTrigger(condition: TriggerCondition) {
     data: update,
   });
 
+  // Notify all hub managers and coordinators when REMA activates
+  if (justActivated) {
+    io.emit('phase_changed', { phase: 1, activated: true });
+    await notifyByRole(
+      [Role.HUB_MANAGER, Role.EMERGENCY_COORDINATOR, Role.SUPER_ADMIN],
+      'ACTIVATION',
+      'REMA has been activated - 2 of 3 trigger conditions met. Phase 1 is now active. Pre-position stock at sub-warehouses immediately.'
+    );
+  }
+
   return updated;
 }
 
 // ─── GET CURRENT STATUS ───────────────────────────────────────────────────────
 
 export async function getAlertStatus() {
-  const alert = await getOrCreateActiveAlert();
-  return alert;
+  return getOrCreateActiveAlert();
 }
 
 // ─── ADVANCE PHASE ────────────────────────────────────────────────────────────
-// Emergency Coordinator only. Phase advances 0→1→2 only (never backwards).
-// Section A: Phase 1 = Hours 0–24, Phase 2 = Hours 24–48
 
 export async function advancePhase(targetPhase: number) {
   const alert = await getOrCreateActiveAlert();
 
   if (!alert.activated) {
-    throw new Error('Cannot advance phase — REMA is not yet activated');
+    throw new Error('Cannot advance phase - REMA is not yet activated');
   }
 
   if (targetPhase !== alert.phase + 1) {
@@ -114,14 +139,28 @@ export async function advancePhase(targetPhase: number) {
     data: { phase: targetPhase },
   });
 
-  // Phase change invalidates the dashboard summary — phase banner must update
   invalidateCache();
+
+  // Notify hub managers that phase has advanced - they need to act
+  await notifyByRole(
+    [Role.HUB_MANAGER, Role.EMERGENCY_COORDINATOR, Role.SUPER_ADMIN],
+    'PHASE_CHANGE',
+    `REMA has advanced to Phase ${targetPhase}. ${
+      targetPhase === 1
+        ? 'Begin pre-positioning stock at sub-warehouses. Community assessment required.'
+        : 'Begin adaptive last-mile delivery from sub-warehouses. Priority queue is live.'
+    }`
+  );
+  io.emit('phase_changed', { phase: targetPhase });
 
   return updated;
 }
 
+// ─── RESET SYSTEM ─────────────────────────────────────────────────────────────
+
 export async function resetSystem() {
   const alert = await getOrCreateActiveAlert();
+
   const updated = await prisma.floodAlert.update({
     where: { id: alert.id },
     data: {
@@ -133,6 +172,7 @@ export async function resetSystem() {
       streetFloodingReport: false,
     },
   });
+
   invalidateCache();
   return updated;
 }

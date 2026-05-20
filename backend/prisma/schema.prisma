@@ -17,6 +17,7 @@ model User {
   name              String
   role              Role
   active            Boolean               @default(true)
+  mustChangePassword Boolean              @default(false)
   districtId        String?
   deliveryRuns      DeliveryRun[]
   assessmentsFiled  HouseholdAssessment[]

@@ -2,12 +2,15 @@ import { useState } from 'react';
 import type { FormEvent } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { authApi } from '../api/auth';
+import { useAuth } from '../context/AuthContext';
 import { DashboardLayout } from '../components/DashboardLayout';
 import { usePageTitle } from '../hooks/usePageTitle';
 
 export function ChangePasswordPage() {
   usePageTitle('Change Password');
   const navigate = useNavigate();
+  const { mustChangePassword, clearMustChangePassword } = useAuth();
+
   const [currentPassword, setCurrentPassword] = useState('');
   const [newPassword, setNewPassword] = useState('');
   const [confirm, setConfirm] = useState('');
@@ -24,12 +27,10 @@ export function ChangePasswordPage() {
       setError('New password must be at least 8 characters.');
       return;
     }
-
     if (newPassword !== confirm) {
       setError('New password and confirmation do not match.');
       return;
     }
-
     if (newPassword === currentPassword) {
       setError('New password must be different from your current password.');
       return;
@@ -38,7 +39,8 @@ export function ChangePasswordPage() {
     setIsLoading(true);
     try {
       await authApi.changePassword(currentPassword, newPassword);
-      setSuccess('Password updated successfully.');
+      clearMustChangePassword();
+      setSuccess('Password updated successfully. Redirecting...');
       setCurrentPassword('');
       setNewPassword('');
       setConfirm('');
@@ -56,6 +58,18 @@ export function ChangePasswordPage() {
   return (
     <DashboardLayout title="Change Password">
       <div className="max-w-md">
+        {/* warning banner for forced change */}
+        {mustChangePassword && (
+          <div className="mb-4 bg-accent-yellow/10 border border-accent-yellow/30 rounded px-4 py-3">
+            <p className="font-mono text-xs text-accent-yellow font-semibold">
+              Password change required
+            </p>
+            <p className="font-mono text-xs text-text-muted mt-1">
+              Your account was created with a temporary password. You must set a new password before continuing.
+            </p>
+          </div>
+        )}
+
         <div className="card p-6">
           <p className="font-mono text-xs text-text-muted mb-6">
             Use this form to update your password. You must know your current password.
@@ -64,9 +78,7 @@ export function ChangePasswordPage() {
 
           <form onSubmit={handleSubmit} className="space-y-4">
             <div>
-              <label className="label" htmlFor="current">
-                Current Password
-              </label>
+              <label className="label" htmlFor="current">Current Password</label>
               <input
                 id="current"
                 type="password"
@@ -81,9 +93,7 @@ export function ChangePasswordPage() {
             </div>
 
             <div>
-              <label className="label" htmlFor="new">
-                New Password
-              </label>
+              <label className="label" htmlFor="new">New Password</label>
               <input
                 id="new"
                 type="password"
@@ -98,9 +108,7 @@ export function ChangePasswordPage() {
             </div>
 
             <div>
-              <label className="label" htmlFor="confirm">
-                Confirm New Password
-              </label>
+              <label className="label" htmlFor="confirm">Confirm New Password</label>
               <input
                 id="confirm"
                 type="password"
@@ -115,13 +123,13 @@ export function ChangePasswordPage() {
             </div>
 
             {error && (
-              <div className="bg-accent-red/10 border border-accent-red/30 rounded px-3 py-2 animate-slide-in">
+              <div className="bg-accent-red/10 border border-accent-red/30 rounded px-3 py-2">
                 <p className="font-mono text-xs text-accent-red">{error}</p>
               </div>
             )}
 
             {success && (
-              <div className="bg-accent-green/10 border border-accent-green/30 rounded px-3 py-2 animate-slide-in">
+              <div className="bg-accent-green/10 border border-accent-green/30 rounded px-3 py-2">
                 <p className="font-mono text-xs text-accent-green">{success}</p>
               </div>
             )}
@@ -134,14 +142,17 @@ export function ChangePasswordPage() {
               >
                 {isLoading ? 'Updating...' : 'Update Password'}
               </button>
-              <button
-                type="button"
-                onClick={() => navigate('/dashboard')}
-                className="btn-ghost"
-                disabled={isLoading}
-              >
-                Cancel
-              </button>
+              {/* only show cancel if not a forced change */}
+              {!mustChangePassword && (
+                <button
+                  type="button"
+                  onClick={() => navigate('/dashboard')}
+                  className="btn-ghost"
+                  disabled={isLoading}
+                >
+                  Cancel
+                </button>
+              )}
             </div>
           </form>
         </div>

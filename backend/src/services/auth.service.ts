@@ -4,25 +4,22 @@ import { prisma } from '../lib/prisma';
 import { JwtPayload } from '../types/auth';
 
 const JWT_SECRET = process.env.JWT_SECRET || 'rema-dev-secret-change-in-production';
-const JWT_EXPIRES_IN = '12h'; // Long enough for a full flood event shift
+const JWT_EXPIRES_IN = '12h';
 
 // ─── LOGIN ────────────────────────────────────────────────────────────────────
 
 export async function loginUser(email: string, password: string) {
-  // 1. Find user by email
   const user = await prisma.user.findUnique({ where: { email } });
 
   if (!user || !user.active) {
     throw new Error('Invalid credentials');
   }
 
-  // 2. Check password
   const valid = await bcrypt.compare(password, user.passwordHash);
   if (!valid) {
     throw new Error('Invalid credentials');
   }
 
-  // 3. Build JWT payload
   const payload: JwtPayload = {
     userId: user.id,
     email: user.email,
@@ -30,7 +27,6 @@ export async function loginUser(email: string, password: string) {
     districtId: user.districtId,
   };
 
-  // 4. Sign token
   const token = jwt.sign(payload, JWT_SECRET, { expiresIn: JWT_EXPIRES_IN });
 
   return {
@@ -41,6 +37,7 @@ export async function loginUser(email: string, password: string) {
       name: user.name,
       role: user.role,
       districtId: user.districtId,
+      mustChangePassword: user.mustChangePassword,  // included in login response
     },
   };
 }
@@ -58,6 +55,7 @@ export async function getCurrentUser(userId: string) {
       districtId: true,
       active: true,
       createdAt: true,
+      mustChangePassword: true,
     },
   });
 

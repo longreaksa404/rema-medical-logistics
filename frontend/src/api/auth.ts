@@ -6,6 +6,7 @@ export interface UserProfile {
   name: string;
   role: 'SUPER_ADMIN' | 'EMERGENCY_COORDINATOR' | 'HUB_MANAGER' | 'VOLUNTEER' | 'VIEWER';
   districtId: string | null;
+  mustChangePassword?: boolean;  // present on login response, absent on /me
 }
 
 export interface LoginResponse {

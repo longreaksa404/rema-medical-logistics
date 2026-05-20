@@ -27,7 +27,13 @@ export function LoginPage() {
 
     try {
       await login(email.trim(), password);
-      navigate('/dashboard', { replace: true });
+      // login sets mustChangePassword in context — read it after
+      const storedMustChange = localStorage.getItem('rema_must_change');
+      if (storedMustChange === 'true') {
+        navigate('/change-password', { replace: true });
+      } else {
+        navigate('/dashboard', { replace: true });
+      }
     } catch (err: unknown) {
       const message =
         (err as { response?: { data?: { error?: string } } })?.response?.data?.error ||
@@ -37,6 +43,7 @@ export function LoginPage() {
       setIsLoading(false);
     }
   }
+
 
   return (
     <div className="min-h-screen bg-bg-primary flex flex-col items-center justify-center px-4">

@@ -59,6 +59,7 @@ export async function createUser(data: {
       passwordHash,
       districtId: districtId ?? null,
       active: true,
+      mustChangePassword: true,   // force change on first login
     },
     select: {
       id: true,
@@ -68,14 +69,11 @@ export async function createUser(data: {
       districtId: true,
       active: true,
       createdAt: true,
+      mustChangePassword: true,
     },
   });
 
-  return {
-    ...user,
-    // Flag that this is a temporary password — frontend should prompt change
-    mustChangePassword: true,
-  };
+  return user;  
 }
 
 // ─── LIST USERS ───────────────────────────────────────────────────────────────
@@ -229,8 +227,12 @@ export async function changeOwnPassword(
 
   await prisma.user.update({
     where: { id: userId },
-    data: { passwordHash },
+    data: {
+      passwordHash,
+      mustChangePassword: false,  // clear the flag on successful change
+    },
   });
+
 
   return { message: 'Password updated successfully' };
 }
@@ -259,7 +261,10 @@ export async function resetUserPassword(
 
   await prisma.user.update({
     where: { id: targetUserId },
-    data: { passwordHash },
+    data: {
+      passwordHash,
+      mustChangePassword: true,   // force change after admin reset
+    },
   });
 
   return {

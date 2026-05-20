@@ -1,5 +1,7 @@
 import express from 'express';
 import cors from 'cors';
+import { createServer } from 'http';
+import { Server } from 'socket.io';
 import swaggerUi from 'swagger-ui-express';
 import YAML from 'yamljs';
 import path from 'path';
@@ -24,10 +26,29 @@ import aiRoutes from './routes/ai.routes';
 
 const app = express();
 
+// ─── HTTP SERVER + SOCKET.IO ──────────────────────────────────────────────────
+// wrap Express in an http.Server so socket.io can share the same port
+
+export const httpServer = createServer(app);
+
+export const io = new Server(httpServer, {
+  cors: {
+    origin: true,
+    credentials: true,
+  },
+  // path stays default (/socket.io) — no conflict with /api routes
+});
+
+io.on('connection', (socket) => {
+  // client sends their JWT role on connect so we can scope events if needed
+  // for now all authenticated clients receive all broadcast events
+  socket.on('disconnect', () => {});
+});
+
 // ─── MIDDLEWARE ───────────────────────────────────────────────────────────────
 app.use(cors({
   origin: true,
-  credentials: true
+  credentials: true,
 }));
 app.use(express.json());
 
@@ -35,11 +56,11 @@ app.use(express.json());
 const swaggerDocument = YAML.load(path.join(__dirname, '../swagger.yaml'));
 app.use('/api/docs', swaggerUi.serve, swaggerUi.setup(swaggerDocument));
 
-// ─── HEALTH CHECK ────────────────────────────────────────────────────────────
+// ─── HEALTH CHECK ─────────────────────────────────────────────────────────────
 app.get('/api/health', (_req, res) => {
   res.json({
     status: 'ok',
-    system: 'REMA — Rapid Emergency Medical Access',
+    system: 'REMA - Rapid Emergency Medical Access',
     version: '1.0.0',
     timestamp: new Date().toISOString(),
   });
@@ -63,10 +84,9 @@ app.use('/api/incidents', incidentRoutes);
 app.use('/api/radio', radioRoutes);
 app.use('/api/notifications', notificationRoutes);
 app.use('/api/dashboard', dashboardRoutes);
-
 app.use('/api/ai', aiRoutes);
 
-// ─── 404 FALLBACK ────────────────────────────────────────────────────────────
+// ─── 404 FALLBACK ─────────────────────────────────────────────────────────────
 app.use((_req, res) => {
   res.status(404).json({ error: 'Route not found' });
 });
