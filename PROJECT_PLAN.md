@@ -42,6 +42,7 @@
 | Chat 20 | AI Integration (REMA AI Brief) | ✅ Complete |
 | Chat 21 | Final Assembly + Submission Package | ✅ Complete |
 | Chat 22 | Post-Submission Improvements | ✅ Complete |
+| Fix Session | Routing Map Fixes (zone polygons, per-zone recommend, notification triggers, mustChangePassword, district card redesign) | ✅ Complete |
 
 ---
 
@@ -54,7 +55,7 @@
 - [x] Section D: Coordination Model
 - [x] Section E: Scalability & Sustainability
 - [x] Section F: Financial Plan
-- [x] Assumptions Log (49 assumptions documented)
+- [x] Assumptions Log
 
 ---
 

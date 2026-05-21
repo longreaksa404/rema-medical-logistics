@@ -55,3 +55,13 @@ Judges reward honest assumptions over false precision.
 | 48 | Section F | EMK restocking (~$63,000/year) requires MoH or national Red Cross co-funding | Cannot be covered by Red Cross provincial budget alone — primary fundraising dependency |
 | 49 | Section B / Chat 5 | Stock `*Total` fields are updated on each DISPATCH — they represent the current activation's allocation baseline, not a fixed historical figure. Scarcity % is always calculated against the current total. | Simplifies the scarcity check; prevents false positives after resupply. |
 | 57 | Chat 21 | System reset resets all trigger conditions, activation state, and phase to 0 — it does not delete the flood_alerts record | Preserves database record integrity; only state is reset, not history |
+| 59 | Refresh tokens are stored as SHA-256 hashes — raw token never persisted | Standard security practice; hash is sufficient for lookup and revocation |
+| 60 | Avatar images are resized to 128x128 JPEG client-side before upload — max ~25kb | Keeps DB row size manageable; Supabase free tier has row size limits |
+| 61 | avatarBase64 stored directly in users table — no separate file storage service | Self-contained; no extra service dependency; acceptable for small team size |
+| 62 | socket.io events are broadcast to all connected clients — no per-user or per-district filtering | All operational roles need awareness of system-wide events; filtering adds complexity without meaningful security benefit |
+| 63 | mustChangePassword is enforced client-side only — no server middleware blocks API calls | API calls still work with old password; enforcement is a UX gate not a security gate. Real deployment could add server-side check if needed |
+| 64 | Per-zone route recommend falls back to hardcoded defaults (15/25/45cm) only when no route records exist in DB | New deployments have no route records; fallback prevents blank map on first load |
+| 65 | Fix Session | Zone divider lines use dashed style to distinguish from district outer boundary | Solid white lines inside a district would visually compete with the thick solid outer border — dashes read as subdivisions |
+| 66 | Fix Session | District card shows pending = householdsAssessed - deliveredCount computed client-side | DistrictCard already has both fields from dashboard summary; no backend change needed |
+| 67 | Fix Session | District card openIncidents row only renders if > 0 | Zero incidents is normal state — showing "0 incidents" adds visual noise with no operational value |
+| 68 | Fix Session | District name label font is always white — district identity conveyed by border color alone | Colored text on dark semi-transparent background had insufficient contrast for 3 of the 3 district colors |

@@ -387,7 +387,7 @@ any system action. Graceful degradation if Anthropic API is unavailable.
 |---|---|---|---|
 | V0 | Auth | All | Login page, role-based redirect, forced change password on first login |
 | V1 | Operations Dashboard | EC, SUPER_ADMIN, VIEWER | Phase banner, phase controls, district cards, stock chart, priority queue, incidents, notifications, AI Brief button |
-| V2 | Routing Map | EC, HUB_MANAGER | Leaflet map, district overlays, per-zone water depth from API, delivery mode per zone |
+| V2 | Routing Map | EC, HUB_MANAGER | Leaflet map with 9 real zone polygons (3 per district), each colored by water depth. Zone polygons clipped from real OSM district boundaries using lat-band splitting. District identity via thick colored outer border + white district name label + zone letter markers. Per-zone depth sliders with save. District cards show zone list rows with real household data (assessed, delivered, pending, incidents). Route change log. |s
 | V3 | Warehouse Layout | All | Static draw.io diagram — central + sub-warehouse floor plans |
 | V4 | ~~Prioritization Tool~~ | Removed | Merged into VolunteerPage (assessment) and DashboardPage (priority queue) |
 | V5 | Stakeholder Flowchart | All | Static draw.io swimlane diagram — actor decision flows |
@@ -533,7 +533,42 @@ Sidebar footer replaced with clickable user card (avatar + name) linking to prof
 
 ---
 
-### 13.5 New Assumptions (Chat 22)
+### 13.5 Routing Map Improvements (Fix Session)
+
+**Fix 1 - Per-zone recommend endpoint**
+- `GET /api/route/recommend?districtId=` now returns per-zone array instead of single district mode
+- Response: `{ districtId, districtName, zones: [{ zone, waterDepthCm, deliveryMode, active }] }`
+- Old district-level mode collapse removed — operationally misleading
+
+**Fix 2 - Notification triggers wired**
+- `alert.service.ts` — creates notifications for all HUB_MANAGERs on phase advance
+- `stock.service.ts` — creates notifications for EC and SUPER_ADMIN when scarcity triggers
+- `incident.service.ts` — creates notification for relevant district HUB_MANAGER on incident report
+- Notification system now writes on events, not just reads
+
+**Fix 3 - mustChangePassword enforcement**
+- `mustChangePassword Boolean` added to User model
+- Set true on user creation via POST /api/users
+- Login response includes flag; frontend redirects to change password page
+- Navigation blocked until password changed
+
+**Fix 4 - Zone geographic boundaries on map**
+- Zone polygons computed by clipping real OSM district boundaries using Sutherland-Hodgman lat-band algorithm
+- 9 zone polygons total: Dangkao A/B/C, Mean Chey A/B/C, Pou Senchey A/B/C
+- Each zone polygon follows actual district boundary edges (not rectangles)
+- Zone letter markers at computed centroids
+- District name labels always white font
+- Thin white dashed lines separate zones within same district
+- Thick colored outer border per district (Dangkao=white, Mean Chey=blue, Pou Senchey=purple)
+
+**Fix 5 - District card redesigned (Option 2 - minimal list)**
+- Removed misleading average depth badge
+- Each zone shown as its own row: icon / zone name / depth / mode label
+- Suspended zones highlighted red with pulsing border
+- Real household data from DistrictCard: assessed count, delivered, pending, open incidents
+- Pending = householdsAssessed - deliveredCount (computed client-side, no extra API call)
+
+### 13.6 New Assumptions (Chat 22)
 
 | # | Assumption | Reason |
 |---|---|---|

@@ -63,6 +63,27 @@ Last updated: Chat 22 complete — post-submission improvements
 
 ---
 
+## What Was Completed in Fix Session (Routing Map UI)
+
+### LeafletMap.tsx — zone polygon visual improvements
+- Zone polygons now have thin white dashed divider lines between zones within same district
+  (color: rgba(255,255,255,0.5), weight 1.5, dashArray 5/4)
+- District name labels changed to always white font — removed per-district color from text
+- Previous version had district color applied to both border AND text which made labels hard to read
+
+### RoutingPage.tsx — DistrictSummaryCard redesign (Option 2 - minimal list)
+- Removed misleading average depth number and district-level mode badge
+- Each zone shown as its own row: mode icon / zone name / depth cm / mode label
+- Suspended zone rows highlighted with red background + red border
+- Pulsing red suspended count badge in card header if any zone > 80cm
+- Real household data from DistrictCard (no extra API call):
+  - householdsAssessed shown in header subtitle
+  - deliveredCount shown green in footer
+  - pending = householdsAssessed - deliveredCount shown yellow
+  - openIncidents shown red, only visible if > 0
+
+---
+
 ## Live URLs
 | Service | URL |
 |---|---|
@@ -97,6 +118,11 @@ Last updated: Chat 22 complete — post-submission improvements
 | Profile page | /profile route inside AppShell, all roles | Centralises account management; sidebar user card is the entry point |
 | Sidebar user card | Clickable card (avatar + name) → /profile | Clean UX pattern; no separate profile icon needed |
 | Socket.io broadcast | All connected clients receive all events | Operational roles all need system-wide awareness |
+| Zone divider lines | White dashed (not solid) inside district polygons | Dashes signal internal boundary; thick solid border remains the authoritative district edge |
+| District name font | Always white regardless of district border color | Per-district colored text was hard to read against dark map background |
+| District card design | Option 2 minimal list rows | Each zone is operationally independent — no district-level average makes sense |
+| Household data source | Existing DistrictCard from dashboard summary | householdsAssessed + deliveredCount already available; no extra API call needed |
+| Pending delivery calc | householdsAssessed - deliveredCount client-side | Simpler than adding a pendingDelivery field to DistrictCard |
 
 ---
 
