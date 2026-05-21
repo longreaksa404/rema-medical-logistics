@@ -31,7 +31,7 @@ const MODE_FILL: Record<DeliveryMode, string> = {
 };
 
 // distinct border color per district so they read clearly on the map
-const DISTRICT_BORDER: Record<string, string> = {
+const DISTRICT_BORDER: Record<string, string> = { 
   'Dangkao':     '#7a1b1b',
   'Mean Chey':   '#4e64c7',
   'Pou Senchey': '#2da75a',
