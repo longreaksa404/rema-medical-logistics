@@ -101,6 +101,11 @@ export function LeafletMap({
       zoom: 11,
       zoomControl: true,
       attributionControl: true,
+
+      scrollWheelZoom: true,
+      wheelPxPerZoomLevel: 120,     // ← Increase this = less sensitive (default is 60)
+      zoomSnap: 0.4,                // Allows smoother half-level zooms
+      zoomDelta: 0.4,               // How much zoom per wheel step
     });
 
     L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
