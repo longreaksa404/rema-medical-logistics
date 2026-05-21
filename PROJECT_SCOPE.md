@@ -13,8 +13,8 @@ Challenge: Medical Logistics in a Sinking City | University Track | Viet Nam Red
 | Target city | Ho Chi Minh City (or comparable Vietnamese delta city) |
 | Organizer | Viet Nam Red Cross (supported by BSSC, RMIT, Innoex, HELP Logistics) |
 | Track | University Track |
-| Scenario | Recurrent urban flood, 5–7 days, water depth 30–80cm, 3–4 affected districts |
-| Critical window | 24–48 hours |
+| Scenario | Recurrent urban flood, 5-7 days, water depth 30-80cm, 3-4 affected districts |
+| Critical window | 24-48 hours |
 
 ---
 
@@ -60,8 +60,8 @@ Challenge: Medical Logistics in a Sinking City | University Track | Viet Nam Red
 | Phase | Timing | Description |
 |---|---|---|
 | Phase 0 | Dry season (before flood) | Preparedness — identify sites, train volunteers, sign agreements, assemble EMKs |
-| Phase 1 | Hours 0–24 | Activate, pre-position stock at sub-warehouses, community assessment |
-| Phase 2 | Hours 24–48 | Adaptive last-mile delivery from sub-warehouses |
+| Phase 1 | Hours 0-24 | Activate, pre-position stock at sub-warehouses, community assessment |
+| Phase 2 | Hours 24-48 | Adaptive last-mile delivery from sub-warehouses |
 
 **Activation trigger:** Any 2 of these 3 conditions met simultaneously:
 1. City/provincial flood warning Level 2 or above
@@ -74,9 +74,9 @@ Challenge: Medical Logistics in a Sinking City | University Track | Viet Nam Red
 
 | Water Depth | Delivery Mode |
 |---|---|
-| 0–30 cm | Motorbike with waterproof pannier bags |
-| 30–60 cm | Cargo bicycle or volunteer on foot with backpack |
-| 60–80 cm | Small motorized boat or inflatable raft |
+| 0-30 cm | Motorbike with waterproof pannier bags |
+| 30-60 cm | Cargo bicycle or volunteer on foot with backpack |
+| 60-80 cm | Small motorized boat or inflatable raft |
 | > 80 cm | Delivery suspended — escalate to civil defense |
 
 ---
@@ -94,10 +94,10 @@ Challenge: Medical Logistics in a Sinking City | University Track | Viet Nam Red
 | 5. Isolation (cut off from neighbors/communication) | 1 |
 
 Score bands:
-- 15–20 → 🔴 CRITICAL (deliver in current run)
-- 10–14 → 🟠 HIGH (deliver same day)
-- 5–9 → 🟡 MEDIUM (deliver within 48h)
-- 0–4 → 🟢 STANDARD (community collection point)
+- 15-20 → CRITICAL (deliver in current run)
+- 10-14 → HIGH (deliver same day)
+- 5-9 → MEDIUM (deliver within 48h)
+- 0-4 → STANDARD (community collection point)
 
 ---
 
@@ -117,17 +117,19 @@ Score bands:
 
 **User lifecycle:**
 - SUPER_ADMIN creates users with a temporary password via `POST /api/users`
-- User changes password on first login via `PATCH /api/users/me/password`
-- SUPER_ADMIN can reset any password via `POST /api/users/:id/reset-password`
+- New user is forced to change password on first login (`mustChangePassword: true`)
+- User changes password via their Profile page (`PATCH /api/users/me/password`)
+- SUPER_ADMIN can reset any password via `POST /api/users/:id/reset-password` — forces change on next login
 - Departing staff: `PATCH /api/users/:id` with `active: false` — data preserved, login blocked. Never delete users.
 
 ---
 
-## 8. DATABASE SCHEMA (Complete — 15 Tables)
+## 8. DATABASE SCHEMA (Complete — 17 Tables)
 
 ### users
 ```
-id, email, passwordHash, role, districtId (nullable), name, active, createdAt, updatedAt
+id, email, passwordHash, role, districtId (nullable), name, active,
+mustChangePassword, avatarBase64 (nullable), createdAt, updatedAt
 ```
 
 ### districts
@@ -243,6 +245,11 @@ notes, createdAt
 id, userId, type, message, read (bool), createdAt
 ```
 
+### refresh_tokens (NEW — Chat 22)
+```
+id, tokenHash (unique), userId, expiresAt, revoked (bool), createdAt
+```
+
 ---
 
 ## 9. COMPLETE API ENDPOINTS
@@ -257,6 +264,7 @@ GET    /api/status              Public status — aggregate data only, zero PII
 ```
 POST   /api/auth/login
 POST   /api/auth/logout
+POST   /api/auth/refresh        Issues new access token from httpOnly refresh cookie
 GET    /api/auth/me
 ```
 
@@ -267,6 +275,7 @@ POST   /api/users                         Create user with temporary password (S
 GET    /api/users/:id                     Single user detail (SUPER_ADMIN only)
 PATCH  /api/users/:id                     Update name, email, role, district, active (SUPER_ADMIN only)
 PATCH  /api/users/me/password             Change own password (any authenticated user)
+PATCH  /api/users/me/avatar               Update own avatar — base64 image (any authenticated user)
 POST   /api/users/:id/reset-password      Admin password reset (SUPER_ADMIN only)
 ```
 
@@ -318,7 +327,7 @@ PATCH  /api/delivery/runs/:id/abort       HUB_MANAGER+
 
 ### Routing
 ```
-GET    /api/route/recommend
+GET    /api/route/recommend               With districtId: per-zone breakdown; with waterDepthCm: single-depth lookup
 POST   /api/route/update
 GET    /api/route/logs
 GET    /api/route/district/:districtId
@@ -360,7 +369,7 @@ GET    /api/dashboard/summary
 GET    /api/dashboard/district/:id
 ```
 
-### AI Brief (NEW — Chat 20)
+### AI Brief
 ```
 POST   /api/ai/brief                      EMERGENCY_COORDINATOR+
 ```
@@ -376,11 +385,9 @@ any system action. Graceful degradation if Anthropic API is unavailable.
 
 | View | Name | Visible To | Description |
 |---|---|---|---|
-| V0 | Auth | All | Login page, role-based redirect, change password on first login |
-V1 | Operations Dashboard | EC, SUPER_ADMIN, VIEWER | Phase banner, phase controls
-(advance phase / reset system), district cards, stock chart, priority queue,
-incidents, notifications, AI Brief button (EC + SUPER_ADMIN only) |
-| V2 | Routing Map | EC, HUB_MANAGER | Leaflet map, district overlays, water depth input, delivery mode per zone |
+| V0 | Auth | All | Login page, role-based redirect, forced change password on first login |
+| V1 | Operations Dashboard | EC, SUPER_ADMIN, VIEWER | Phase banner, phase controls, district cards, stock chart, priority queue, incidents, notifications, AI Brief button |
+| V2 | Routing Map | EC, HUB_MANAGER | Leaflet map, district overlays, per-zone water depth from API, delivery mode per zone |
 | V3 | Warehouse Layout | All | Static draw.io diagram — central + sub-warehouse floor plans |
 | V4 | ~~Prioritization Tool~~ | Removed | Merged into VolunteerPage (assessment) and DashboardPage (priority queue) |
 | V5 | Stakeholder Flowchart | All | Static draw.io swimlane diagram — actor decision flows |
@@ -388,6 +395,7 @@ incidents, notifications, AI Brief button (EC + SUPER_ADMIN only) |
 | V7 | Hub Manager Portal | HUB_MANAGER | Per-district: stock, volunteers, delivery runs, incidents, radio check-ins |
 | V8 | Volunteer Mobile View | VOLUNTEER | Mobile-optimized: assessment form, delivery receipt, incident report |
 | V9 | User Management | SUPER_ADMIN | Create users, deactivate users, reset passwords |
+| V10 | Profile | All | Account info, avatar upload, change password |
 
 ---
 
@@ -395,7 +403,8 @@ incidents, notifications, AI Brief button (EC + SUPER_ADMIN only) |
 
 ```
 Backend:         Node.js + TypeScript + Express + Prisma + PostgreSQL
-Auth:            JWT (jsonwebtoken) + bcrypt (cost factor 12 in production)
+Auth:            JWT access token (15m) + httpOnly refresh token (7d) + bcrypt
+Realtime:        socket.io (server) + socket.io-client (frontend)
 Frontend:        React (Vite) + TypeScript + Tailwind CSS + Recharts + Leaflet.js
 Infrastructure:  Docker + docker-compose
 Hosting:         Render (backend) + Supabase (PostgreSQL) + Vercel (frontend)
@@ -421,7 +430,7 @@ Do NOT use Railway — free tier is 30 days only.
 | section-D-coordination-model.md | Coordination structure, actor roles, communication protocols |
 | section-E-scalability-sustainability.md | Scale-up model, sustainability mechanisms |
 | section-F-financial-plan.md | Budget estimates, cost breakdown |
-| Assumptions-log.md | 49 assumptions — new assumptions continue from #50 |
+| Assumptions-log.md | 58 assumptions documented |
 
 ---
 
@@ -433,26 +442,14 @@ Do NOT use Railway — free tier is 30 days only.
 **Location:** `backend/src/utils/__tests__/`
 **Scope:** Pure utility functions only — no database, no HTTP calls, no Prisma
 
-These are the functions that implement REMA's locked rules. If they are wrong,
-judges can verify against the strategy documents. Tests prove correctness.
-
 | Test File | Functions Tested | What It Verifies |
 |---|---|---|
-| `scoring.test.ts` | `scoreHousehold(), assignBand(), recommendEmk(), validateScoreInput()`, All scoring rules — 59 tests |
-| `stock.utils.test.ts` | `isInScarcity()` | 30% threshold, zero-total guard, real REMA values — 18 tests |
+| `scoring.test.ts` | `scoreHousehold(), assignBand(), recommendEmk(), validateScoreInput()` | All scoring rules — 59 tests |
+| `stock.utils.test.ts` | `isInScarcity()` | 30% threshold, zero-total guard — 18 tests |
 | `alert.test.ts` | `shouldActivate()` | All 8 boolean combinations — 13 tests |
 | `route.test.ts` | `getDeliveryModeForDepth()` | All 4 tiers, all 3 boundaries — 23 tests |
 
 **Run command:** `npm test` inside `backend/`
-
-**What is NOT tested:**
-- Controllers (require HTTP setup)
-- Services (require database)
-- Frontend components
-- E2E flows
-
-This is an honest scope. The utility functions contain all the critical business logic.
-Controllers and services are integration-tested implicitly through the live Swagger UI.
 
 ---
 
@@ -460,8 +457,6 @@ Controllers and services are integration-tested implicitly through the live Swag
 
 **File:** `.github/workflows/ci.yml`
 **Triggers:** Push to `main` branch, and any pull request
-
-**Pipeline steps:**
 
 ```
 On pull request:
@@ -472,29 +467,10 @@ On pull request:
   → If tests fail: PR is blocked. No deploy.
 
 On push to main (after PR merge):
-  1. Checkout code
-  2. Set up Node.js 20
-  3. Install backend dependencies (npm ci)
-  4. Run backend unit tests (npm test)
-  5. Trigger Render deploy hook (HTTP POST to deploy hook URL)
-  → Render rebuilds and redeploys backend automatically.
-  → Vercel autodeploys frontend from GitHub — no extra step needed.
+  1-4. Same as above
+  5. Trigger Render deploy hook
+  → Render rebuilds backend. Vercel autodeploys frontend.
 ```
-
-**GitHub repository secrets required:**
-
-| Secret Name | Where to Get It | Set By |
-|---|---|---|
-| `RENDER_DEPLOY_HOOK_URL` | Render dashboard → your service → Settings → Deploy Hook | Manual — document in README |
-
-**No database connection in CI.** Unit tests are pure functions.
-No `DATABASE_URL` or `JWT_SECRET` needed in GitHub secrets.
-
-**What CI does NOT do:**
-- No Docker build (Render handles this)
-- No staging environment
-- No Vercel CLI step (Vercel GitHub integration handles autodeploy)
-- No E2E tests
 
 ---
 
@@ -502,89 +478,68 @@ No `DATABASE_URL` or `JWT_SECRET` needed in GitHub secrets.
 
 **Feature name:** REMA AI Brief
 **Visible to:** EMERGENCY_COORDINATOR and SUPER_ADMIN only (on V1 Dashboard)
-**SDK:** `@anthropic-ai/sdk` (server-side only — API key never exposed to browser)
-**Implementation:** Mock service (no API key required for submission). Reads real
-aggregate DB state and generates contextually accurate brief via rule-based logic.
-Architected for drop-in replacement with OpenAI GPT-4o mini or Anthropic Claude
-by swapping `ai.service.ts` only — controller, routes, and frontend unchanged.
-
-#### What it does
-
-When the Emergency Coordinator clicks "Generate AI Brief," the system:
-
-1. Backend reads current dashboard state from the database (same data as `GET /api/dashboard/summary`)
-2. Builds a structured prompt using only aggregate, non-PII data:
-   - Current phase (0/1/2)
-   - Stock levels per district (EMK-1/2/3 remaining vs. total)
-   - Number of households per priority band (CRITICAL/HIGH/MEDIUM/STANDARD)
-   - Number of open incidents by type
-   - Radio check-in compliance rate
-   - Active delivery runs count
-3. Calls the Anthropic API server-side
-4. Returns a structured JSON response to the frontend
-
-**API endpoint:**
-```
-POST   /api/ai/brief    EMERGENCY_COORDINATOR+    No request body required
-```
+**SDK:** `@anthropic-ai/sdk` (server-side only)
+**Implementation:** Mock service — reads real DB, generates contextually accurate brief.
 
 **Response shape:**
 ```json
 {
-  "summary": "string — 2-3 sentence situation overview",
-  "priorityAlert": "string — single most urgent issue right now",
-  "nextStep": "string — one concrete action for the EC in the next hour",
+  "summary": "2-3 sentence situation overview",
+  "priorityAlert": "single most urgent issue right now",
+  "nextStep": "one concrete action for the EC in the next hour",
   "generatedAt": "ISO timestamp",
-  "dataSnapshot": {
-    "phase": 1,
-    "totalCritical": 12,
-    "totalHigh": 34,
-    "scarcityActive": false
-  }
+  "dataSnapshot": { "phase": 1, "totalCritical": 12, "scarcityActive": false }
 }
 ```
 
-#### Hard constraints (from REMA Principle 4: Technology serves people, not the reverse)
-
-| Constraint | Implementation |
-|---|---|
-| Advisory only | Frontend always shows "Advisory only — human decision required" label |
-| No PII in prompt | Prompt uses aggregate counts only — no names, addresses, or household IDs |
-| Cannot trigger actions | Endpoint is read-only — no write operations in this flow |
-| Graceful degradation | If Anthropic API is unavailable, return HTTP 503 with clear message; frontend shows "AI Brief temporarily unavailable — use dashboard directly" |
-| Transparent to user | Response includes `dataSnapshot` so EC can see exactly what data the AI used |
-
-#### Frontend implementation (V1 Dashboard additions)
-
-- "Generate AI Brief" button — visible only to EMERGENCY_COORDINATOR and SUPER_ADMIN
-- Button shows loading spinner while API call is in progress (typically 2–5 seconds)
-- Result displayed in a modal with three clearly labelled sections
-- "Advisory only" notice in red at top of modal — always visible
-- "Generated at [timestamp] from live dashboard data" shown at bottom
-- Error state: if 503 returned, show fallback message without crashing
-
-#### Environment variable
-
-```
-ANTHROPIC_API_KEY=sk-ant-...   # Added to Render environment variables only
-                                # Never committed to repository
-                                # Documented in backend/.env.example as placeholder
-```
+**Hard constraints:** Advisory only, no PII in prompt, cannot trigger actions, graceful 503 degradation.
 
 ---
 
-### 13.4 New Assumptions (from Sections 13.1–13.3)
+### 13.4 Post-Submission Engineering Improvements (Chat 22)
 
-These continue from assumption #49 in Assumptions-log.md:
+#### Security — Refresh Tokens
+Short-lived access tokens (15m) plus revocable httpOnly refresh tokens (7d).
+Refresh token hash stored in `refresh_tokens` table — raw token never in DB.
+Auto-retry on 401 with parallel request queuing in axios interceptor.
 
-| # | Section | Assumption | Reason |
-|---|---|---|---|
-| 50 | Chat 18 | Unit tests cover backend utility functions only — no integration or E2E tests | Pure function tests give highest confidence per effort; controllers and services are implicitly tested via live Swagger UI |
-| 51 | Chat 19 | Vercel autodeploys frontend from the GitHub main branch — no explicit CI step needed | Vercel's native GitHub integration handles this; only Render requires an explicit deploy hook |
-| 52 | Chat 19 | GitHub Actions CI uses Node.js 20 — matches Render's build environment | Version consistency prevents "works in CI, fails on Render" failures |
-| 53 | Chat 20 | AI Brief prompt contains aggregate counts only — no household-level data, no addresses, no personal information | Humanitarian data protection principle; aggregate data is sufficient for an operational summary |
-| 54 | Chat 20 | ANTHROPIC_API_KEY is stored as a Render environment variable only — never committed to the repository or exposed to the frontend browser bundle | Standard secret management; .env.example documents the key name with a placeholder value |
-| 55 | Chat 20 | AI Brief feature is advisory only and cannot trigger any database write or system state change | Matches REMA Operating Principle 4: technology augments human judgment, does not replace it |
-| 56 | Chat 18 | route.utils.ts extracted as a pure utility file to allow unit testing of delivery mode logic without importing PrismaClient | route.service.ts imports Prisma at module level; pure test files cannot import it |
-| 57 | Chat 21 | System reset (`POST /api/alert/reset`) is SUPER_ADMIN only and resets all trigger conditions, activation state, and phase to 0 — does not delete the flood_alerts record | Preserves database record integrity; only state is reset, not history |
-| 58 | Chat 21 | Phase advance via frontend uses PATCH /api/alert/phase — requires system to be activated first; Phase 0 → activate by triggering 2-of-3 conditions OR advancing directly via EC button | Demo convenience; real deployment should use trigger conditions |
+#### Security — mustChangePassword
+SUPER_ADMIN-created users are forced to change their temporary password on first login.
+`mustChangePassword` flag in DB, returned in login response, enforced in frontend routing.
+Admin password reset also sets flag — forces change on next login.
+
+#### Realtime — WebSocket (socket.io)
+Three events pushed to all connected clients instantly:
+- `phase_changed` — on activation or phase advance
+- `scarcity_triggered` — when any district stock falls below 30%
+- `incident_reported` — on new incident creation
+Dashboard refetches silently on any event. 30s polling remains as fallback.
+
+#### Routing — Per-zone recommend endpoint
+`GET /api/route/recommend?districtId=...` returns per-zone array instead of single district mode.
+Frontend reads real zone depths from API on load; no hardcoded fallbacks.
+
+#### Notifications — Automatic triggers
+Phase change → notifies HUB_MANAGER + EC + SUPER_ADMIN.
+Stock scarcity → notifies EC + SUPER_ADMIN.
+Incident reported → notifies district HUB_MANAGER; escalated types also notify EC + SUPER_ADMIN.
+
+#### User Profile Page (V10)
+New `/profile` route accessible to all roles.
+Shows account info (name, email, role, district).
+Avatar upload: resized to 128x128 JPEG client-side, stored as base64 in DB.
+Change password form moved here from standalone page.
+Sidebar footer replaced with clickable user card (avatar + name) linking to profile.
+
+---
+
+### 13.5 New Assumptions (Chat 22)
+
+| # | Assumption | Reason |
+|---|---|---|
+| 59 | Refresh tokens are stored as SHA-256 hashes — raw token never persisted | Standard security practice; hash is sufficient for lookup and revocation |
+| 60 | Avatar images are resized to 128x128 JPEG client-side before upload — max ~25kb | Keeps DB row size manageable; Supabase free tier has row size limits |
+| 61 | avatarBase64 stored directly in users table — no separate file storage service | Self-contained; no extra service dependency; acceptable for small team size |
+| 62 | socket.io events are broadcast to all connected clients — no per-user or per-district filtering | All operational roles need awareness of system-wide events; filtering adds complexity without meaningful security benefit |
+| 63 | mustChangePassword is enforced client-side only — no server middleware blocks API calls | API calls still work with old password; enforcement is a UX gate not a security gate. Real deployment could add server-side check if needed |
+| 64 | Per-zone route recommend falls back to hardcoded defaults (15/25/45cm) only when no route records exist in DB | New deployments have no route records; fallback prevents blank map on first load |

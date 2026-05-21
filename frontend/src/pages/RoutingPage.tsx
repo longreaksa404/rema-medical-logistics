@@ -17,13 +17,12 @@ const MODE_CONFIG: Record<DeliveryMode, {
 }> = {
   MOTORBIKE:       { label: 'Motorbike',      color: 'text-accent-green',  bgColor: 'bg-accent-green/10',  borderColor: 'border-accent-green/30',  icon: '🏍',  depth: '0-30 cm',  fillColor: '#3fb950', opacity: 0.35 },
   BICYCLE_OR_FOOT: { label: 'Bicycle / Foot', color: 'text-accent-yellow', bgColor: 'bg-accent-yellow/10', borderColor: 'border-accent-yellow/30', icon: '🚲', depth: '30-60 cm', fillColor: '#d29922', opacity: 0.45 },
-  BOAT:            { label: 'Boat',            color: 'text-accent-orange', bgColor: 'bg-accent-orange/10', borderColor: 'border-accent-orange/30', icon: '⛵', depth: '60-80 cm', fillColor: '#f0883e', opacity: 0.50 },
-  SUSPENDED:       { label: 'SUSPENDED',       color: 'text-accent-red',    bgColor: 'bg-accent-red/10',    borderColor: 'border-accent-red/30',    icon: '⛔', depth: '> 80 cm',  fillColor: '#f85149', opacity: 0.55 },
+  BOAT:            { label: 'Boat',           color: 'text-accent-orange', bgColor: 'bg-accent-orange/10', borderColor: 'border-accent-orange/30', icon: '⛵', depth: '60-80 cm', fillColor: '#f0883e', opacity: 0.50 },
+  SUSPENDED:       { label: 'SUSPENDED',      color: 'text-accent-red',    bgColor: 'bg-accent-red/10',    borderColor: 'border-accent-red/30',    icon: '⛔', depth: '> 80 cm',  fillColor: '#f85149', opacity: 0.55 },
 };
 
 const ZONES = ['Zone A', 'Zone B', 'Zone C'] as const;
 
-// safe fallbacks when no route record exists yet for a zone
 const ZONE_FALLBACKS: Record<string, number> = {
   'Zone A': 15,
   'Zone B': 25,
@@ -124,52 +123,94 @@ function RouteLogRow({ log }: { log: RouteLog }) {
 }
 
 // ─── DISTRICT SUMMARY CARD ────────────────────────────────────────────────────
+// Option 2 - minimal list rows, one per zone.
+// Real household data from DistrictCard (no extra API call needed).
 
 function DistrictSummaryCard({ district, depths, isSelected, onClick }: {
   district: DistrictCard; depths: Record<string, number>;
   isSelected: boolean; onClick: () => void;
 }) {
-  const depthValues = Object.values(depths);
-  const avgDepth = depthValues.length
-    ? Math.round(depthValues.reduce((a, b) => a + b, 0) / depthValues.length)
-    : 0;
-  const mode = depthToMode(avgDepth);
-  const cfg = MODE_CONFIG[mode];
+  const suspendedCount = ZONES.filter(zone => (depths[zone] ?? 0) > 80).length;
+  const hasSuspended = suspendedCount > 0;
+  const pendingDelivery = district.householdsAssessed - district.deliveredCount;
 
   return (
     <button
       onClick={onClick}
-      className={`card p-5 text-left w-full transition-all duration-150 hover:border-text-muted/30 hover:scale-[1.01] ${
+      className={`card p-4 text-left w-full transition-all duration-150 hover:border-text-muted/30 hover:scale-[1.01] ${
         isSelected ? 'ring-1 ring-accent-blue/60 border-accent-blue/30' : ''
-      }`}
+      } ${hasSuspended ? 'border-accent-red/20' : ''}`}
     >
+      {/* header row */}
       <div className="flex items-start justify-between gap-2 mb-3">
         <div>
           <p className="font-sans font-bold text-text-primary">{district.name}</p>
-          <p className="font-mono text-xs text-text-muted mt-0.5">
-            {district.population?.toLocaleString()} households
+          <p className="font-mono text-[10px] text-text-muted mt-0.5">
+            {district.householdsAssessed} assessed
           </p>
         </div>
-        <span className={`font-mono text-[10px] px-2 py-0.5 rounded border flex-shrink-0 mt-0.5 ${cfg.bgColor} ${cfg.borderColor} ${cfg.color}`}>
-          {cfg.icon} {cfg.label}
-        </span>
+        {hasSuspended && (
+          <span className="flex items-center gap-1 font-mono text-[10px] font-semibold text-accent-red bg-accent-red/10 border border-accent-red/30 px-2 py-0.5 rounded flex-shrink-0 mt-0.5">
+            <span className="w-1.5 h-1.5 rounded-full bg-accent-red animate-pulse-slow inline-block" />
+            {suspendedCount} suspended
+          </span>
+        )}
       </div>
-      <div className="flex items-baseline gap-1 mb-3">
-        <p className={`font-mono text-2xl font-semibold ${cfg.color}`}>{avgDepth}</p>
-        <p className="font-mono text-xs text-text-muted">cm avg</p>
-      </div>
-      <div className="space-y-1.5 pt-3 border-t border-bg-border">
+
+      {/* zone list rows */}
+      <div className="space-y-1.5 pb-3 border-b border-bg-border">
         {ZONES.map((zone) => {
           const dep = depths[zone] ?? 0;
-          const zCfg = MODE_CONFIG[depthToMode(dep)];
+          const mode = depthToMode(dep);
+          const cfg = MODE_CONFIG[mode];
+          const isSuspended = mode === 'SUSPENDED';
           return (
-            <div key={zone} className="flex items-center justify-between">
-              <span className="font-mono text-[10px] text-text-muted uppercase">{zone}</span>
-              <span className={`font-mono text-xs font-semibold ${zCfg.color}`}>{zCfg.icon} {dep}cm</span>
+            <div
+              key={zone}
+              className={`flex items-center justify-between px-2 py-1.5 rounded ${
+                isSuspended ? 'bg-accent-red/8 border border-accent-red/20' : 'hover:bg-bg-elevated/40'
+              }`}
+            >
+              {/* left: icon + zone name */}
+              <div className="flex items-center gap-2">
+                <span className="text-sm leading-none w-5 text-center">{cfg.icon}</span>
+                <span className="font-mono text-[10px] text-text-muted uppercase tracking-widest">
+                  {zone}
+                </span>
+              </div>
+              {/* right: depth + mode label */}
+              <div className="flex items-center gap-2">
+                <span className={`font-mono text-xs font-semibold tabular-nums ${cfg.color}`}>
+                  {dep}cm
+                </span>
+                <span className={`font-mono text-[9px] ${cfg.color} ${
+                  isSuspended ? 'font-bold' : 'text-text-muted'
+                }`}>
+                  {isSuspended ? 'SUSPENDED' : cfg.label}
+                </span>
+              </div>
             </div>
           );
         })}
       </div>
+
+      {/* household stats footer — real data from API */}
+      <div className="flex items-center justify-between pt-2.5 flex-wrap gap-x-3 gap-y-1">
+        <span className="font-mono text-[10px] text-text-muted">
+          <span className="text-accent-green font-semibold">{district.deliveredCount}</span> delivered
+        </span>
+        {pendingDelivery > 0 && (
+          <span className="font-mono text-[10px] text-text-muted">
+            <span className="text-accent-yellow font-semibold">{pendingDelivery}</span> pending
+          </span>
+        )}
+        {district.openIncidents > 0 && (
+          <span className="font-mono text-[10px] text-text-muted">
+            <span className="text-accent-red font-semibold">{district.openIncidents}</span> incidents
+          </span>
+        )}
+      </div>
+
       {isSelected && (
         <p className="font-mono text-[9px] text-accent-blue mt-2 animate-pulse-slow">
           Adjusting in sidebar -&gt;
@@ -187,13 +228,9 @@ export function RoutingPage() {
   const [selectedDistrictName, setSelectedDistrictName] = useState<string | null>(null);
   const [leafletLoaded, setLeafletLoaded] = useState(false);
 
-  // zoneDepths keyed by districtName -> zone -> depth
-  // populated from the API, not hardcoded
   const [zoneDepths, setZoneDepths] = useState<Record<string, Record<string, number>>>({});
-  // track which districts have been loaded from API (avoid re-fetching)
   const [loadedDistricts, setLoadedDistricts] = useState<Set<string>>(new Set());
 
-  // Load Leaflet script once
   useEffect(() => {
     if ((window as any).L) { setLeafletLoaded(true); return; }
     const link = document.createElement('link');
@@ -206,7 +243,6 @@ export function RoutingPage() {
     document.head.appendChild(script);
   }, []);
 
-  // Districts from shared dashboard cache
   const { data: summaryData, isLoading } = useQuery({
     queryKey: queryKeys.dashboard.summary(),
     queryFn: () => import('../api/dashboard').then(m => m.dashboardApi.getSummary()),
@@ -216,45 +252,32 @@ export function RoutingPage() {
     (d) => d.name !== '__central__'
   );
 
-  // Load per-zone depths from API for each district
-  // Uses GET /api/route/recommend?districtId=... which now returns per-zone array
   useEffect(() => {
     if (districts.length === 0) return;
-
     districts.forEach((d: DistrictCard) => {
-      // skip if already loaded
       if (loadedDistricts.has(d.districtId)) return;
-
       routesApi.getRecommendByDistrict(d.districtId)
         .then((result) => {
           setZoneDepths(prev => {
             const next = { ...prev };
-
             if (result.zones && result.zones.length > 0) {
-              // real data from DB — use it
               const zoneMap: Record<string, number> = {};
               result.zones.forEach((z: { zone: string; waterDepthCm: number }) => {
-                // API returns "A", "B", "C" — map to "Zone A" etc for display
                 const displayZone = z.zone.startsWith('Zone') ? z.zone : `Zone ${z.zone}`;
                 zoneMap[displayZone] = z.waterDepthCm;
               });
-              // fill any missing zones with fallbacks
               ZONES.forEach(zone => {
                 if (!(zone in zoneMap)) zoneMap[zone] = ZONE_FALLBACKS[zone];
               });
               next[d.name] = zoneMap;
             } else {
-              // no route records yet — use fallbacks
               next[d.name] = { ...ZONE_FALLBACKS };
             }
-
             return next;
           });
-
           setLoadedDistricts(prev => new Set([...prev, d.districtId]));
         })
         .catch(() => {
-          // if API fails for this district, use fallbacks silently
           setZoneDepths(prev => ({
             ...prev,
             [d.name]: prev[d.name] ?? { ...ZONE_FALLBACKS },
@@ -262,11 +285,9 @@ export function RoutingPage() {
           setLoadedDistricts(prev => new Set([...prev, d.districtId]));
         });
     });
-  // only re-run when district list length changes
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [districts.length]);
 
-  // Route logs
   const { data: logs = [] } = useQuery({
     queryKey: queryKeys.routes.logs(selectedDistrictId ?? undefined),
     queryFn: () => routesApi.getLogs(selectedDistrictId ?? undefined),
@@ -345,7 +366,6 @@ export function RoutingPage() {
 
         <div className="grid grid-cols-1 xl:grid-cols-12 gap-6">
 
-          {/* left: map + district cards */}
           <div className="xl:col-span-8 space-y-6">
             <div>
               <h2 className="font-mono text-xs text-text-muted uppercase tracking-widest mb-3">
@@ -395,7 +415,6 @@ export function RoutingPage() {
             </div>
           </div>
 
-          {/* right sidebar */}
           <div className="xl:col-span-4 space-y-6">
 
             <div>

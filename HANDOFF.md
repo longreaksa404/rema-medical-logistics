@@ -1,30 +1,65 @@
 # REMA Handoff Document
-Last updated: Chat 21 complete — FINAL (reset endpoint added)
+Last updated: Chat 22 complete — post-submission improvements
 
 ---
 
 ## Current Status
 
-**REMA IS COMPLETE. All 21 chats done.**
+**Chat 22 complete.** All 6 fixes implemented and verified. Profile page with avatar added.
 
 ---
 
-## What Was Completed in Chat 21
+## What Was Completed in Chat 22
 
-### Submission package documents
-- `REMA-Executive-Summary.md`
-- `REMA-Master-Strategy.md`
-- `REMA-Demo-Guide.md`
-- `REMA-Presentation-Outline.md`
-- `REMA-Interview-Reference.md`
+### Fix 1 — Per-zone route recommend endpoint
+- `route.service.ts` — `recommendByDistrict()` returns per-zone array
+- `route.controller.ts` — GET /api/route/recommend accepts `districtId` param
+- `frontend/src/api/routes.ts` — `getRecommendByDistrict()`, `DistrictRecommendation` type
+- `frontend/src/pages/RoutingPage.tsx` — reads real zone depths from API
 
-### Reset endpoint (added post-Chat 21)
-- `backend/src/services/alert.service.ts` — added `resetSystem()` function
-- `backend/src/controllers/alert.controller.ts` — added `reset` handler, added `resetSystem` to import
-- `backend/src/routes/alert.routes.ts` — `POST /api/alert/reset` registered (SUPER_ADMIN only)
-- `frontend/src/api/alert.ts` — NEW: trigger, getStatus, advancePhase, reset
-- `frontend/src/pages/DashboardPage.tsx` — updated: PhaseControls component added
-  below PhaseBanner, handles both advance (EC+) and reset (SUPER_ADMIN only)
+### Fix 2 — Notification triggers
+- `alert.service.ts` — notifies on activation + phase advance; emits `phase_changed`
+- `stock.service.ts` — notifies on scarcity; emits `scarcity_triggered`
+- `incident.service.ts` — notifies district hub on incident; emits `incident_reported`
+
+### Fix 3 — mustChangePassword enforcement
+- `schema.prisma` — `mustChangePassword Boolean @default(false)` added to User
+- `user.service.ts` — set true on create, false on changeOwnPassword, true on resetUserPassword
+- `auth.service.ts` — included in login response and getCurrentUser
+- `AuthContext.tsx` — login() returns boolean (mustChangePassword value)
+- `LoginPage.tsx` — redirects to /change-password when login returns true
+- `ChangePasswordPage.tsx` — forced banner, no Cancel button when mustChangePassword
+
+### Fix 4 — Zone geographic data from API
+- `RoutingPage.tsx` — replaced hardcoded zone depths with `getRecommendByDistrict` fetch
+
+### Fix 5 — WebSocket real-time alerts
+- `app.ts` — socket.io Server + httpServer export + cookie-parser
+- `index.ts` — httpServer.listen
+- Services emit events on phase change, scarcity, incident
+- `AuthContext.tsx` — socket.io-client connects on login, disconnects on logout
+- `DashboardPage.tsx` — subscribes to 3 events, silent refetch
+
+### Fix 6 — Refresh tokens
+- `schema.prisma` — RefreshToken model added
+- `auth.service.ts` — access 15m, refresh 7d, hash in DB
+- `auth.controller.ts` — httpOnly cookie, POST /api/auth/refresh
+- `auth.routes.ts` — POST /api/auth/refresh registered
+- `frontend/src/api/client.ts` — withCredentials, refresh interceptor with queue
+- Migrations: add_must_change_password, add_refresh_tokens, add_user_avatar
+
+### User Profile Page
+- `frontend/src/pages/ProfilePage.tsx` — NEW
+- `frontend/src/components/Avatar.tsx` — NEW reusable component
+- `schema.prisma` — `avatarBase64 String?` on User
+- `user.service.ts` — `updateOwnAvatar()` with 50kb limit
+- `user.controller.ts` — `updateAvatar` handler
+- `user.routes.ts` — PATCH /api/users/me/avatar
+- `auth.service.ts` — avatarBase64 in login response + getCurrentUser
+- `AuthContext.tsx` — `updateAvatar()` updates state + localStorage
+- `frontend/src/api/auth.ts` — `updateAvatar()`, `avatarBase64?` on UserProfile
+- `App.tsx` — /profile route added
+- `Sidebar.tsx` — clickable user card with Avatar component
 
 ---
 
@@ -41,63 +76,37 @@ Last updated: Chat 21 complete — FINAL (reset endpoint added)
 ## Test Accounts (all passwords: rema1234)
 | Email | Role | District |
 |---|---|---|
-| admin@rema.vn | SUPER_ADMIN | — |
-| coordinator@rema.vn | EMERGENCY_COORDINATOR | — |
-| hub1@rema.vn | HUB_MANAGER | District 1 |
-| hub2@rema.vn | HUB_MANAGER | District 2 |
-| hub3@rema.vn | HUB_MANAGER | District 3 |
-| volunteer1@rema.vn | VOLUNTEER | District 1 |
-| viewer@rema.vn | VIEWER | — |
+| admin@rema.kh | SUPER_ADMIN | - |
+| coordinator@rema.kh | EMERGENCY_COORDINATOR | - |
+| hub1@rema.kh | HUB_MANAGER | Dangkao |
+| hub2@rema.kh | HUB_MANAGER | Mean Chey |
+| hub3@rema.kh | HUB_MANAGER | Pou Senchey |
+| volunteer1@rema.kh | VOLUNTEER | Dangkao |
+| viewer@rema.kh | VIEWER | - |
 
 ---
 
-## Final Submission Checklist
-- [x] Git tag v1.0.0 applied
-- [x] All 4 submission documents in `docs/submission/`
-- [x] README.md updated with rema-system.vercel.app URL
-- [x] 113 unit tests passing
-- [x] Frontend loads at Vercel URL
-- [x] Swagger UI loads with all endpoints documented
-- [x] AI Brief button visible for coordinator@rema.vn
-- [x] UptimeRobot keeping backend warm
-- [x] POST /api/alert/reset working for admin@rema.vn
+## Key Decisions Log (Chat 22 additions)
 
----
-
-## Key Decisions Log (Full Project)
-
-| Chat | Decision | Choice |
+| Decision | Choice | Why |
 |---|---|---|
-| 1 | Core architecture | 3-layer: Central Warehouse → Sub-Warehouses → Last Mile |
-| 1 | EMK types | 3: General / Vulnerable / Chronic Illness |
-| 1 | Activation trigger | 2 of 3 conditions — locked, no manual override |
-| 1 | EMK-3 cold chain | MoH cold storage only — never at sub-warehouses |
-| 1 | Scoring system | 20-point, 5-category, paper form, auditable |
-| 1 | Cost model | $0.95/person/year, 3-bucket architecture |
-| 2–7 | Backend | Node.js + TypeScript + Express + Prisma + PostgreSQL |
-| 7.6 | Frontend architecture | Single unified React app (Option A), one Vercel deployment |
-| 8–14 | Frontend | React + Vite + TypeScript + Tailwind CSS |
-| 15–17 | Static visuals | draw.io (V3, V5) + ReportLab PDF (V6) |
-| 18 | Test scope | Backend utility functions only — no Prisma, no HTTP |
-| 18 | Scarcity boundary | isInScarcity uses strict < 0.3 — exactly 30% is NOT scarce |
-| 19 | CI/CD | GitHub Actions: test on PR, deploy to Render on main |
-| 20 | AI feature | Mock service, no API key required, reads real DB, advisory only |
-| 20 | Advisory banner | Red banner always rendered — not dismissable |
-| 21 | Submission package | 4 documents: Executive Summary, Master Strategy, Demo Guide, Slide Outline |
-| 21 | Frontend URL | rema-system.vercel.app (renamed from rema-frontend-delta) |
-| 21 | Reset endpoint | POST /api/alert/reset — SUPER_ADMIN only, resets phase to 0, clears all triggers, invalidates cache |
-| 21 | Phase direction | Phase advances forward only (0→1→2) via frontend; reset is the only way back, SUPER_ADMIN only |
-| Post-21 | Phase controls on dashboard | PhaseControls component below PhaseBanner — advance button for EC+, reset button for SUPER_ADMIN only, confirm dialog before reset |
-| Post-21 | alert.ts API file | Created new frontend/src/api/alert.ts covering all 4 alert endpoints |
+| Refresh token storage | SHA-256 hash in DB, raw token in httpOnly cookie | Raw token never touches DB; cookie is XSS-safe |
+| Access token expiry | 15 minutes | Short enough to limit stolen token window; refresh handles seamless renewal |
+| Avatar storage | base64 in users table | No external service dependency; 128x128 JPEG stays under 25kb |
+| mustChangePassword enforcement | Client-side redirect only | UX gate sufficient for demo; server-side enforcement optional for production |
+| Profile page | /profile route inside AppShell, all roles | Centralises account management; sidebar user card is the entry point |
+| Sidebar user card | Clickable card (avatar + name) → /profile | Clean UX pattern; no separate profile icon needed |
+| Socket.io broadcast | All connected clients receive all events | Operational roles all need system-wide awareness |
 
+---
 
-## Architecture Decision — V4 PrioritizePage Removed
+## Prisma Migrations Applied (Chat 22)
+1. `add_must_change_password` — Boolean field on users
+2. `add_refresh_tokens` — RefreshToken model + User relation
+3. `add_user_avatar` — avatarBase64 nullable String on users
 
-Date: Chat [current]
-Decision: PrioritizePage (V4) removed entirely.
-Reason: Assessment is a VOLUNTEER field task — already in VolunteerPage AssessTab.
-         Priority queue is already on DashboardPage. V4 was a mixed-role, mixed-purpose
-         page with no clear owner.
-Result: VolunteerPage is the single place for household assessment.
-        DashboardPage is the single place to view the priority queue.
-        No logic was lost — only the duplicate page wrapper was removed.
+## Git Commit
+```bash
+git add .
+git commit -m "Chat 22 complete: per-zone routes, notifications, mustChangePassword, websocket, refresh tokens, profile page with avatar"
+```

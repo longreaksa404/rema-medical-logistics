@@ -28,27 +28,27 @@ All passwords: `rema1234`
 | volunteer1@rema.kh | VOLUNTEER | Dangkao |
 | viewer@rema.kh | VIEWER | - |
 
-> **Demo tip:** Log in as `admin@rema.vn` to reset the system to Phase 0 before a demo run. Log in as `coordinator@rema.vn` to trigger activation and advance phases.
+> **Demo tip:** Log in as `admin@rema.kh` to reset the system to Phase 0 before a demo run. Log in as `coordinator@rema.kh` to trigger activation and advance phases.
 
 ---
 
 ## What REMA Does
 
-REMA is a pre-positioned, vulnerability-scored medical logistics system designed to deliver Emergency Medical Kits to the right households within 24–48 hours of a flood event - through any water depth up to 80cm.
+REMA is a pre-positioned, vulnerability-scored medical logistics system designed to deliver Emergency Medical Kits to the right households within 24-48 hours of a flood event - through any water depth up to 80cm.
 
 **The core insight:** Reactive logistics fails in urban flooding because by the time demand is confirmed, roads are already gone. REMA pre-positions supplies before peaks, scores households by medical vulnerability, and adapts delivery mode to water depth.
 
 **Three-layer architecture:**
 - Layer 1: Central Warehouse - master stock, 30% reserve after dispatch
-- Layer 2: Sub-Warehouses ×3 - stocked Hours 3–8 in existing community buildings
-- Layer 3: Last-mile volunteers - motorbike (0–30cm) / bicycle or foot (30–60cm) / boat (60–80cm) / suspended above 80cm
+- Layer 2: Sub-Warehouses x3 - stocked Hours 3-8 in existing community buildings
+- Layer 3: Last-mile volunteers - motorbike (0-30cm) / bicycle or foot (30-60cm) / boat (60-80cm) / suspended above 80cm
 
 **Three EMK types:**
 - EMK-1 General: ORS, wound care, paracetamol, hygiene
 - EMK-2 Vulnerable: all EMK-1 + infant formula, prenatal vitamins, thermometer
 - EMK-3 Chronic Illness: 3-day medication supply - MoH cold storage only, never pre-stored at sub-warehouses
 
-**Prioritisation:** 20-point vulnerability score across 5 categories. Critical households (15–20 points) delivered in current run. Every score is documented on paper and auditable.
+**Prioritisation:** 20-point vulnerability score across 5 categories. Critical households (15-20 points) delivered in current run. Every score is documented on paper and auditable.
 
 **Activation trigger:** 2 of 3 objective conditions (locked - no single-person override).
 
@@ -62,13 +62,13 @@ REMA is a pre-positioned, vulnerability-scored medical logistics system designed
 | Sub-warehouses | 3 (one per district) |
 | Volunteer minimum | 36 (12 per sub-warehouse) |
 | EMK types | 3 (General / Vulnerable / Chronic Illness) |
-| Response window | 24–48 hours (critical phase) |
-| Water depth range | 30–80cm operational; suspended above 80cm |
-| API endpoints | 51+ |
-| Database tables | 15 |
-| Frontend views | 9 |
+| Response window | 24-48 hours (critical phase) |
+| Water depth range | 30-80cm operational; suspended above 80cm |
+| API endpoints | 55+ |
+| Database tables | 17 |
+| Frontend views | 10 |
 | User roles | 5 |
-| Documented assumptions | 57 |
+| Documented assumptions | 64 |
 | Unit tests | 113 |
 | Annual system cost | ~$69,500 USD |
 | Cost per beneficiary | ~$0.95/person/year |
@@ -79,7 +79,8 @@ REMA is a pre-positioned, vulnerability-scored medical logistics system designed
 
 ```
 Backend:    Node.js + TypeScript + Express + Prisma + PostgreSQL
-Auth:       JWT (jsonwebtoken) + bcrypt (cost factor 12 in production)
+Auth:       JWT access token (15m) + httpOnly refresh token (7d) + bcrypt
+Realtime:   socket.io — phase changes, scarcity alerts, incident notifications
 Frontend:   React (Vite) + TypeScript + Tailwind CSS + Recharts + Leaflet.js
 Hosting:    Render (backend) + Supabase (PostgreSQL) + Vercel (frontend)
 API Docs:   Swagger (swagger-ui-express)
@@ -138,8 +139,6 @@ Expected output: **113 tests passing** across 4 test files:
 | `alert.test.ts` | 13 | All 8 activation trigger combinations |
 | `route.test.ts` | 23 | All 4 delivery mode tiers and depth boundaries |
 
-These tests verify that the implementation matches the strategy documents exactly. No database connection required - pure utility functions only.
-
 ---
 
 ## CI/CD Pipeline
@@ -170,8 +169,8 @@ Push to main (after PR merge):
 
 | Decision | Choice | Why |
 |---|---|---|
-| Pre-positioning strategy | Stock staged Hours 3–8 before flooding peaks | Reactive logistics fails when roads are gone |
-| EMK-3 cold chain | MoH cold storage only; never at sub-warehouses | Community buildings cannot maintain 2–8°C |
+| Pre-positioning strategy | Stock staged Hours 3-8 before flooding peaks | Reactive logistics fails when roads are gone |
+| EMK-3 cold chain | MoH cold storage only; never at sub-warehouses | Community buildings cannot maintain 2-8C |
 | Activation trigger | 2 of 3 conditions (locked, not manual) | Prevents false activations; removes single-person authority |
 | Phase direction | Forward only (0→1→2) via frontend | Prevents accidental rollback during active flood response |
 | System reset | POST /api/alert/reset - SUPER_ADMIN only | Clean demo reset without touching the database directly |
@@ -181,6 +180,12 @@ Push to main (after PR merge):
 | User deactivation | Deactivate, never delete | Audit trail preserved for accountability |
 | Scoring engine | Identical TypeScript in frontend and backend | Live preview without an API call; server validates on submit |
 | AI Brief | Advisory only; reads aggregate data; no PII in prompt | Technology augments human judgment - never replaces it |
+| Auth tokens | 15m access + 7d httpOnly refresh | Short window limits stolen token exposure; seamless renewal |
+| mustChangePassword | Forced redirect on first login | Admin never shares permanent passwords |
+| Avatar storage | base64 in users table, resized 128x128 | No extra service; stays under 25kb per user |
+| WebSocket events | Broadcast to all connected clients | All operational roles need system-wide situational awareness |
+| Per-zone routing | API-driven depths, fallback only if no records | Routing map always reflects real DB state |
+| Profile page | /profile for all roles | Central account management; sidebar user card is entry point |
 
 ---
 
@@ -198,8 +203,6 @@ The Emergency Coordinator dashboard includes an AI-powered operational brief. Wh
 - Graceful degradation to HTTP 503 if unavailable
 - "Advisory only - human decision required" banner is always visible in the modal
 
-The AI Brief is built as a mock service (no API key required for the live demo). It reads real database state and generates contextually accurate text. Replacing it with a live Anthropic API call requires changing only `backend/src/services/ai.service.ts`.
-
 ---
 
 ## Submission Documents
@@ -209,12 +212,9 @@ The full submission package is in `docs/submission/`:
 | Document | Description |
 |---|---|
 | `REMA-Executive-Summary.md` | 1-page overview for judges |
-| `REMA-Master-Strategy.md` | Complete strategy across all 6 sections (A–F) |
+| `REMA-Master-Strategy.md` | Complete strategy across all 6 sections (A-F) |
 | `REMA-Demo-Guide.md` | Step-by-step walkthrough for judges (9 steps, ~15 min) |
 | `REMA-Presentation-Outline.md` | 10-slide presentation structure with speaker notes |
-
-Strategy section source files are in `docs/`:
-`section-0-core-concept.md`, `section-A-response-design.md`, `section-B-logistics-model.md`, `section-C-prioritization-framework.md`, `section-D-coordination-model.md`, `section-E-scalability-sustainability.md`, `section-F-financial-plan.md`, `Assumptions-log.md`
 
 ---
 
@@ -226,5 +226,3 @@ Strategy section source files are in `docs/`:
 | V3 Sub-Warehouse Floor Plan | `sections/visuals/sub-warehouse.drawio.png` | draw.io |
 | V5 Stakeholder Coordination Flowchart | `sections/visuals/REMA-stakeholder-flowchart.drawio.png` | draw.io |
 | V6 Operating Protocol | `sections/visuals/operating-protocol.pdf` | ReportLab PDF |
-
-All visuals are also served via the frontend at `/visuals/`.
