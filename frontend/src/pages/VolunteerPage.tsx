@@ -404,7 +404,7 @@ function AssessTab({ districtId }: { districtId: string }) {
               disabled={submitMutation.isPending || !address.trim()} className="btn-primary w-full">
               {submitMutation.isPending ? 'Submitting...' : `Submit Assessment · ${liveScore.totalScore}/20`}
             </button>
-            <p className="font-mono text-[10px] text-text-muted text-center">Section C — 5 categories, 20-point scale</p>
+            <p className="font-mono text-[10px] text-text-muted text-center">Categories, 20-point scale</p>
           </div>
         </div>
       </div>
@@ -579,7 +579,7 @@ function ReportTab({ districtId }: { districtId: string }) {
                 <>
                   <Badge label="AUTO-ESCALATED" color="text-accent-red border-accent-red/30 bg-accent-red/10" />
                   <p className="font-mono text-[10px] text-text-secondary mt-2 leading-relaxed">
-                    VOLUNTEER_SAFETY incident auto-escalated to Operations Center per Section A.4.
+                    VOLUNTEER_SAFETY incident auto-escalated to Operations Center per.
                     If water exceeds 80cm, return to sub-warehouse or shelter in place immediately.
                   </p>
                 </>
@@ -600,7 +600,7 @@ function ReportTab({ districtId }: { districtId: string }) {
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
         <div className="card p-5">
-          <SectionTitle sub="VOLUNTEER_SAFETY incidents are auto-escalated (Section A.4)">Incident Type</SectionTitle>
+          <SectionTitle sub="VOLUNTEER_SAFETY incidents are auto-escalated">Incident Type</SectionTitle>
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-1 gap-2">
             {INCIDENT_TYPES.map(t => (
               <OptionButton key={t.value} selected={incType === t.value} onClick={() => setIncType(t.value)} danger={t.value === 'VOLUNTEER_SAFETY'}>
@@ -628,7 +628,7 @@ function ReportTab({ districtId }: { districtId: string }) {
             <div className="bg-accent-red/10 border border-accent-red/40 rounded px-4 py-3 flex gap-3 animate-slide-in">
               <span className="text-2xl flex-shrink-0">🚨</span>
               <div>
-                <p className="font-mono text-xs font-bold text-accent-red mb-1">SAFETY HARD CONSTRAINT — Section A.4</p>
+                <p className="font-mono text-xs font-bold text-accent-red mb-1">SAFETY HARD CONSTRAINT</p>
                 <p className="font-mono text-[10px] text-accent-red/80 leading-relaxed">
                   If water depth exceeds 80cm, stop all delivery immediately. Return to sub-warehouse or shelter in place.
                 </p>
@@ -719,9 +719,9 @@ export function VolunteerPage() {
             <span className="font-mono text-[10px] text-text-muted">· {user?.name ?? 'Volunteer'}</span>
           </div>
           <span className="font-mono text-[10px] text-text-muted">
-            {activeTab === 'assess'  ? 'Section C — 20-point scoring system' :
-             activeTab === 'deliver' ? 'Section B.5 — Last-mile delivery model' :
-                                      'Section A.4 — Volunteer safety protocol'}
+            {activeTab === 'assess'  ? '20-point scoring system' :
+             activeTab === 'deliver' ? 'Last-mile delivery model' :
+                                      'Volunteer safety protocol'}
           </span>
         </div>
 

@@ -295,7 +295,7 @@ function TriggerPanel({
             Activation Required
           </h3>
           <p className="font-mono text-[10px] text-text-muted mt-0.5">
-            Submit any 2 of 3 conditions to activate REMA Phase 1 — Section A.3
+            Submit any 2 of 3 conditions to activate REMA Phase 1
           </p>
         </div>
         <span className={`font-mono text-xs px-2 py-0.5 rounded border flex-shrink-0 ${

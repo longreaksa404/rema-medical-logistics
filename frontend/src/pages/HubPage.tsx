@@ -633,7 +633,7 @@ function StockTab({ districtId, subWarehouseId, allSubWarehouses }: {
         </div>
  
         <div className="card p-5">
-          <SectionTitle sub="Manual correction at sub-warehouse with mandatory reason (Section B.7)">
+          <SectionTitle sub="Manual correction at sub-warehouse with mandatory reason">
             Manual Adjustment
           </SectionTitle>
           <div className="space-y-3">
@@ -852,7 +852,7 @@ function VolunteersTab({ districtId, subWarehouseId }: { districtId: string; sub
         </div>
 
         <div className="card p-5">
-          <SectionTitle sub="Assign to zone + team (Section D.6 — cross-ward)">Assign to Zone</SectionTitle>
+          <SectionTitle sub="Assign to zone + team">Assign to Zone</SectionTitle>
           {!alertId ? (
             <div className="bg-accent-orange/10 border border-accent-orange/30 rounded px-3 py-3">
               <p className="font-mono text-xs text-accent-orange">REMA must be activated before assigning volunteers to zones.</p>
@@ -1036,7 +1036,7 @@ function DeliveriesTab({ districtId, subWarehouseId }: { districtId: string; sub
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
         <div className="card p-5">
-          <SectionTitle sub="Fixed departure times: 07:00 / 11:00 / 15:00 (Section B.4)">Start Delivery Run</SectionTitle>
+          <SectionTitle sub="Fixed departure times: 07:00 / 11:00 / 15:00">Start Delivery Run</SectionTitle>
           <div className="space-y-3">
             <div className="grid grid-cols-2 gap-3">
               <div>
@@ -1214,7 +1214,7 @@ function IncidentsTab({ districtId }: { districtId: string }) {
       {success && <SuccessBox msg={success} onDismiss={() => setSuccess('')} />}
 
       <div className="card p-5">
-        <SectionTitle sub="VOLUNTEER_SAFETY incidents are auto-escalated to Operations Center (Section A.4)">
+        <SectionTitle sub="VOLUNTEER_SAFETY incidents are auto-escalated to Operations Center">
           Report Incident
         </SectionTitle>
         <div className="space-y-3">
@@ -1380,7 +1380,7 @@ function RadioTab({ districtId }: { districtId: string }) {
       </div>
 
       <div>
-        <SectionTitle sub="Section D.9 — fixed schedule: 08:00, 12:00, 16:00, 20:00">Today's Check-in Schedule</SectionTitle>
+        <SectionTitle sub="Fixed schedule: 08:00, 12:00, 16:00, 20:00">Today's Check-in Schedule</SectionTitle>
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
           {SLOTS.map(s => {
             const done = completedSlots.includes(s.value);
@@ -1477,7 +1477,7 @@ function RadioTab({ districtId }: { districtId: string }) {
               : `Submit ${SLOTS.find(s => s.value === slot)?.label} Check-in`}
           </button>
           <p className="font-mono text-[10px] text-text-muted text-center">
-            Section D.9: If internet/phone fails, submit retroactively when contact restored.
+            If internet/phone fails, submit retroactively when contact restored.
           </p>
         </div>
       </div>
