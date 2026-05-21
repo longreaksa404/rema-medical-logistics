@@ -31,10 +31,10 @@ const MODE_FILL: Record<DeliveryMode, string> = {
 };
 
 // distinct border color per district so they read clearly on the map
-const DISTRICT_BORDER: Record<string, string> = { 
-  'Dangkao':     '#7a1b1b',
-  'Mean Chey':   '#4e64c7',
-  'Pou Senchey': '#2da75a',
+const DISTRICT_BORDER: Record<string, string> = {
+  'Dangkao':     '#5e0000',
+  'Mean Chey':   '#002a5e',
+  'Pou Senchey': '#0b5000',
 };
 
 // full district polygons — used for thick outer border overlay only (no fill)
@@ -131,12 +131,13 @@ export function LeafletMap({
           { type: 'Feature', geometry: { type: 'Polygon', coordinates: [coords] }, properties: {} },
           {
             style: {
-              // no border on zone polygons — border comes from district overlay
-              color: 'transparent',
-              weight: 0,
+              // thin white dashed line separates zones within a district
+              color: 'rgba(255,255,255,0.5)',
+              weight: 1.5,
+              dashArray: '5 4',
               fillColor,
               fillOpacity: 0.40,
-              opacity: 0,
+              opacity: 1,
             },
           }
         );
@@ -173,7 +174,7 @@ export function LeafletMap({
         const districtLabel = L.marker([dCentroid[0], dCentroid[1]], {
           icon: L.divIcon({
             className: '',
-            html: `<div class="rema-district-name" style="border-color:${borderColor};color:${borderColor}">${district.name}</div>`,
+            html: `<div class="rema-district-name" style="border-color:${borderColor}">${district.name}</div>`,
             iconSize: [120, 24],
             iconAnchor: [60, 12],
           }),
@@ -237,6 +238,7 @@ export function LeafletMap({
           font-family: 'JetBrains Mono','Fira Mono',monospace;
           font-size: 11px; font-weight: 700;
           letter-spacing: 0.04em;
+          color: #ffffff;
           pointer-events: none;
           white-space: nowrap;
         }
@@ -287,7 +289,7 @@ export function LeafletMap({
       const border = borderLayersRef.current[district.districtId];
       if (border?.setStyle) {
         const borderColor = DISTRICT_BORDER[district.name] ?? '#ffffff';
-        border.setStyle({ color: borderColor, weight: 3, opacity: 0.9 });
+        border.setStyle({ color: borderColor, weight: 3, opacity: 0.7 });
       }
     });
 
