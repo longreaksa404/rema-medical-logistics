@@ -26,10 +26,8 @@ export function LoginPage() {
     setIsLoading(true);
 
     try {
-      await login(email.trim(), password);
-      // login sets mustChangePassword in context — read it after
-      const storedMustChange = localStorage.getItem('rema_must_change');
-      if (storedMustChange === 'true') {
+      const mustChange = await login(email.trim(), password);
+      if (mustChange) {
         navigate('/change-password', { replace: true });
       } else {
         navigate('/dashboard', { replace: true });

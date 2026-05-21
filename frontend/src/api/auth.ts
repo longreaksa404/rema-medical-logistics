@@ -7,6 +7,7 @@ export interface UserProfile {
   role: 'SUPER_ADMIN' | 'EMERGENCY_COORDINATOR' | 'HUB_MANAGER' | 'VOLUNTEER' | 'VIEWER';
   districtId: string | null;
   mustChangePassword?: boolean;  // present on login response, absent on /me
+  avatarBase64?: string | null;
 }
 
 export interface LoginResponse {
@@ -31,5 +32,9 @@ export const authApi = {
 
   changePassword: async (currentPassword: string, newPassword: string): Promise<void> => {
     await api.patch('/api/users/me/password', { currentPassword, newPassword });
+  },
+
+  updateAvatar: async (avatarBase64: string): Promise<void> => {
+    await api.patch('/api/users/me/avatar', { avatarBase64 });
   },
 };

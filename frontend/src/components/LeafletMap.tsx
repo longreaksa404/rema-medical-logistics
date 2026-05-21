@@ -33,8 +33,8 @@ const MODE_FILL: Record<DeliveryMode, string> = {
 // distinct border color per district so they read clearly on the map
 const DISTRICT_BORDER: Record<string, string> = {
   'Dangkao':     '#ffffff',
-  'Mean Chey':   '#60a5fa',
-  'Pou Senchey': '#f0abfc',
+  'Mean Chey':   '#4e85c7',
+  'Pou Senchey': '#bb86c6',
 };
 
 // full district polygons — used for thick outer border overlay only (no fill)

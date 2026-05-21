@@ -319,3 +319,27 @@ export async function getPublicStatus() {
     lastUpdated: new Date().toISOString(),
   };
 }
+
+// ─── UPDATE OWN AVATAR ────────────────────────────────────────────────────────
+// Any authenticated user can update their own avatar.
+// Base64 string is validated for size before storing.
+
+export async function updateOwnAvatar(userId: string, avatarBase64: string) {
+  // rough size check — base64 of a 128x128 JPEG is ~15-25kb
+  // 50kb limit keeps DB rows manageable
+  if (avatarBase64.length > 70_000) {
+    throw new Error('Image too large. Please use an image under 50kb.');
+  }
+
+  // must be a valid base64 data URL
+  if (!avatarBase64.startsWith('data:image/')) {
+    throw new Error('Invalid image format.');
+  }
+
+  await prisma.user.update({
+    where: { id: userId },
+    data: { avatarBase64 },
+  });
+
+  return { message: 'Avatar updated successfully' };
+}

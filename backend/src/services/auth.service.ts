@@ -56,12 +56,13 @@ export async function loginUser(email: string, password: string) {
     accessToken,
     refreshToken,
     user: {
-      id:                user.id,
-      email:             user.email,
-      name:              user.name,
-      role:              user.role,
-      districtId:        user.districtId,
+      id:                 user.id,
+      email:              user.email,
+      name:               user.name,
+      role:               user.role,
+      districtId:         user.districtId,
       mustChangePassword: user.mustChangePassword,
+      avatarBase64:       user.avatarBase64,      // add this
     },
   };
 }
@@ -117,6 +118,7 @@ export async function getCurrentUser(userId: string) {
       id: true, email: true, name: true, role: true,
       districtId: true, active: true, createdAt: true,
       mustChangePassword: true,
+      avatarBase64: true,    // add this
     },
   });
 

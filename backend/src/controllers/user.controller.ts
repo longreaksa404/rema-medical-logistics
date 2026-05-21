@@ -8,6 +8,7 @@ import {
   changeOwnPassword,
   resetUserPassword,
   getPublicStatus,
+  updateOwnAvatar,
 } from '../services/user.service';
 
 // ─── GET /api/status (PUBLIC — no auth) ──────────────────────────────────────
@@ -164,6 +165,25 @@ export async function resetPassword(req: Request, res: Response): Promise<void> 
     res.json(result);
   } catch (err) {
     const message = err instanceof Error ? err.message : 'Error resetting password';
+    res.status(400).json({ error: message });
+  }
+}
+
+// ─── PATCH /api/users/me/avatar ───────────────────────────────────────────────
+
+export async function updateAvatar(req: Request, res: Response): Promise<void> {
+  const { avatarBase64 } = req.body;
+
+  if (!avatarBase64) {
+    res.status(400).json({ error: 'avatarBase64 is required' });
+    return;
+  }
+
+  try {
+    const result = await updateOwnAvatar(req.user!.userId, avatarBase64);
+    res.json(result);
+  } catch (err) {
+    const message = err instanceof Error ? err.message : 'Failed to update avatar';
     res.status(400).json({ error: message });
   }
 }

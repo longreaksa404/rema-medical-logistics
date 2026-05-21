@@ -13,12 +13,13 @@ interface AuthContextValue {
   token: string | null;
   isLoading: boolean;
   mustChangePassword: boolean;
-  login: (email: string, password: string) => Promise<void>;
+  login: (email: string, password: string) => Promise<boolean>;
   logout: () => void;
   clearMustChangePassword: () => void;
   isRole: (...roles: UserProfile['role'][]) => boolean;
   // subscribe to a socket event; returns unsubscribe fn
   onSocketEvent: (event: SocketEventName, handler: (data: unknown) => void) => () => void;
+  updateAvatar: (base64: string) => void;
 }
 
 const AuthContext = createContext<AuthContextValue | null>(null);
@@ -76,7 +77,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  const login = useCallback(async (email: string, password: string) => {
+  const login = useCallback(async (email: string, password: string): Promise<boolean> => {
     const data = await authApi.login(email, password);
     const mustChange = data.user.mustChangePassword ?? false;
     localStorage.setItem('rema_token', data.token);
@@ -86,6 +87,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     setUser(data.user);
     setMustChangePassword(mustChange);
     connectSocket(data.token);
+    return mustChange;  
   }, [connectSocket]);
 
   const logout = useCallback(() => {
@@ -126,12 +128,18 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     [token]
   );
 
+  const updateAvatar = useCallback((base64: string) => {
+    setUser(prev => {
+      if (!prev) return prev;
+      const updated = { ...prev, avatarBase64: base64 };
+      localStorage.setItem('rema_user', JSON.stringify(updated));
+      return updated;
+    });
+  }, []);
+
   return (
     <AuthContext.Provider
-      value={{
-        user, token, isLoading, mustChangePassword,
-        login, logout, clearMustChangePassword, isRole, onSocketEvent,
-      }}
+      value={{ user, token, isLoading, mustChangePassword, login, logout, clearMustChangePassword, isRole, onSocketEvent, updateAvatar }}
     >
       {children}
     </AuthContext.Provider>
