@@ -1,6 +1,7 @@
 // LeafletMap.tsx - V2 Routing Map
-// Shows 9 zone polygons (3 per district), each colored by its own water depth.
-// Zone polygons are clipped from real OSM district boundaries using lat-band splitting.
+// 9 zone polygons (3 per district), each colored by water depth.
+// District identity shown via thick outer border + district name label.
+// Zone identity shown via small "A" "B" "C" letter labels per zone.
 // Destroy-before-unmount lifecycle prevents sign-out freeze.
 
 import { useEffect, useRef } from 'react';
@@ -10,7 +11,7 @@ type DeliveryMode = 'MOTORBIKE' | 'BICYCLE_OR_FOOT' | 'BOAT' | 'SUSPENDED';
 
 interface LeafletMapProps {
   districts: DistrictCard[];
-  zoneDepths: Record<string, Record<string, number>>;  // districtName -> zone -> depth
+  zoneDepths: Record<string, Record<string, number>>;
   selectedDistrictId: string | null;
   onDistrictClick: (districtId: string, name: string) => void;
 }
@@ -29,8 +30,22 @@ const MODE_FILL: Record<DeliveryMode, string> = {
   SUSPENDED:       '#f85149',
 };
 
-// zone polygons clipped from real OSM district boundaries
-// A = north third, B = middle third, C = south third per district
+// distinct border color per district so they read clearly on the map
+const DISTRICT_BORDER: Record<string, string> = {
+  'Dangkao':     '#ffffff',
+  'Mean Chey':   '#60a5fa',
+  'Pou Senchey': '#f0abfc',
+};
+
+// full district polygons — used for thick outer border overlay only (no fill)
+const DISTRICT_GEOJSON: Record<string, number[][]> = {
+  'Dangkao': [[104.7912514,11.4472281],[104.7923324,11.446477],[104.7924209,11.4456842],[104.7922706,11.4449213],[104.7927363,11.4438244],[104.7931625,11.4434905],[104.7941874,11.4434517],[104.7949071,11.4435023],[104.7955955,11.4438258],[104.7963966,11.4445502],[104.7971166,11.4449086],[104.7985864,11.445142],[104.7993543,11.4448307],[104.7993607,11.4440612],[104.7991185,11.4430487],[104.7983407,11.4425151],[104.7976855,11.4419006],[104.7974491,11.4410031],[104.7975843,11.4402944],[104.7982402,11.4397627],[104.7989294,11.4390504],[104.7994718,11.4382712],[104.8001385,11.4374364],[104.8009859,11.4363233],[104.8013481,11.434976],[104.8015127,11.4341531],[104.8021168,11.4335955],[104.8027606,11.4331059],[104.8038222,11.4324607],[104.8048388,11.4315927],[104.8056527,11.4314144],[104.8069905,11.4310988],[104.8082933,11.4307605],[104.8097167,11.4302149],[104.8106192,11.4300046],[104.8119632,11.4302721],[104.8131258,11.4305401],[104.8138015,11.4307256],[104.8147738,11.4307862],[104.8160156,11.4308092],[104.8167152,11.4312774],[104.8179902,11.432403],[104.8184186,11.4333276],[104.8190386,11.4347981],[104.819354,11.4358674],[104.8192412,11.4367071],[104.8200846,11.4360929],[104.8209643,11.4356933],[104.8221748,11.4354148],[104.8221038,11.4326449],[104.8262603,11.4324592],[104.8271789,11.4324181],[104.8283518,11.4323657],[104.8285456,11.4317235],[104.8287387,11.4310842],[104.8288752,11.430632],[104.8291462,11.4297342],[104.8294892,11.4285978],[104.8296548,11.4280492],[104.8297244,11.4278186],[104.8303035,11.4278185],[104.8312799,11.4278184],[104.8439734,11.4278168],[104.844954,11.4289841],[104.8460594,11.4284239],[104.8465272,11.4278887],[104.8509944,11.4278587],[104.8525682,11.4279038],[104.8535511,11.427815],[104.8552553,11.4278755],[104.8646524,11.4278736],[104.868091,11.4279267],[104.8680792,11.4259483],[104.8681263,11.4250103],[104.8681501,11.4240607],[104.8681491,11.4200852],[104.8723109,11.42009],[104.8737701,11.4228931],[104.8805601,11.436238],[104.8815889,11.4362006],[104.8827656,11.4358925],[104.8842463,11.4349299],[104.8851673,11.4342644],[104.8863812,11.4326348],[104.8872467,11.4304997],[104.8886098,11.4302029],[104.8910993,11.431791],[104.8921592,11.4326064],[104.8930884,11.4333212],[104.8947401,11.4344953],[104.8965787,11.4354851],[104.898116,11.4354178],[104.8997356,11.4349955],[104.9014474,11.4349859],[104.9035663,11.4355519],[104.9056854,11.4357267],[104.9079221,11.4353498],[104.9097989,11.4343533],[104.9120835,11.4331037],[104.9130861,11.4323929],[104.9125639,11.4310939],[104.9135205,11.4302565],[104.915209,11.4302705],[104.9167002,11.4300313],[104.9175763,11.4288889],[104.9184929,11.4290042],[104.9197262,11.4289388],[104.9212927,11.4290708],[104.922026,11.4289723],[104.9230348,11.4290223],[104.923054,11.4488043],[104.9219514,11.4517485],[104.9228983,11.4525915],[104.9234727,11.4528423],[104.9216744,11.4575069],[104.9197271,11.4633973],[104.9190394,11.4664719],[104.9190667,11.4715025],[104.9194064,11.4755564],[104.9200898,11.4792154],[104.9207603,11.482173],[104.9213731,11.4844444],[104.917659,11.4833902],[104.9135539,11.4823605],[104.9135121,11.5021688],[104.9137437,11.5028245],[104.9137843,11.505021],[104.9136447,11.5089188],[104.9135916,11.511182],[104.9136286,11.514622],[104.9129833,11.5188069],[104.9122736,11.5189574],[104.9100624,11.519441],[104.9076119,11.5199257],[104.9059753,11.5203444],[104.8966963,11.5230196],[104.8936204,11.5242306],[104.8910488,11.525139],[104.8890926,11.5256054],[104.8862496,11.5257224],[104.8776198,11.5257654],[104.8762833,11.5219501],[104.8762621,11.5215548],[104.8763715,11.5212962],[104.8772311,11.5205264],[104.8777638,11.5197482],[104.8779722,11.5192907],[104.8740452,11.5187361],[104.8741341,11.5118981],[104.8595896,11.5118355],[104.8592437,11.5090074],[104.8576558,11.508788],[104.8567165,11.5088926],[104.8552765,11.5096745],[104.8542811,11.5097345],[104.8515414,11.509617],[104.849827,11.5081574],[104.8457779,11.5079377],[104.8440688,11.5079109],[104.8440875,11.5024535],[104.8192039,11.5023636],[104.8183511,11.5013944],[104.8175546,11.4955819],[104.8190639,11.4942109],[104.8197541,11.4925329],[104.818926,11.4907907],[104.81677,11.4898866],[104.8134076,11.4663919],[104.8108685,11.4617609],[104.8097098,11.4599313],[104.8083211,11.4588822],[104.8064618,11.4585857],[104.8032511,11.4585433],[104.8005474,11.4588167],[104.797951,11.4591322],[104.7953975,11.4599103],[104.7956765,11.4583961],[104.7956336,11.4567768],[104.7947753,11.4546738],[104.7928441,11.4531806],[104.7917283,11.4505518],[104.7917497,11.4490166],[104.7917497,11.4482174],[104.7912514,11.4472281]],
+  'Mean Chey': [[104.8659893,11.5426797],[104.8662173,11.5401635],[104.8662921,11.5399161],[104.8663992,11.539804],[104.8672496,11.5325095],[104.8713333,11.5330777],[104.8713416,11.5257059],[104.8747101,11.5257056],[104.8776198,11.5257654],[104.8862496,11.5257224],[104.8890926,11.5256054],[104.8910488,11.525139],[104.8936204,11.5242306],[104.8966963,11.5230196],[104.9059753,11.5203444],[104.9076119,11.5199257],[104.9100624,11.519441],[104.9122736,11.5189574],[104.9129833,11.5188069],[104.9136286,11.514622],[104.9135916,11.511182],[104.9136447,11.5089188],[104.9137843,11.505021],[104.9137437,11.5028245],[104.9135121,11.5021688],[104.9135539,11.4823605],[104.917659,11.4833902],[104.9213731,11.4844444],[104.9233772,11.4852287],[104.9261517,11.4861203],[104.9354279,11.4903469],[104.9459257,11.4945094],[104.935756,11.524109],[104.9324846,11.5315013],[104.9316699,11.5311951],[104.9312529,11.5310384],[104.9306043,11.5308242],[104.9300531,11.5306422],[104.9294766,11.5305071],[104.9289861,11.5303974],[104.9273185,11.5297133],[104.9257028,11.5290147],[104.9247878,11.5285971],[104.9242056,11.5283314],[104.9234394,11.5280207],[104.9227781,11.5277527],[104.9221789,11.5274967],[104.9214059,11.5272113],[104.9202187,11.5269679],[104.9186463,11.5270835],[104.917442,11.5274641],[104.9159711,11.5285306],[104.9151922,11.5296302],[104.9141493,11.5315965],[104.9135839,11.5326325],[104.9130115,11.5337221],[104.9115792,11.5364631],[104.9102193,11.5390569],[104.9096346,11.5401933],[104.9090339,11.5411862],[104.9088874,11.5414474],[104.9081433,11.5422988],[104.907057,11.5431718],[104.9060158,11.5436317],[104.9051784,11.5438199],[104.9036399,11.5439713],[104.9029911,11.5440841],[104.9025429,11.544162],[104.9015537,11.5444874],[104.9010247,11.5448222],[104.9002533,11.5454077],[104.8994696,11.5462549],[104.8991188,11.5469498],[104.898985,11.5472489],[104.8988308,11.5480393],[104.8989633,11.5481707],[104.8984549,11.548664],[104.8981415,11.5487643],[104.8978371,11.5488214],[104.8975501,11.548803],[104.8973023,11.5487341],[104.8970802,11.5486635],[104.8968855,11.5487194],[104.8966769,11.548897],[104.8962536,11.5494105],[104.8957579,11.5498615],[104.8952548,11.5499792],[104.8914761,11.5498441],[104.8910099,11.5498723],[104.8893334,11.5490763],[104.8888826,11.5489806],[104.8884,11.5488781],[104.8880866,11.5488312],[104.8875425,11.5487497],[104.886721,11.5486078],[104.8857416,11.5484651],[104.884994,11.547538],[104.883567,11.5473909],[104.8835456,11.5445737],[104.8786077,11.544128],[104.8784357,11.5440281],[104.872165,11.5433693],[104.8718217,11.5432445],[104.8659893,11.5426797]],
+  'Pou Senchey': [[104.7817297,11.5467104],[104.7836609,11.5457433],[104.7892399,11.5450285],[104.7911711,11.5464581],[104.7938748,11.5473831],[104.7957202,11.5473411],[104.7960635,11.5442716],[104.796793,11.5409078],[104.7959776,11.5398987],[104.7943039,11.5391418],[104.7953768,11.5355677],[104.7961493,11.531489],[104.7966359,11.5263656],[104.7949278,11.5254298],[104.792932,11.5247316],[104.7919436,11.5209765],[104.7928019,11.5186637],[104.7931881,11.513197],[104.7953768,11.513197],[104.7962781,11.5145006],[104.7979517,11.5145006],[104.7997113,11.5192104],[104.7996125,11.5193483],[104.7978086,11.5218664],[104.7991489,11.5271849],[104.8029512,11.529413],[104.8034281,11.5296632],[104.8038417,11.529865],[104.8041416,11.5299628],[104.8047322,11.5301226],[104.806304,11.5304012],[104.8073082,11.522911],[104.8107191,11.5235626],[104.8134442,11.5243616],[104.8146458,11.5237518],[104.817843,11.5237098],[104.8179503,11.5186006],[104.8213668,11.5184344],[104.8192039,11.5023636],[104.8440875,11.5024535],[104.8440688,11.5079109],[104.8457779,11.5079377],[104.849827,11.5081574],[104.8515414,11.509617],[104.8542811,11.5097345],[104.8552765,11.5096745],[104.8567165,11.5088926],[104.8576558,11.508788],[104.8592437,11.5090074],[104.8595896,11.5118355],[104.8741341,11.5118981],[104.8740452,11.5187361],[104.8779722,11.5192907],[104.8777638,11.5197482],[104.8772311,11.5205264],[104.8763715,11.5212962],[104.8762621,11.5215548],[104.8762833,11.5219501],[104.8776198,11.5257654],[104.8747101,11.5257056],[104.8713416,11.5257059],[104.8713333,11.5330777],[104.8672496,11.5325095],[104.8663992,11.539804],[104.8662921,11.5399161],[104.8662173,11.5401635],[104.8659893,11.5426797],[104.864987,11.5512138],[104.860472,11.5576691],[104.8604892,11.5581153],[104.8605665,11.558516],[104.8607247,11.5588416],[104.8609833,11.5592174],[104.8610578,11.5594331],[104.8610023,11.5633651],[104.8646407,11.5632689],[104.8642881,11.5676476],[104.8528063,11.5661752],[104.852257,11.5661361],[104.8417749,11.566408],[104.8417223,11.5672795],[104.8417091,11.5674982],[104.8416951,11.5677305],[104.8414214,11.5722673],[104.835402,11.5721391],[104.8352166,11.5736012],[104.8323722,11.573454],[104.8279229,11.5725616],[104.8281541,11.5713992],[104.8228311,11.570138],[104.8211789,11.5693812],[104.8200845,11.5745104],[104.8181533,11.5744684],[104.8180246,11.5789249],[104.8178637,11.582078],[104.8113727,11.5821621],[104.8107075,11.5827927],[104.8087764,11.5831921],[104.8080253,11.5839698],[104.8071027,11.5842851],[104.804163,11.5846215],[104.8033369,11.5854728],[104.8030847,11.5865554],[104.8029238,11.5875118],[104.8027571,11.5895614],[104.8019884,11.591228],[104.8007635,11.5910685],[104.8025536,11.596666],[104.8031759,11.5994826],[104.8011803,11.5997138],[104.8017168,11.6019209],[104.7987127,11.6022151],[104.7975111,11.6009119],[104.7944855,11.6022992],[104.7915244,11.6038756],[104.7886705,11.6045273],[104.7876262,11.6050999],[104.7880383,11.60145],[104.7876521,11.5990537],[104.7879417,11.5967206],[104.788725,11.5961951],[104.7893258,11.5944294],[104.789712,11.5873667],[104.7892829,11.5831626],[104.7876092,11.5827842],[104.786944,11.5811025],[104.7858925,11.5805875],[104.7856243,11.5786956],[104.7848518,11.578538],[104.7845622,11.5761836],[104.7847338,11.5747121],[104.7858496,11.5735349],[104.7869654,11.5709703],[104.7868796,11.5684477],[104.7875662,11.5678591],[104.7876092,11.5665557],[104.7882529,11.5657569],[104.788725,11.5624775],[104.7872229,11.5624775],[104.7878237,11.5584412],[104.7841759,11.5584412],[104.7847338,11.5558344],[104.7834034,11.5550775],[104.7832318,11.551798],[104.7822018,11.551798],[104.7817297,11.5513775],[104.7817297,11.5467104]],
+};
+
+// zone polygons clipped from district boundaries (lat-band thirds)
+// A = north, B = middle, C = south
 const ZONE_GEOJSON: Record<string, Record<string, number[][]>> = {
   'Dangkao': {
     'A': [[104.9135366422158,11.490538666666666],[104.9135121,11.5021688],[104.9137437,11.5028245],[104.9137843,11.505021],[104.9136447,11.5089188],[104.9135916,11.511182],[104.9136286,11.514622],[104.9129833,11.5188069],[104.9122736,11.5189574],[104.9100624,11.519441],[104.9076119,11.5199257],[104.9059753,11.5203444],[104.8966963,11.5230196],[104.8936204,11.5242306],[104.8910488,11.525139],[104.8890926,11.5256054],[104.8862496,11.5257224],[104.8776198,11.5257654],[104.8762833,11.5219501],[104.8762621,11.5215548],[104.8763715,11.5212962],[104.8772311,11.5205264],[104.8777638,11.5197482],[104.8779722,11.5192907],[104.8740452,11.5187361],[104.8741341,11.5118981],[104.8595896,11.5118355],[104.8592437,11.5090074],[104.8576558,11.508788],[104.8567165,11.5088926],[104.8552765,11.5096745],[104.8542811,11.5097345],[104.8515414,11.509617],[104.849827,11.5081574],[104.8457779,11.5079377],[104.8440688,11.5079109],[104.8440875,11.5024535],[104.8192039,11.5023636],[104.8183511,11.5013944],[104.8175546,11.4955819],[104.8190639,11.4942109],[104.8197541,11.4925329],[104.818926,11.4907907],[104.81832497813664,11.490538666666666],[104.9135366422158,11.490538666666666]],
@@ -49,6 +64,20 @@ const ZONE_GEOJSON: Record<string, Record<string, number[][]>> = {
   },
 };
 
+// zone centroids for letter labels - computed from polygon centroids
+const ZONE_CENTROIDS: Record<string, Record<string, [number, number]>> = {
+  'Dangkao':     { 'A': [11.5109, 104.8736], 'B': [11.4681, 104.8599], 'C': [11.4354, 104.8440] },
+  'Mean Chey':   { 'A': [11.5404, 104.9011], 'B': [11.5211, 104.9055], 'C': [11.4938, 104.9234] },
+  'Pou Senchey': { 'A': [11.5850, 104.8041], 'B': [11.5562, 104.8202], 'C': [11.5208, 104.8303] },
+};
+
+// district centroids for district name labels
+const DISTRICT_CENTROIDS: Record<string, [number, number]> = {
+  'Dangkao':     [11.4566, 104.8520],
+  'Mean Chey':   [11.5326, 104.9032],
+  'Pou Senchey': [11.5529, 104.8180],
+};
+
 export function LeafletMap({
   districts,
   zoneDepths,
@@ -57,10 +86,11 @@ export function LeafletMap({
 }: LeafletMapProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const mapRef = useRef<any>(null);
-  // key: districtId:zone -> leaflet layer
-  const layersRef = useRef<Record<string, any>>({});
+  // zone layers: key = districtId:zone
+  const zoneLayersRef = useRef<Record<string, any>>({});
+  // district border layers: key = districtId
+  const borderLayersRef = useRef<Record<string, any>>({});
 
-  // mount map once
   useEffect(() => {
     if (!containerRef.current || mapRef.current) return;
     const L = (window as any).L;
@@ -80,102 +110,136 @@ export function LeafletMap({
 
     mapRef.current = map;
 
-    // draw 9 zone polygons - one per zone per district
     districts.forEach((district) => {
       const districtZones = ZONE_GEOJSON[district.name];
+      const districtBorder = DISTRICT_GEOJSON[district.name];
+      const borderColor = DISTRICT_BORDER[district.name] ?? '#ffffff';
       if (!districtZones) return;
 
       const depths = zoneDepths[district.name] ?? {};
 
+      // draw 3 zone fill polygons per district
       ['A', 'B', 'C'].forEach((zone) => {
         const coords = districtZones[zone];
         if (!coords) return;
 
         const displayZone = `Zone ${zone}`;
         const depth = depths[displayZone] ?? depths[zone] ?? 0;
-        const mode = depthToMode(depth);
-        const fillColor = MODE_FILL[mode];
+        const fillColor = MODE_FILL[depthToMode(depth)];
 
-        // convert [lng, lat] to GeoJSON Feature
         const layer = L.geoJSON(
-          {
-            type: 'Feature',
-            geometry: { type: 'Polygon', coordinates: [coords] },
-            properties: {},
-          },
+          { type: 'Feature', geometry: { type: 'Polygon', coordinates: [coords] }, properties: {} },
           {
             style: {
-              color: fillColor,
-              weight: 1.5,
+              // no border on zone polygons — border comes from district overlay
+              color: 'transparent',
+              weight: 0,
               fillColor,
-              fillOpacity: 0.35,
-              opacity: 0.8,
+              fillOpacity: 0.40,
+              opacity: 0,
             },
           }
         );
 
-        layer.on('click', () => {
-          onDistrictClick(district.districtId, district.name);
-        });
-
-        layer.on('mouseover', () => {
-          layer.setStyle({ fillOpacity: 0.55, weight: 2.5 });
-        });
-
+        layer.on('click', () => onDistrictClick(district.districtId, district.name));
+        layer.on('mouseover', () => layer.setStyle({ fillOpacity: 0.60 }));
         layer.on('mouseout', () => {
-          const isSelected = layersRef.current.__selected === district.districtId;
-          layer.setStyle({
-            fillOpacity: isSelected ? 0.55 : 0.35,
-            weight: isSelected ? 2.5 : 1.5,
-          });
-        });
-
-        // zone label on each sub-polygon
-        layer.bindTooltip(`${district.name} - ${displayZone}`, {
-          permanent: true,
-          direction: 'center',
-          className: 'rema-zone-label',
+          const isSelected = zoneLayersRef.current.__selected === district.districtId;
+          layer.setStyle({ fillOpacity: isSelected ? 0.60 : 0.40 });
         });
 
         layer.addTo(map);
-        layersRef.current[`${district.districtId}:${zone}`] = layer;
+        zoneLayersRef.current[`${district.districtId}:${zone}`] = layer;
+
+        // small zone letter label at zone centroid
+        const centroid = ZONE_CENTROIDS[district.name]?.[zone];
+        if (centroid) {
+          const zoneLabel = L.marker([centroid[0], centroid[1]], {
+            icon: L.divIcon({
+              className: '',
+              html: `<div class="rema-zone-letter" style="border-color:${borderColor}">${zone}</div>`,
+              iconSize: [20, 20],
+              iconAnchor: [10, 10],
+            }),
+            interactive: false,
+          }).addTo(map);
+          zoneLayersRef.current[`${district.districtId}:${zone}:label`] = zoneLabel;
+        }
       });
+
+      // district name label at district centroid
+      const dCentroid = DISTRICT_CENTROIDS[district.name];
+      if (dCentroid) {
+        const districtLabel = L.marker([dCentroid[0], dCentroid[1]], {
+          icon: L.divIcon({
+            className: '',
+            html: `<div class="rema-district-name" style="border-color:${borderColor};color:${borderColor}">${district.name}</div>`,
+            iconSize: [120, 24],
+            iconAnchor: [60, 12],
+          }),
+          interactive: false,
+        }).addTo(map);
+        borderLayersRef.current[`${district.districtId}:namelabel`] = districtLabel;
+      }
+
+      // thick outer border outline — no fill, sits on top of zone polygons
+      if (districtBorder) {
+        const borderLayer = L.geoJSON(
+          { type: 'Feature', geometry: { type: 'Polygon', coordinates: [districtBorder] }, properties: {} },
+          {
+            style: {
+              color: borderColor,
+              weight: 3,
+              fillColor: 'transparent',
+              fillOpacity: 0,
+              opacity: 0.9,
+            },
+          }
+        );
+        borderLayer.on('click', () => onDistrictClick(district.districtId, district.name));
+        borderLayer.addTo(map);
+        borderLayersRef.current[district.districtId] = borderLayer;
+      }
     });
 
-    // fit map to all zone polygons
+    // fit to all zones
     const allCoords: [number, number][] = [];
     districts.forEach((d) => {
       const districtZones = ZONE_GEOJSON[d.name];
       if (!districtZones) return;
-      Object.values(districtZones).forEach((coords) => {
-        coords.forEach(([lng, lat]) => allCoords.push([lat, lng]));
-      });
+      Object.values(districtZones).forEach((coords) =>
+        coords.forEach(([lng, lat]) => allCoords.push([lat, lng]))
+      );
     });
-    if (allCoords.length > 0) {
-      map.fitBounds(allCoords, { padding: [20, 20] });
-    }
+    if (allCoords.length > 0) map.fitBounds(allCoords, { padding: [20, 20] });
 
-    // inject label css once
     if (!document.getElementById('rema-leaflet-styles')) {
       const style = document.createElement('style');
       style.id = 'rema-leaflet-styles';
       style.textContent = `
-        .rema-zone-label {
-          background: rgba(13, 17, 23, 0.82);
-          border: 1px solid rgba(255,255,255,0.12);
+        .rema-zone-letter {
+          width: 20px; height: 20px;
+          display: flex; align-items: center; justify-content: center;
+          background: rgba(13,17,23,0.75);
+          border: 1.5px solid;
           border-radius: 4px;
+          font-family: 'JetBrains Mono','Fira Mono',monospace;
+          font-size: 11px; font-weight: 700;
           color: #e6edf3;
-          font-family: 'JetBrains Mono', 'Fira Mono', monospace;
-          font-size: 10px;
-          font-weight: 600;
-          letter-spacing: 0.03em;
-          padding: 2px 6px;
-          white-space: nowrap;
-          box-shadow: none;
           pointer-events: none;
         }
-        .rema-zone-label::before { display: none; }
-        .leaflet-tooltip-top.rema-zone-label::before { display: none; }
+        .rema-district-name {
+          width: 120px; height: 24px;
+          display: flex; align-items: center; justify-content: center;
+          background: rgba(13,17,23,0.80);
+          border: 1.5px solid;
+          border-radius: 5px;
+          font-family: 'JetBrains Mono','Fira Mono',monospace;
+          font-size: 11px; font-weight: 700;
+          letter-spacing: 0.04em;
+          pointer-events: none;
+          white-space: nowrap;
+        }
       `;
       document.head.appendChild(style);
     }
@@ -183,76 +247,72 @@ export function LeafletMap({
     return () => {
       map.remove();
       mapRef.current = null;
-      layersRef.current = {};
+      zoneLayersRef.current = {};
+      borderLayersRef.current = {};
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // update zone fill colors when water depths change
+  // update zone fill colors when depths change
   useEffect(() => {
     if (!mapRef.current) return;
-
     districts.forEach((district) => {
       const depths = zoneDepths[district.name] ?? {};
-      const isSelected = layersRef.current.__selected === district.districtId;
-
+      const isSelected = zoneLayersRef.current.__selected === district.districtId;
       ['A', 'B', 'C'].forEach((zone) => {
-        const layer = layersRef.current[`${district.districtId}:${zone}`];
+        const layer = zoneLayersRef.current[`${district.districtId}:${zone}`];
         if (!layer) return;
-
         const displayZone = `Zone ${zone}`;
         const depth = depths[displayZone] ?? depths[zone] ?? 0;
         const fillColor = MODE_FILL[depthToMode(depth)];
-
-        layer.setStyle({
-          color: fillColor,
-          fillColor,
-          fillOpacity: isSelected ? 0.55 : 0.35,
-          weight: isSelected ? 2.5 : 1.5,
-        });
+        layer.setStyle({ fillColor, fillOpacity: isSelected ? 0.60 : 0.40 });
       });
     });
   }, [districts, zoneDepths]);
 
-  // highlight all 3 zones of selected district
+  // highlight selected district
   useEffect(() => {
     if (!mapRef.current) return;
 
-    // reset all zones to normal
+    // reset all
     districts.forEach((district) => {
       const depths = zoneDepths[district.name] ?? {};
       ['A', 'B', 'C'].forEach((zone) => {
-        const layer = layersRef.current[`${district.districtId}:${zone}`];
+        const layer = zoneLayersRef.current[`${district.districtId}:${zone}`];
         if (!layer?.setStyle) return;
         const displayZone = `Zone ${zone}`;
         const depth = depths[displayZone] ?? depths[zone] ?? 0;
-        const fillColor = MODE_FILL[depthToMode(depth)];
-        layer.setStyle({ fillOpacity: 0.35, weight: 1.5, color: fillColor, fillColor });
+        layer.setStyle({ fillColor: MODE_FILL[depthToMode(depth)], fillOpacity: 0.40 });
       });
+      const border = borderLayersRef.current[district.districtId];
+      if (border?.setStyle) {
+        const borderColor = DISTRICT_BORDER[district.name] ?? '#ffffff';
+        border.setStyle({ color: borderColor, weight: 3, opacity: 0.9 });
+      }
     });
 
-    // highlight selected district zones
-    layersRef.current.__selected = selectedDistrictId;
+    // highlight selected
+    zoneLayersRef.current.__selected = selectedDistrictId;
     if (selectedDistrictId) {
       const district = districts.find((d) => d.districtId === selectedDistrictId);
       if (district) {
         const depths = zoneDepths[district.name] ?? {};
         ['A', 'B', 'C'].forEach((zone) => {
-          const layer = layersRef.current[`${district.districtId}:${zone}`];
+          const layer = zoneLayersRef.current[`${district.districtId}:${zone}`];
           if (!layer?.setStyle) return;
           const displayZone = `Zone ${zone}`;
           const depth = depths[displayZone] ?? depths[zone] ?? 0;
-          const fillColor = MODE_FILL[depthToMode(depth)];
-          layer.setStyle({ fillOpacity: 0.6, weight: 3, color: '#ffffff', fillColor });
+          layer.setStyle({ fillColor: MODE_FILL[depthToMode(depth)], fillOpacity: 0.65 });
         });
+        const border = borderLayersRef.current[selectedDistrictId];
+        if (border?.setStyle) {
+          border.setStyle({ color: '#ffffff', weight: 5, opacity: 1 });
+        }
       }
     }
   }, [selectedDistrictId, districts, zoneDepths]);
 
   return (
-    <div
-      ref={containerRef}
-      style={{ height: '100%', width: '100%', background: '#0d1117' }}
-    />
+    <div ref={containerRef} style={{ height: '100%', width: '100%', background: '#0d1117' }} />
   );
 }
