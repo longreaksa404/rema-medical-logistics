@@ -26,7 +26,7 @@ export async function publicStatus(_req: Request, res: Response): Promise<void> 
 // ─── POST /api/users — SUPER_ADMIN only ───────────────────────────────────────
 
 export async function create(req: Request, res: Response): Promise<void> {
-  const { email, name, role, districtId, temporaryPassword } = req.body;
+  const { email, name, role, districtId, temporaryPassword, phone } = req.body;
 
   if (!email || !name || !role || !temporaryPassword) {
     res.status(400).json({
@@ -55,6 +55,7 @@ export async function create(req: Request, res: Response): Promise<void> {
       role: role as Role,
       districtId,
       temporaryPassword,
+      phone,   // passed through — required when role is VOLUNTEER
     });
     res.status(201).json(user);
   } catch (err) {

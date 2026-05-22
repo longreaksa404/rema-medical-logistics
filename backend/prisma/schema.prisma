@@ -27,11 +27,11 @@ model User {
   incidentsResolved Incident[]            @relation("ResolvedBy")
   notifications     Notification[]
   refreshTokens     RefreshToken[]
+  volunteer         Volunteer?
   radioCheckins     RadioCheckin[]
   routeLogs         RouteLog[]
   stockMovements    StockMovement[]
   district          District?             @relation(fields: [districtId], references: [id])
-
   @@map("users")
 }
 
@@ -199,9 +199,10 @@ model Volunteer {
   phone        String
   role         VolunteerRole         @default(VOLUNTEER)
   status       VolunteerStatus       @default(AVAILABLE)
+  userId       String?               @unique   // linked user account — nullable for community vols
+  user         User?                 @relation(fields: [userId], references: [id])
   deliveryRuns DeliveryRun[]
   assignments  VolunteerAssignment[]
-
   @@map("volunteers")
 }
 

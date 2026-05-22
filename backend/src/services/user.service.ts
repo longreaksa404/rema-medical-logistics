@@ -2,11 +2,6 @@ import { Role } from '@prisma/client';
 import { prisma } from '../lib/prisma';
 import bcrypt from 'bcrypt';
 
-// ─── ROLE HIERARCHY ───────────────────────────────────────────────────────────
-// SUPER_ADMIN can create/manage any role except another SUPER_ADMIN.
-// SUPER_ADMIN accounts are only created via seed script — never via API.
-// This is a deliberate security decision for real deployment.
-
 const CREATABLE_ROLES: Role[] = [
   Role.EMERGENCY_COORDINATOR,
   Role.HUB_MANAGER,
@@ -15,7 +10,6 @@ const CREATABLE_ROLES: Role[] = [
 ];
 
 // ─── CREATE USER ──────────────────────────────────────────────────────────────
-// SUPER_ADMIN only. Cannot create another SUPER_ADMIN.
 
 export async function createUser(data: {
   email: string;
@@ -23,8 +17,9 @@ export async function createUser(data: {
   role: Role;
   districtId?: string;
   temporaryPassword: string;
+  phone?: string;
 }) {
-  const { email, name, role, districtId, temporaryPassword } = data;
+  const { email, name, role, districtId, temporaryPassword, phone } = data;
 
   if (!CREATABLE_ROLES.includes(role)) {
     throw new Error(
@@ -33,25 +28,67 @@ export async function createUser(data: {
     );
   }
 
-  // Roles that require a district assignment
   const districtRequiredRoles: Role[] = [Role.HUB_MANAGER, Role.VOLUNTEER];
   if (districtRequiredRoles.includes(role) && !districtId) {
     throw new Error(`Role ${role} requires a districtId`);
   }
 
-  // Verify district exists if provided
+  if (role === Role.VOLUNTEER && !phone) {
+    throw new Error('Phone number is required when creating a VOLUNTEER account');
+  }
+
   if (districtId) {
     const district = await prisma.district.findUnique({ where: { id: districtId } });
     if (!district) throw new Error(`District not found: ${districtId}`);
   }
 
-  // Check email uniqueness
   const existing = await prisma.user.findUnique({ where: { email } });
   if (existing) throw new Error(`Email already in use: ${email}`);
 
   const passwordHash = await bcrypt.hash(temporaryPassword, 12);
 
-  const user = await prisma.user.create({
+  // volunteer role — user + volunteer record in one transaction
+  if (role === Role.VOLUNTEER) {
+    return prisma.$transaction(async (tx) => {
+      const user = await tx.user.create({
+        data: {
+          email,
+          name,
+          role,
+          passwordHash,
+          districtId: districtId ?? null,
+          active: true,
+          mustChangePassword: true,
+        },
+        select: {
+          id: true,
+          email: true,
+          name: true,
+          role: true,
+          districtId: true,
+          active: true,
+          createdAt: true,
+          mustChangePassword: true,
+        },
+      });
+
+      await tx.volunteer.create({
+        data: {
+          userId:     user.id,
+          districtId: districtId!,
+          name:       name,
+          phone:      phone!,
+          role:       'VOLUNTEER',
+          status:     'AVAILABLE',
+        },
+      });
+
+      return user;
+    });
+  }
+
+  // all other roles — plain create
+  return prisma.user.create({
     data: {
       email,
       name,
@@ -59,7 +96,7 @@ export async function createUser(data: {
       passwordHash,
       districtId: districtId ?? null,
       active: true,
-      mustChangePassword: true,   // force change on first login
+      mustChangePassword: true,
     },
     select: {
       id: true,
@@ -72,12 +109,9 @@ export async function createUser(data: {
       mustChangePassword: true,
     },
   });
-
-  return user;  
 }
 
 // ─── LIST USERS ───────────────────────────────────────────────────────────────
-// SUPER_ADMIN only. Never returns passwordHash.
 
 export async function listUsers(filters: {
   role?: Role;
@@ -134,8 +168,6 @@ export async function getUser(id: string) {
 }
 
 // ─── UPDATE USER ──────────────────────────────────────────────────────────────
-// SUPER_ADMIN only. Cannot change role to SUPER_ADMIN.
-// Cannot deactivate yourself.
 
 export async function updateUser(
   id: string,
@@ -151,28 +183,23 @@ export async function updateUser(
   const existing = await prisma.user.findUnique({ where: { id } });
   if (!existing) throw new Error('User not found');
 
-  // Cannot deactivate yourself
   if (data.active === false && id === requestingUserId) {
     throw new Error('Cannot deactivate your own account');
   }
 
-  // Cannot change role to SUPER_ADMIN
   if (data.role && !CREATABLE_ROLES.includes(data.role)) {
     throw new Error('Cannot assign SUPER_ADMIN role via API');
   }
 
-  // Cannot modify another SUPER_ADMIN
   if (existing.role === Role.SUPER_ADMIN) {
     throw new Error('Cannot modify a SUPER_ADMIN account via API');
   }
 
-  // Validate email uniqueness if changing email
   if (data.email && data.email !== existing.email) {
     const emailInUse = await prisma.user.findUnique({ where: { email: data.email } });
     if (emailInUse) throw new Error(`Email already in use: ${data.email}`);
   }
 
-  // Validate district if provided
   if (data.districtId) {
     const district = await prisma.district.findUnique({ where: { id: data.districtId } });
     if (!district) throw new Error(`District not found: ${data.districtId}`);
@@ -181,11 +208,11 @@ export async function updateUser(
   return prisma.user.update({
     where: { id },
     data: {
-      name: data.name ?? existing.name,
-      email: data.email ?? existing.email,
-      role: data.role ?? existing.role,
+      name:       data.name       ?? existing.name,
+      email:      data.email      ?? existing.email,
+      role:       data.role       ?? existing.role,
       districtId: data.districtId !== undefined ? data.districtId : existing.districtId,
-      active: data.active !== undefined ? data.active : existing.active,
+      active:     data.active     !== undefined ? data.active     : existing.active,
     },
     select: {
       id: true,
@@ -201,8 +228,6 @@ export async function updateUser(
 }
 
 // ─── CHANGE OWN PASSWORD ──────────────────────────────────────────────────────
-// Any authenticated user can change their own password.
-// Must provide current password to confirm identity.
 
 export async function changeOwnPassword(
   userId: string,
@@ -229,17 +254,14 @@ export async function changeOwnPassword(
     where: { id: userId },
     data: {
       passwordHash,
-      mustChangePassword: false,  // clear the flag on successful change
+      mustChangePassword: false,
     },
   });
-
 
   return { message: 'Password updated successfully' };
 }
 
 // ─── RESET USER PASSWORD ──────────────────────────────────────────────────────
-// SUPER_ADMIN only. Sets a temporary password — user must change on next login.
-// Does not require knowing the current password (admin override).
 
 export async function resetUserPassword(
   targetUserId: string,
@@ -252,7 +274,6 @@ export async function resetUserPassword(
   const user = await prisma.user.findUnique({ where: { id: targetUserId } });
   if (!user) throw new Error('User not found');
 
-  // Cannot reset SUPER_ADMIN password via API
   if (user.role === Role.SUPER_ADMIN) {
     throw new Error('Cannot reset a SUPER_ADMIN password via API');
   }
@@ -263,7 +284,7 @@ export async function resetUserPassword(
     where: { id: targetUserId },
     data: {
       passwordHash,
-      mustChangePassword: true,   // force change after admin reset
+      mustChangePassword: true,
     },
   });
 
@@ -276,41 +297,35 @@ export async function resetUserPassword(
 }
 
 // ─── PUBLIC SYSTEM STATUS ─────────────────────────────────────────────────────
-// No auth required. Returns only non-sensitive aggregate data.
-// Safe to expose: phase, activation state, district count affected.
-// Never exposes: household data, addresses, medical info, user info.
 
 export async function getPublicStatus() {
   const alert = await prisma.floodAlert.findFirst({
     orderBy: { createdAt: 'desc' },
   });
 
-  // Count active districts (those with ACTIVE sub-warehouse)
   const activeDistricts = await prisma.subWarehouse.count({
     where: { status: 'ACTIVE' },
   });
 
   const totalDistricts = await prisma.district.count();
 
-  // Active delivery runs (count only, no detail)
   const activeRuns = await prisma.deliveryRun.count({
     where: { status: 'IN_PROGRESS' },
   });
 
-  // Total deliveries completed (count only)
   const deliveriesCompleted = await prisma.household.count({
     where: { delivered: true },
   });
 
   return {
-    system: 'REMA — Rapid Emergency Medical Access',
+    system: 'REMA - Rapid Emergency Medical Access',
     operatedBy: 'Viet Nam Red Cross',
     status: alert?.activated ? 'ACTIVE' : 'STANDBY',
     phase: alert?.phase ?? 0,
     phaseDescription:
-      alert?.phase === 0 ? 'Standby — monitoring flood conditions' :
-      alert?.phase === 1 ? 'Phase 1 — Activated: pre-positioning supplies' :
-      'Phase 2 — Last-mile delivery in progress',
+      alert?.phase === 0 ? 'Standby - monitoring flood conditions' :
+      alert?.phase === 1 ? 'Phase 1 - Activated: pre-positioning supplies' :
+      'Phase 2 - Last-mile delivery in progress',
     activatedAt: alert?.activated ? alert.activatedAt : null,
     activeDistricts,
     totalDistricts,
@@ -321,17 +336,12 @@ export async function getPublicStatus() {
 }
 
 // ─── UPDATE OWN AVATAR ────────────────────────────────────────────────────────
-// Any authenticated user can update their own avatar.
-// Base64 string is validated for size before storing.
 
 export async function updateOwnAvatar(userId: string, avatarBase64: string) {
-  // rough size check — base64 of a 128x128 JPEG is ~15-25kb
-  // 50kb limit keeps DB rows manageable
   if (avatarBase64.length > 70_000) {
     throw new Error('Image too large. Please use an image under 50kb.');
   }
 
-  // must be a valid base64 data URL
   if (!avatarBase64.startsWith('data:image/')) {
     throw new Error('Invalid image format.');
   }

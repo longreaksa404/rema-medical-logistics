@@ -34,10 +34,10 @@ export async function listVolunteers(filters: {
 }
 
 async function fetchAllVolunteers() {
-  // No filter needed — there is no __central__ district anymore
   return prisma.volunteer.findMany({
     orderBy: [{ districtId: 'asc' }, { role: 'asc' }, { name: 'asc' }],
     include: {
+      user: { select: { id: true, email: true } },
       assignments: {
         orderBy: { createdAt: 'desc' },
         take: 1,
@@ -47,11 +47,33 @@ async function fetchAllVolunteers() {
   });
 }
 
-export async function createVolunteer(data: {
+// internal only — called from user.service inside a transaction
+export async function createVolunteerForUser(
+  tx: Parameters<Parameters<typeof prisma.$transaction>[0]>[0],
+  data: {
+    userId: string;
+    districtId: string;
+    name: string;
+    phone: string;
+  }
+) {
+  return tx.volunteer.create({
+    data: {
+      userId:     data.userId,
+      districtId: data.districtId,
+      name:       data.name,
+      phone:      data.phone,
+      role:       VolunteerRole.VOLUNTEER,
+      status:     VolunteerStatus.AVAILABLE,
+    },
+  });
+}
+
+// hub manager can add a community volunteer with no login account
+export async function createCommunityVolunteer(data: {
   districtId: string;
   name: string;
   phone: string;
-  role?: VolunteerRole;
 }) {
   const district = await prisma.district.findUnique({ where: { id: data.districtId } });
   if (!district) throw new Error(`District not found: ${data.districtId}`);
@@ -61,8 +83,9 @@ export async function createVolunteer(data: {
       districtId: data.districtId,
       name:       data.name,
       phone:      data.phone,
-      role:       data.role ?? VolunteerRole.VOLUNTEER,
+      role:       VolunteerRole.VOLUNTEER,
       status:     VolunteerStatus.AVAILABLE,
+      // no userId — community volunteer, no login
     },
   });
 
@@ -90,6 +113,20 @@ export async function updateVolunteer(
       status: data.status ?? existing.status,
       role:   data.role   ?? existing.role,
     },
+  });
+
+  invalidateVolunteerCache(existing.districtId);
+  return updated;
+}
+
+// promote or demote a volunteer's field role
+export async function setVolunteerRole(id: string, role: VolunteerRole) {
+  const existing = await prisma.volunteer.findUnique({ where: { id } });
+  if (!existing) throw new Error('Volunteer not found');
+
+  const updated = await prisma.volunteer.update({
+    where: { id },
+    data: { role },
   });
 
   invalidateVolunteerCache(existing.districtId);
@@ -153,6 +190,7 @@ async function buildRoster(districtId: string) {
     where: { districtId },
     orderBy: [{ role: 'asc' }, { name: 'asc' }],
     include: {
+      user: { select: { id: true, email: true } },
       assignments: {
         orderBy: { createdAt: 'desc' },
         take: 1,
@@ -169,12 +207,12 @@ async function buildRoster(districtId: string) {
 
   return {
     districtId,
-    districtName:     district.name,
-    total:            volunteers.length,
-    teamLeaders:      teamLeaders.length,
+    districtName:      district.name,
+    total:             volunteers.length,
+    teamLeaders:       teamLeaders.length,
     generalVolunteers: general.length,
-    belowMinimum:     volunteers.length < 12,
-    minimumWarning:   volunteers.length < 12
+    belowMinimum:      volunteers.length < 12,
+    minimumWarning:    volunteers.length < 12
       ? `District has ${volunteers.length}/12 minimum volunteers (Section D.6)`
       : null,
     volunteers,

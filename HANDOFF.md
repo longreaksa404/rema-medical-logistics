@@ -1,11 +1,5 @@
 # REMA Handoff Document
-Last updated: Chat 22 complete — post-submission improvements
-
----
-
-## Current Status
-
-**Chat 22 complete.** All 6 fixes implemented and verified. Profile page with avatar added.
+Last updated: Volunteer Sync Session
 
 ---
 
@@ -81,6 +75,21 @@ Last updated: Chat 22 complete — post-submission improvements
   - deliveredCount shown green in footer
   - pending = householdsAssessed - deliveredCount shown yellow
   - openIncidents shown red, only visible if > 0
+
+---
+
+## What Was Completed — Volunteer Sync Session
+
+### Volunteer-User link
+- schema.prisma — userId String? @unique added to Volunteer; User gets volunteer back-relation
+- Migration: add_volunteer_user_link
+- user.service.ts — createUser with role VOLUNTEER now runs a $transaction creating both user + volunteer record; phone field required for VOLUNTEER role
+- user.controller.ts — phone passed through from request body
+- volunteer.service.ts — createVolunteer removed from exports; createCommunityVolunteer added for no-account field helpers; setVolunteerRole added for promote/demote
+- volunteer.controller.ts — POST /api/volunteers now creates community volunteer only (no login); added PATCH /api/volunteers/:id/role handler
+- volunteer.routes.ts — added PATCH /:id/role; POST / now maps to createCommunity
+- hub.ts — removed createVolunteer; added createCommunityVolunteer and setVolunteerRole; Volunteer interface gets user field
+- HubPage.tsx VolunteersTab — removed Add Volunteer form; added promote/demote button per roster row; info note explains volunteers come from user accounts; email shown under name; community volunteer label for no-account entries
 
 ---
 

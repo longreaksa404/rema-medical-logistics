@@ -41,6 +41,7 @@ export interface Volunteer {
   role: 'TEAM_LEADER' | 'VOLUNTEER';
   status: 'AVAILABLE' | 'DEPLOYED' | 'INACTIVE';
   createdAt: string;
+  user?: { id: string; email: string } | null;
   assignments: {
     id: string;
     zone: string;
@@ -197,10 +198,15 @@ export const hubApi = {
     return res.data;
   },
 
-  createVolunteer: async (data: {
-    districtId: string; name: string; phone: string; role?: 'TEAM_LEADER' | 'VOLUNTEER';
+  createCommunityVolunteer: async (data: {
+    districtId: string; name: string; phone: string;
   }): Promise<Volunteer> => {
     const res = await api.post<Volunteer>('/api/volunteers', data);
+    return res.data;
+  },
+
+  setVolunteerRole: async (id: string, role: 'TEAM_LEADER' | 'VOLUNTEER') => {
+    const res = await api.patch(`/api/volunteers/${id}/role`, { role });
     return res.data;
   },
 

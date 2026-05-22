@@ -703,9 +703,6 @@ function StockTab({ districtId, subWarehouseId, allSubWarehouses }: {
 function VolunteersTab({ districtId, subWarehouseId }: { districtId: string; subWarehouseId: string | null }) {
   const queryClient = useQueryClient();
   const [success, setSuccess] = useState('');
-  const [addName, setAddName] = useState('');
-  const [addPhone, setAddPhone] = useState('');
-  const [addRole, setAddRole] = useState<'VOLUNTEER' | 'TEAM_LEADER'>('VOLUNTEER');
   const [assignVolId, setAssignVolId] = useState('');
   const [assignZone, setAssignZone] = useState('Zone A');
   const [assignTeam, setAssignTeam] = useState(1);
@@ -725,16 +722,6 @@ function VolunteersTab({ districtId, subWarehouseId }: { districtId: string; sub
     queryClient.invalidateQueries({ queryKey: queryKeys.hub.volunteers(districtId) });
   }, [queryClient, districtId]);
 
-  const addMutation = useMutation({
-    mutationFn: (vars: { districtId: string; name: string; phone: string; role: 'VOLUNTEER' | 'TEAM_LEADER' }) =>
-      hubApi.createVolunteer(vars),
-    onSuccess: (_, vars) => {
-      setSuccess(`${vars.name} added to roster.`);
-      setAddName(''); setAddPhone('');
-      invalidateRoster();
-    },
-  });
-
   const assignMutation = useMutation({
     mutationFn: hubApi.assignVolunteer,
     onSuccess: () => {
@@ -748,29 +735,42 @@ function VolunteersTab({ districtId, subWarehouseId }: { districtId: string; sub
     mutationFn: ({ id, status }: { id: string; status: 'AVAILABLE' | 'INACTIVE' }) =>
       hubApi.updateVolunteer(id, { status }),
     onSuccess: (_, vars) => {
-      setSuccess(`Volunteer → ${vars.status}`);
+      setSuccess(`Volunteer set to ${vars.status}.`);
+      invalidateRoster();
+    },
+  });
+
+  const roleMutation = useMutation({
+    mutationFn: ({ id, role }: { id: string; role: 'TEAM_LEADER' | 'VOLUNTEER' }) =>
+      hubApi.setVolunteerRole(id, role),
+    onSuccess: (_, vars) => {
+      setSuccess(vars.role === 'TEAM_LEADER' ? 'Promoted to Team Leader.' : 'Returned to Volunteer.');
       invalidateRoster();
     },
   });
 
   const STATUS_COLORS: Record<string, string> = {
     AVAILABLE: 'text-accent-green border-accent-green/30 bg-accent-green/5',
-    DEPLOYED: 'text-accent-blue border-accent-blue/30 bg-accent-blue/5',
-    INACTIVE: 'text-text-muted border-bg-border bg-bg-elevated',
+    DEPLOYED:  'text-accent-blue border-accent-blue/30 bg-accent-blue/5',
+    INACTIVE:  'text-text-muted border-bg-border bg-bg-elevated',
   };
 
   const availableVols = roster?.volunteers.filter((v: Volunteer) => v.status === 'AVAILABLE') ?? [];
 
-  const addError = (addMutation.error as any)?.response?.data?.error ?? '';
-  const assignError = (assignMutation.error as any)?.response?.data?.error ?? '';
-  const statusError = (statusMutation.error as any)?.response?.data?.error ?? '';
-  const mutationError = addError || assignError || statusError;
+  const mutationError =
+    (assignMutation.error as any)?.response?.data?.error ||
+    (statusMutation.error as any)?.response?.data?.error ||
+    (roleMutation.error as any)?.response?.data?.error || '';
 
   if (rosterLoading) {
     return (
       <div className="space-y-4">
-        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">{[...Array(4)].map((_, i) => <Skeleton key={i} className="h-20" />)}</div>
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-5"><Skeleton className="h-48" /><Skeleton className="h-48" /></div>
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+          {[...Array(4)].map((_, i) => <Skeleton key={i} className="h-20" />)}
+        </div>
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
+          <Skeleton className="h-48" /><Skeleton className="h-48" />
+        </div>
         <Skeleton className="h-64" />
       </div>
     );
@@ -778,14 +778,32 @@ function VolunteersTab({ districtId, subWarehouseId }: { districtId: string; sub
 
   return (
     <div className="space-y-6">
-      {mutationError && <ErrorBox msg={mutationError} onDismiss={() => { addMutation.reset(); assignMutation.reset(); statusMutation.reset(); }} />}
+      {mutationError && (
+        <ErrorBox
+          msg={mutationError}
+          onDismiss={() => { assignMutation.reset(); statusMutation.reset(); roleMutation.reset(); }}
+        />
+      )}
       {success && <SuccessBox msg={success} onDismiss={() => setSuccess('')} />}
 
+      {/* volunteers come from user accounts — not added manually here */}
+      <div className="bg-bg-elevated border border-bg-border rounded px-4 py-3">
+        <p className="font-mono text-[10px] text-text-muted">
+          <span className="text-text-secondary font-bold">How volunteers appear here:</span>{' '}
+          Volunteer accounts are created by SUPER_ADMIN via User Management.
+          Each account automatically appears in this roster.
+          Use the Promote TL button to assign a Team Leader before each deployment.
+        </p>
+      </div>
+
+      {/* stat cards */}
       {roster && (
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
           <div className="card px-4 py-3">
             <p className="font-mono text-[10px] text-text-muted uppercase tracking-widest mb-1">Total</p>
-            <p className={`font-mono text-2xl font-bold ${roster.belowMinimum ? 'text-accent-red' : 'text-text-primary'}`}>{roster.total}</p>
+            <p className={`font-mono text-2xl font-bold ${roster.belowMinimum ? 'text-accent-red' : 'text-text-primary'}`}>
+              {roster.total}
+            </p>
             <p className="font-mono text-[10px] text-text-muted">min. 12</p>
           </div>
           <div className="card px-4 py-3">
@@ -811,131 +829,128 @@ function VolunteersTab({ districtId, subWarehouseId }: { districtId: string; sub
         </div>
       )}
 
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
-        <div className="card p-5">
-          <SectionTitle sub="Add to district roster">Add Volunteer</SectionTitle>
+      {/* assign to zone */}
+      <div className="card p-5 max-w-md">
+        <SectionTitle sub="Assign to zone + team">Assign to Zone</SectionTitle>
+        {!alertId ? (
+          <div className="bg-accent-orange/10 border border-accent-orange/30 rounded px-3 py-3">
+            <p className="font-mono text-xs text-accent-orange">
+              REMA must be activated before assigning volunteers to zones.
+            </p>
+          </div>
+        ) : (
           <div className="space-y-3">
             <div>
-              <label className="label">Full Name</label>
-              <input type="text" className="input" placeholder="Nguyen Van A"
-                value={addName} onChange={e => setAddName(e.target.value)} />
-            </div>
-            <div>
-              <label className="label">Phone</label>
-              <input type="tel" className="input" placeholder="+84901234567"
-                value={addPhone} onChange={e => setAddPhone(e.target.value)} />
-            </div>
-            <div>
-              <label className="label">Role</label>
-              <div className="flex gap-2">
-                {(['VOLUNTEER', 'TEAM_LEADER'] as const).map(r => (
-                  <button key={r} onClick={() => setAddRole(r)}
-                    className={`flex-1 font-mono text-xs py-2 rounded border transition-all ${
-                      addRole === r
-                        ? 'bg-accent-blue/10 border-accent-blue/40 text-accent-blue'
-                        : 'bg-bg-elevated border-bg-border text-text-secondary hover:text-text-primary'
-                    }`}>
-                    {r === 'TEAM_LEADER' ? 'Team Leader' : 'Volunteer'}
-                  </button>
+              <label className="label">Volunteer</label>
+              <select value={assignVolId} onChange={e => setAssignVolId(e.target.value)} className="input">
+                <option value="">Select available volunteer...</option>
+                {availableVols.map((v: Volunteer) => (
+                  <option key={v.id} value={v.id}>
+                    {v.name} ({v.role === 'TEAM_LEADER' ? 'TL' : 'V'})
+                  </option>
                 ))}
+              </select>
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label className="label">Zone</label>
+                <select value={assignZone} onChange={e => setAssignZone(e.target.value)} className="input">
+                  {['Zone A', 'Zone B', 'Zone C'].map(z => <option key={z}>{z}</option>)}
+                </select>
+              </div>
+              <div>
+                <label className="label">Team #</label>
+                <select value={assignTeam} onChange={e => setAssignTeam(Number(e.target.value))} className="input">
+                  {[1, 2, 3].map(n => <option key={n} value={n}>Team {n}</option>)}
+                </select>
               </div>
             </div>
             <button
-              onClick={() => addName.trim() && addPhone.trim() && addMutation.mutate({
-                districtId, name: addName.trim(), phone: addPhone.trim(), role: addRole,
+              onClick={() => assignVolId && subWarehouseId && assignMutation.mutate({
+                volunteerId: assignVolId, subWarehouseId, alertId, zone: assignZone, teamNumber: assignTeam,
               })}
-              disabled={addMutation.isPending || !addName.trim() || !addPhone.trim()}
+              disabled={assignMutation.isPending || !assignVolId || !subWarehouseId}
               className="btn-primary w-full">
-              {addMutation.isPending ? 'Adding...' : 'Add to Roster'}
+              {assignMutation.isPending ? 'Assigning...' : 'Assign & Deploy'}
             </button>
           </div>
-        </div>
-
-        <div className="card p-5">
-          <SectionTitle sub="Assign to zone + team">Assign to Zone</SectionTitle>
-          {!alertId ? (
-            <div className="bg-accent-orange/10 border border-accent-orange/30 rounded px-3 py-3">
-              <p className="font-mono text-xs text-accent-orange">REMA must be activated before assigning volunteers to zones.</p>
-            </div>
-          ) : (
-            <div className="space-y-3">
-              <div>
-                <label className="label">Volunteer</label>
-                <select value={assignVolId} onChange={e => setAssignVolId(e.target.value)} className="input">
-                  <option value="">Select available volunteer...</option>
-                  {availableVols.map((v: Volunteer) => (
-                    <option key={v.id} value={v.id}>
-                      {v.name} ({v.role === 'TEAM_LEADER' ? 'TL' : 'V'})
-                    </option>
-                  ))}
-                </select>
-              </div>
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="label">Zone</label>
-                  <select value={assignZone} onChange={e => setAssignZone(e.target.value)} className="input">
-                    {['Zone A', 'Zone B', 'Zone C'].map(z => <option key={z}>{z}</option>)}
-                  </select>
-                </div>
-                <div>
-                  <label className="label">Team #</label>
-                  <select value={assignTeam} onChange={e => setAssignTeam(Number(e.target.value))} className="input">
-                    {[1, 2, 3].map(n => <option key={n} value={n}>Team {n}</option>)}
-                  </select>
-                </div>
-              </div>
-              <button
-                onClick={() => assignVolId && subWarehouseId && assignMutation.mutate({
-                  volunteerId: assignVolId, subWarehouseId, alertId, zone: assignZone, teamNumber: assignTeam,
-                })}
-                disabled={assignMutation.isPending || !assignVolId || !subWarehouseId}
-                className="btn-primary w-full">
-                {assignMutation.isPending ? 'Assigning...' : 'Assign & Deploy'}
-              </button>
-            </div>
-          )}
-        </div>
+        )}
       </div>
 
+      {/* full roster table */}
       <div>
         <SectionTitle>Full Roster</SectionTitle>
         <div className="card overflow-x-auto">
           <table className="w-full">
             <thead>
               <tr className="border-b border-bg-border">
-                {['Name', 'Phone', 'Role', 'Status', 'Last Assignment', ''].map(h => (
-                  <th key={h} className="px-4 py-2.5 text-left font-mono text-[10px] text-text-muted uppercase tracking-widest">{h}</th>
+                {['Name', 'Phone', 'Field Role', 'Status', 'Last Assignment', 'Actions'].map(h => (
+                  <th key={h} className="px-4 py-2.5 text-left font-mono text-[10px] text-text-muted uppercase tracking-widest">
+                    {h}
+                  </th>
                 ))}
               </tr>
             </thead>
             <tbody>
               {!roster || roster.volunteers.length === 0 ? (
-                <tr><td colSpan={6} className="px-4 py-8 text-center">
-                  <p className="font-mono text-xs text-text-muted">No volunteers in roster.</p>
-                </td></tr>
+                <tr>
+                  <td colSpan={6} className="px-4 py-8 text-center">
+                    <p className="font-mono text-xs text-text-muted">
+                      No volunteers yet. Ask SUPER_ADMIN to create VOLUNTEER accounts for this district.
+                    </p>
+                  </td>
+                </tr>
               ) : roster.volunteers.map((v: Volunteer) => (
                 <tr key={v.id} className="border-b border-bg-border hover:bg-bg-elevated/40 transition-colors">
-                  <td className="px-4 py-3 font-sans text-sm text-text-primary">{v.name}</td>
+                  <td className="px-4 py-3">
+                    <p className="font-sans text-sm text-text-primary">{v.name}</p>
+                    {v.user ? (
+                      <p className="font-mono text-[9px] text-text-muted">{v.user.email}</p>
+                    ) : (
+                      <p className="font-mono text-[9px] text-text-muted italic">community volunteer</p>
+                    )}
+                  </td>
                   <td className="px-4 py-3 font-mono text-xs text-text-secondary">{v.phone}</td>
                   <td className="px-4 py-3">
-                    <span className={`font-mono text-[10px] ${v.role === 'TEAM_LEADER' ? 'text-accent-blue' : 'text-text-muted'}`}>
-                      {v.role === 'TEAM_LEADER' ? 'TL' : 'V'}
+                    <span className={`font-mono text-[10px] font-semibold ${
+                      v.role === 'TEAM_LEADER' ? 'text-accent-blue' : 'text-text-muted'
+                    }`}>
+                      {v.role === 'TEAM_LEADER' ? 'Team Leader' : 'Volunteer'}
                     </span>
                   </td>
-                  <td className="px-4 py-3"><Badge label={v.status} color={STATUS_COLORS[v.status]} /></td>
+                  <td className="px-4 py-3">
+                    <Badge label={v.status} color={STATUS_COLORS[v.status]} />
+                  </td>
                   <td className="px-4 py-3 font-mono text-[10px] text-text-muted">
-                    {v.assignments?.[0] ? `${v.assignments[0].zone} · T${v.assignments[0].teamNumber}` : '—'}
+                    {v.assignments?.[0]
+                      ? `${v.assignments[0].zone} · T${v.assignments[0].teamNumber}`
+                      : '—'}
                   </td>
                   <td className="px-4 py-3">
                     {v.status !== 'DEPLOYED' && (
-                      <button
-                        onClick={() => statusMutation.mutate({
-                          id: v.id,
-                          status: v.status === 'AVAILABLE' ? 'INACTIVE' : 'AVAILABLE',
-                        })}
-                        className="font-mono text-[10px] text-text-muted hover:text-text-primary transition-colors">
-                        {v.status === 'AVAILABLE' ? 'Deactivate' : 'Reactivate'}
-                      </button>
+                      <div className="flex items-center gap-3">
+                        <button
+                          onClick={() => roleMutation.mutate({
+                            id: v.id,
+                            role: v.role === 'TEAM_LEADER' ? 'VOLUNTEER' : 'TEAM_LEADER',
+                          })}
+                          disabled={roleMutation.isPending}
+                          className={`font-mono text-[10px] transition-colors ${
+                            v.role === 'TEAM_LEADER'
+                              ? 'text-text-muted hover:text-accent-orange'
+                              : 'text-text-muted hover:text-accent-blue'
+                          }`}>
+                          {v.role === 'TEAM_LEADER' ? 'Demote' : 'Promote TL'}
+                        </button>
+                        <button
+                          onClick={() => statusMutation.mutate({
+                            id: v.id,
+                            status: v.status === 'AVAILABLE' ? 'INACTIVE' : 'AVAILABLE',
+                          })}
+                          className="font-mono text-[10px] text-text-muted hover:text-text-primary transition-colors">
+                          {v.status === 'AVAILABLE' ? 'Deactivate' : 'Reactivate'}
+                        </button>
+                      </div>
                     )}
                   </td>
                 </tr>
