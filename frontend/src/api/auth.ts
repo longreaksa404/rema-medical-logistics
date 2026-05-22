@@ -9,11 +9,32 @@ export interface UserProfile {
   districtId: string | null;
   mustChangePassword?: boolean;
   avatarBase64?: string | null;
+  createdAt?: string;
+  lastLoginAt?: string | null;
 }
 
 export interface LoginResponse {
   token: string;
   user: UserProfile;
+}
+
+export interface ActivityData {
+  role: string;
+  personal: {
+    incidentsReported: number;
+    radioCheckins: number;
+    householdsAssessed?: number;
+    deliveriesLed?: number;
+  };
+  district?: {
+    completedDeliveries: number;
+    householdsServed: number;
+    openIncidents: number;
+  };
+  system?: {
+    completedDeliveries: number;
+    householdsServed: number;
+  };
 }
 
 export const authApi = {
@@ -39,9 +60,13 @@ export const authApi = {
     await api.patch('/api/users/me/avatar', { avatarBase64 });
   },
 
-  // name and/or phone — email is admin-only
   updateProfile: async (data: { name?: string; phone?: string | null }): Promise<UserProfile> => {
     const res = await api.patch<UserProfile>('/api/users/me/profile', data);
     return res.data;
   },
-};
+
+  getActivity: async (): Promise<ActivityData> => {
+    const res = await api.get<ActivityData>('/api/activity/me');
+    return res.data;
+  },
+};  

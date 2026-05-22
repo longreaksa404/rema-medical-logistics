@@ -4,8 +4,8 @@ import jwt from 'jsonwebtoken';
 import { prisma } from '../lib/prisma';
 import { JwtPayload } from '../types/auth';
 
-const JWT_SECRET        = process.env.JWT_SECRET || 'rema-dev-secret-change-in-production';
-const ACCESS_EXPIRES_IN = '15m';
+const JWT_SECRET           = process.env.JWT_SECRET || 'rema-dev-secret-change-in-production';
+const ACCESS_EXPIRES_IN    = '15m';
 const REFRESH_EXPIRES_DAYS = 7;
 
 // ─── TOKEN HELPERS ────────────────────────────────────────────────────────────
@@ -15,7 +15,6 @@ function signAccessToken(payload: JwtPayload): string {
 }
 
 function makeRefreshToken(): string {
-  // 48 random bytes → 64 hex chars, never guessable
   return crypto.randomBytes(48).toString('hex');
 }
 
@@ -34,23 +33,30 @@ export async function loginUser(email: string, password: string) {
   if (!valid) throw new Error('Invalid credentials');
 
   const payload: JwtPayload = {
-    userId: user.id,
-    email: user.email,
-    role: user.role,
+    userId:     user.id,
+    email:      user.email,
+    role:       user.role,
     districtId: user.districtId,
   };
 
   const accessToken  = signAccessToken(payload);
   const refreshToken = makeRefreshToken();
 
-  // store hash only — raw token never touches the DB
-  await prisma.refreshToken.create({
-    data: {
-      tokenHash: hashToken(refreshToken),
-      userId:    user.id,
-      expiresAt: new Date(Date.now() + REFRESH_EXPIRES_DAYS * 86_400_000),
-    },
-  });
+  // stamp lastLoginAt + store refresh token hash in one transaction
+  const [updatedUser] = await prisma.$transaction([
+    prisma.user.update({
+      where: { id: user.id },
+      data:  { lastLoginAt: new Date() },
+      select: { lastLoginAt: true, createdAt: true, phone: true },
+    }),
+    prisma.refreshToken.create({
+      data: {
+        tokenHash: hashToken(refreshToken),
+        userId:    user.id,
+        expiresAt: new Date(Date.now() + REFRESH_EXPIRES_DAYS * 86_400_000),
+      },
+    }),
+  ]);
 
   return {
     accessToken,
@@ -59,17 +65,18 @@ export async function loginUser(email: string, password: string) {
       id:                 user.id,
       email:              user.email,
       name:               user.name,
+      phone:              user.phone,
       role:               user.role,
       districtId:         user.districtId,
       mustChangePassword: user.mustChangePassword,
-      avatarBase64:       user.avatarBase64,      // add this
+      avatarBase64:       user.avatarBase64,
+      createdAt:          user.createdAt.toISOString(),
+      lastLoginAt:        updatedUser.lastLoginAt?.toISOString() ?? null,
     },
   };
 }
 
 // ─── REFRESH ──────────────────────────────────────────────────────────────────
-// Validate refresh token, issue new access token.
-// Does NOT rotate the refresh token — keeps it simple for the demo.
 
 export async function refreshAccessToken(rawRefreshToken: string) {
   const hash = hashToken(rawRefreshToken);
@@ -79,10 +86,10 @@ export async function refreshAccessToken(rawRefreshToken: string) {
     include: { user: true },
   });
 
-  if (!stored)              throw new Error('Invalid refresh token');
-  if (stored.revoked)       throw new Error('Refresh token has been revoked');
-  if (stored.expiresAt < new Date()) throw new Error('Refresh token has expired');
-  if (!stored.user.active)  throw new Error('Account is inactive');
+  if (!stored)                         throw new Error('Invalid refresh token');
+  if (stored.revoked)                  throw new Error('Refresh token has been revoked');
+  if (stored.expiresAt < new Date())   throw new Error('Refresh token has expired');
+  if (!stored.user.active)             throw new Error('Account is inactive');
 
   const payload: JwtPayload = {
     userId:     stored.user.id,
@@ -91,17 +98,13 @@ export async function refreshAccessToken(rawRefreshToken: string) {
     districtId: stored.user.districtId,
   };
 
-  return {
-    accessToken: signAccessToken(payload),
-  };
+  return { accessToken: signAccessToken(payload) };
 }
 
 // ─── LOGOUT ───────────────────────────────────────────────────────────────────
-// Revoke the specific refresh token presented at logout.
 
 export async function logoutUser(rawRefreshToken: string | undefined) {
   if (!rawRefreshToken) return;
-
   const hash = hashToken(rawRefreshToken);
   await prisma.refreshToken.updateMany({
     where: { tokenHash: hash, revoked: false },
@@ -115,10 +118,10 @@ export async function getCurrentUser(userId: string) {
   const user = await prisma.user.findUnique({
     where: { id: userId },
     select: {
-      id: true, email: true, name: true, role: true,
-      districtId: true, active: true, createdAt: true,
-      mustChangePassword: true,
-      avatarBase64: true,    // add this
+      id: true, email: true, name: true, phone: true,
+      role: true, districtId: true, active: true,
+      createdAt: true, lastLoginAt: true,
+      mustChangePassword: true, avatarBase64: true,
     },
   });
 
@@ -126,7 +129,7 @@ export async function getCurrentUser(userId: string) {
   return user;
 }
 
-// ─── HASH PASSWORD (used by seed script) ──────────────────────────────────────
+// ─── HASH PASSWORD ────────────────────────────────────────────────────────────
 
 export async function hashPassword(password: string): Promise<string> {
   return bcrypt.hash(password, 10);
