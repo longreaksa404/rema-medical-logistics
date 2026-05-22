@@ -24,6 +24,7 @@ import notificationRoutes from './routes/notification.routes';
 import dashboardRoutes from './routes/dashboard.routes';
 import aiRoutes from './routes/ai.routes';
 import cookieParser from 'cookie-parser';
+import activityRoutes from './routes/activity.routes';
 
 const app = express();
 
@@ -87,6 +88,7 @@ app.use('/api/radio', radioRoutes);
 app.use('/api/notifications', notificationRoutes);
 app.use('/api/dashboard', dashboardRoutes);
 app.use('/api/ai', aiRoutes);
+app.use('/api/activity', activityRoutes);
 
 // ─── 404 FALLBACK ─────────────────────────────────────────────────────────────
 app.use((_req, res) => {

@@ -33,6 +33,7 @@ model User {
   routeLogs         RouteLog[]
   stockMovements    StockMovement[]
   district          District?             @relation(fields: [districtId], references: [id])
+  lastLoginAt DateTime?
   @@map("users")
 }
 
