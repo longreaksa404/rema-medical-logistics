@@ -6,10 +6,9 @@ import {
   updateVolunteer,
   setVolunteerRole,
   assignVolunteer,
+  assignTeam,
   getDistrictRoster,
 } from '../services/volunteer.service';
-
-// ─── GET /api/volunteers ──────────────────────────────────────────────────────
 
 export async function list(req: Request, res: Response): Promise<void> {
   const { districtId, status } = req.query;
@@ -32,10 +31,7 @@ export async function list(req: Request, res: Response): Promise<void> {
   }
 }
 
-// ─── POST /api/volunteers ─────────────────────────────────────────────────────
-// community volunteers only — no login account
-// VOLUNTEER users are created via POST /api/users and auto-get a volunteer record
-
+// community volunteers only — VOLUNTEER users created via POST /api/users
 export async function createCommunity(req: Request, res: Response): Promise<void> {
   const { districtId, name, phone } = req.body;
 
@@ -53,12 +49,9 @@ export async function createCommunity(req: Request, res: Response): Promise<void
   }
 }
 
-// ─── PATCH /api/volunteers/:id ────────────────────────────────────────────────
-
 export async function update(req: Request, res: Response): Promise<void> {
   const { name, phone, status } = req.body;
 
-  // role changes go through PATCH /api/volunteers/:id/role
   if (req.body.role) {
     res.status(400).json({ error: 'Use PATCH /api/volunteers/:id/role to change field role' });
     return;
@@ -72,9 +65,6 @@ export async function update(req: Request, res: Response): Promise<void> {
     res.status(400).json({ error: message });
   }
 }
-
-// ─── PATCH /api/volunteers/:id/role ──────────────────────────────────────────
-// promote or demote — Hub Manager sets who leads in the field
 
 export async function updateRole(req: Request, res: Response): Promise<void> {
   const { role } = req.body;
@@ -93,8 +83,6 @@ export async function updateRole(req: Request, res: Response): Promise<void> {
     res.status(400).json({ error: message });
   }
 }
-
-// ─── POST /api/volunteers/assign ──────────────────────────────────────────────
 
 export async function assign(req: Request, res: Response): Promise<void> {
   const { volunteerId, subWarehouseId, alertId, zone, teamNumber } = req.body;
@@ -121,7 +109,32 @@ export async function assign(req: Request, res: Response): Promise<void> {
   }
 }
 
-// ─── GET /api/volunteers/:districtId/roster ───────────────────────────────────
+// deploy a full team — TL + members in one transaction
+export async function assignTeamHandler(req: Request, res: Response): Promise<void> {
+  const { subWarehouseId, alertId, zone, teamNumber, leaderId, memberIds } = req.body;
+
+  if (!subWarehouseId || !alertId || !zone || !teamNumber || !leaderId) {
+    res.status(400).json({
+      error: 'subWarehouseId, alertId, zone, teamNumber, and leaderId are required',
+    });
+    return;
+  }
+
+  try {
+    const assignments = await assignTeam({
+      subWarehouseId,
+      alertId,
+      zone,
+      teamNumber: Number(teamNumber),
+      leaderId,
+      memberIds: Array.isArray(memberIds) ? memberIds : [],
+    });
+    res.status(201).json(assignments);
+  } catch (err) {
+    const message = err instanceof Error ? err.message : 'Error deploying team';
+    res.status(400).json({ error: message });
+  }
+}
 
 export async function roster(req: Request, res: Response): Promise<void> {
   try {

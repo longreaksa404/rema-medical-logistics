@@ -703,9 +703,15 @@ function StockTab({ districtId, subWarehouseId, allSubWarehouses }: {
 function VolunteersTab({ districtId, subWarehouseId }: { districtId: string; subWarehouseId: string | null }) {
   const queryClient = useQueryClient();
   const [success, setSuccess] = useState('');
-  const [assignVolId, setAssignVolId] = useState('');
-  const [assignZone, setAssignZone] = useState('Zone A');
-  const [assignTeam, setAssignTeam] = useState(1);
+
+  // community volunteer form state
+  const [communityName, setCommunityName] = useState('');
+  const [communityPhone, setCommunityPhone] = useState('');
+
+  // per-team setup state — zone + TL + member selection for each of 3 teams
+  const [teamZones, setTeamZones] = useState<Record<number, string>>({ 1: 'Zone A', 2: 'Zone B', 3: 'Zone C' });
+  const [teamLeaderIds, setTeamLeaderIds] = useState<Record<number, string>>({ 1: '', 2: '', 3: '' });
+  const [teamMemberIds, setTeamMemberIds] = useState<Record<number, string[]>>({ 1: [], 2: [], 3: [] });
 
   const { data: roster, isLoading: rosterLoading } = useQuery({
     queryKey: queryKeys.hub.volunteers(districtId),
@@ -722,20 +728,21 @@ function VolunteersTab({ districtId, subWarehouseId }: { districtId: string; sub
     queryClient.invalidateQueries({ queryKey: queryKeys.hub.volunteers(districtId) });
   }, [queryClient, districtId]);
 
-  const assignMutation = useMutation({
-    mutationFn: hubApi.assignVolunteer,
-    onSuccess: () => {
-      setSuccess('Volunteer assigned and marked DEPLOYED.');
-      setAssignVolId('');
-      invalidateRoster();
-    },
-  });
-
-  const statusMutation = useMutation({
-    mutationFn: ({ id, status }: { id: string; status: 'AVAILABLE' | 'INACTIVE' }) =>
-      hubApi.updateVolunteer(id, { status }),
+  const deployTeamMutation = useMutation({
+    mutationFn: (vars: { teamNumber: number; leaderId: string; memberIds: string[]; zone: string }) =>
+      hubApi.assignTeam({
+        subWarehouseId: subWarehouseId!,
+        alertId,
+        zone: vars.zone,
+        teamNumber: vars.teamNumber,
+        leaderId: vars.leaderId,
+        memberIds: vars.memberIds,
+      }),
     onSuccess: (_, vars) => {
-      setSuccess(`Volunteer set to ${vars.status}.`);
+      setSuccess(`Team ${vars.teamNumber} deployed to ${vars.zone}.`);
+      // clear that team's selections after deploy
+      setTeamLeaderIds(p => ({ ...p, [vars.teamNumber]: '' }));
+      setTeamMemberIds(p => ({ ...p, [vars.teamNumber]: [] }));
       invalidateRoster();
     },
   });
@@ -749,19 +756,54 @@ function VolunteersTab({ districtId, subWarehouseId }: { districtId: string; sub
     },
   });
 
+  const statusMutation = useMutation({
+    mutationFn: ({ id, status }: { id: string; status: 'AVAILABLE' | 'INACTIVE' }) =>
+      hubApi.updateVolunteer(id, { status }),
+    onSuccess: (_, vars) => {
+      setSuccess(`Volunteer set to ${vars.status}.`);
+      invalidateRoster();
+    },
+  });
+
+  const communityMutation = useMutation({
+    mutationFn: () => hubApi.createCommunityVolunteer({
+      districtId,
+      name: communityName.trim(),
+      phone: communityPhone.trim(),
+    }),
+    onSuccess: () => {
+      setSuccess(`${communityName.trim()} added as community volunteer.`);
+      setCommunityName('');
+      setCommunityPhone('');
+      invalidateRoster();
+    },
+  });
+
   const STATUS_COLORS: Record<string, string> = {
     AVAILABLE: 'text-accent-green border-accent-green/30 bg-accent-green/5',
     DEPLOYED:  'text-accent-blue border-accent-blue/30 bg-accent-blue/5',
     INACTIVE:  'text-text-muted border-bg-border bg-bg-elevated',
   };
 
-  const availableVols = roster?.volunteers.filter((v: Volunteer) => v.status === 'AVAILABLE') ?? [];
-  const deployedCount = roster?.volunteers.filter((v: Volunteer) => v.status === 'DEPLOYED').length ?? 0;
+  const allVolunteers   = roster?.volunteers ?? [];
+  const availableVols   = allVolunteers.filter((v: Volunteer) => v.status === 'AVAILABLE');
+  const availableTLs    = availableVols.filter((v: Volunteer) => v.role === 'TEAM_LEADER');
+  const availableMembers = availableVols.filter((v: Volunteer) => v.role === 'VOLUNTEER');
+  const deployedCount   = allVolunteers.filter((v: Volunteer) => v.status === 'DEPLOYED').length;
+
+  // compute which members are already picked by another team
+  const allPickedMemberIds = new Set(
+    [1, 2, 3].flatMap(n => teamMemberIds[n])
+  );
+  const allPickedLeaderIds = new Set(
+    [1, 2, 3].map(n => teamLeaderIds[n]).filter(Boolean)
+  );
 
   const mutationError =
-    (assignMutation.error as any)?.response?.data?.error ||
+    (deployTeamMutation.error as any)?.response?.data?.error ||
+    (roleMutation.error as any)?.response?.data?.error ||
     (statusMutation.error as any)?.response?.data?.error ||
-    (roleMutation.error as any)?.response?.data?.error || '';
+    (communityMutation.error as any)?.response?.data?.error || '';
 
   if (rosterLoading) {
     return (
@@ -769,7 +811,9 @@ function VolunteersTab({ districtId, subWarehouseId }: { districtId: string; sub
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
           {[...Array(4)].map((_, i) => <Skeleton key={i} className="h-20" />)}
         </div>
-        <Skeleton className="h-48" />
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+          {[...Array(3)].map((_, i) => <Skeleton key={i} className="h-56" />)}
+        </div>
         <Skeleton className="h-64" />
       </div>
     );
@@ -780,12 +824,17 @@ function VolunteersTab({ districtId, subWarehouseId }: { districtId: string; sub
       {mutationError && (
         <ErrorBox
           msg={mutationError}
-          onDismiss={() => { assignMutation.reset(); statusMutation.reset(); roleMutation.reset(); }}
+          onDismiss={() => {
+            deployTeamMutation.reset();
+            roleMutation.reset();
+            statusMutation.reset();
+            communityMutation.reset();
+          }}
         />
       )}
       {success && <SuccessBox msg={success} onDismiss={() => setSuccess('')} />}
 
-      {/* stat cards */}
+      {/* ── STAT CARDS ────────────────────────────────────────────────────── */}
       {roster && (
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
           <div className="card px-4 py-3">
@@ -816,92 +865,182 @@ function VolunteersTab({ districtId, subWarehouseId }: { districtId: string; sub
         </div>
       )}
 
-      {/* assign panel + info note side by side */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
-        <div className="card p-5">
-          <SectionTitle sub="Assign available volunteer to zone + team">Assign to Zone</SectionTitle>
-          {!alertId ? (
-            <div className="bg-accent-orange/10 border border-accent-orange/30 rounded px-3 py-3">
-              <p className="font-mono text-xs text-accent-orange">
-                REMA must be activated before assigning volunteers to zones.
-              </p>
-            </div>
-          ) : availableVols.length === 0 ? (
-            <div className="bg-bg-elevated border border-bg-border rounded px-3 py-3">
-              <p className="font-mono text-xs text-text-muted">
-                No available volunteers to assign. All are either deployed or inactive.
-              </p>
-            </div>
-          ) : (
-            <div className="space-y-3">
-              <div>
-                <label className="label">Volunteer</label>
-                <select value={assignVolId} onChange={e => setAssignVolId(e.target.value)} className="input">
-                  <option value="">Select available volunteer...</option>
-                  {availableVols.map((v: Volunteer) => (
-                    <option key={v.id} value={v.id}>
-                      {v.name} {v.role === 'TEAM_LEADER' ? '· TL' : ''}
-                    </option>
-                  ))}
-                </select>
-              </div>
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="label">Zone</label>
-                  <select value={assignZone} onChange={e => setAssignZone(e.target.value)} className="input">
-                    {['Zone A', 'Zone B', 'Zone C'].map(z => <option key={z}>{z}</option>)}
-                  </select>
-                </div>
-                <div>
-                  <label className="label">Team #</label>
-                  <select value={assignTeam} onChange={e => setAssignTeam(Number(e.target.value))} className="input">
-                    {[1, 2, 3].map(n => <option key={n} value={n}>Team {n}</option>)}
-                  </select>
-                </div>
-              </div>
-              <button
-                onClick={() => assignVolId && subWarehouseId && assignMutation.mutate({
-                  volunteerId: assignVolId, subWarehouseId, alertId, zone: assignZone, teamNumber: assignTeam,
-                })}
-                disabled={assignMutation.isPending || !assignVolId || !subWarehouseId}
-                className="btn-primary w-full">
-                {assignMutation.isPending ? 'Assigning...' : 'Assign & Deploy'}
-              </button>
-            </div>
+      {/* ── TEAM SETUP ────────────────────────────────────────────────────── */}
+      <div>
+        <div className="flex items-center gap-2 mb-3">
+          <h3 className="font-sans font-bold text-text-primary">Team Setup</h3>
+          {!alertId && (
+            <span className="font-mono text-[9px] text-accent-orange bg-accent-orange/10 px-2 py-0.5 rounded border border-accent-orange/30">
+              Activate REMA to deploy
+            </span>
           )}
         </div>
 
-        <div className="card p-5">
-          <SectionTitle sub="Volunteers come from VOLUNTEER user accounts">How This Works</SectionTitle>
-          <div className="space-y-3">
-            <div className="flex items-start gap-3">
-              <span className="font-mono text-xs text-accent-blue mt-0.5">1.</span>
-              <p className="font-mono text-[10px] text-text-muted">
-                SUPER_ADMIN creates a user account with role <span className="text-text-secondary">VOLUNTEER</span> and assigns a district. That person automatically appears in this roster.
-              </p>
-            </div>
-            <div className="flex items-start gap-3">
-              <span className="font-mono text-xs text-accent-blue mt-0.5">2.</span>
-              <p className="font-mono text-[10px] text-text-muted">
-                Use <span className="text-accent-blue font-semibold">Promote TL</span> on the roster to designate a Team Leader before each deployment. One per team.
-              </p>
-            </div>
-            <div className="flex items-start gap-3">
-              <span className="font-mono text-xs text-accent-blue mt-0.5">3.</span>
-              <p className="font-mono text-[10px] text-text-muted">
-                Use <span className="text-text-secondary font-semibold">Assign to Zone</span> to mark volunteers as DEPLOYED and record their zone + team number.
-              </p>
-            </div>
-            <div className="mt-2 pt-3 border-t border-bg-border">
-              <p className="font-mono text-[10px] text-text-muted">
-                Community helpers without a login can be added via the backend. Their rows show <span className="italic">community volunteer</span> instead of an email.
-              </p>
-            </div>
-          </div>
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+          {[1, 2, 3].map(teamNum => {
+            // find deployed volunteers for this team from roster assignments
+            const deployedTeamMembers = allVolunteers.filter(
+              (v: Volunteer) =>
+                v.status === 'DEPLOYED' &&
+                v.assignments?.[0]?.teamNumber === teamNum
+            );
+            const isDeployed = deployedTeamMembers.length > 0;
+            const deployedTL = deployedTeamMembers.find((v: Volunteer) => v.role === 'TEAM_LEADER');
+            const deployedMembers = deployedTeamMembers.filter((v: Volunteer) => v.role === 'VOLUNTEER');
+
+            // members available for this team = available volunteers not picked by other teams
+            const membersForThisTeam = availableMembers.filter(
+              (v: Volunteer) =>
+                !allPickedMemberIds.has(v.id) ||
+                teamMemberIds[teamNum].includes(v.id)
+            );
+
+            // TLs available for this team = available TLs not picked by other teams
+            const leadersForThisTeam = availableTLs.filter(
+              (v: Volunteer) =>
+                !allPickedLeaderIds.has(v.id) ||
+                teamLeaderIds[teamNum] === v.id
+            );
+
+            const selectedLeaderId = teamLeaderIds[teamNum];
+            const selectedMemberIds = teamMemberIds[teamNum];
+            const canDeploy = !!alertId && !!subWarehouseId && !!selectedLeaderId && !isDeployed;
+
+            return (
+              <div key={teamNum} className={`card p-4 ${isDeployed ? 'border-accent-green/30 bg-accent-green/5' : 'border-bg-border'}`}>
+                <div className="flex items-center justify-between mb-3">
+                  <div className="flex items-center gap-2">
+                    <span className="font-mono text-sm font-bold text-text-primary">Team {teamNum}</span>
+                    {isDeployed && (
+                      <span className="font-mono text-[9px] px-1.5 py-0.5 rounded border text-accent-green border-accent-green/30 bg-accent-green/5">
+                        DEPLOYED
+                      </span>
+                    )}
+                  </div>
+                  {/* zone selector — always visible */}
+                  <select
+                    value={teamZones[teamNum]}
+                    onChange={e => setTeamZones(p => ({ ...p, [teamNum]: e.target.value }))}
+                    disabled={isDeployed}
+                    className="input py-1 text-xs w-28">
+                    {['Zone A', 'Zone B', 'Zone C'].map(z => <option key={z}>{z}</option>)}
+                  </select>
+                </div>
+
+                {isDeployed ? (
+                  // deployed state — show who's in the team
+                  <div className="space-y-2">
+                    {deployedTL && (
+                      <div className="flex items-center gap-2">
+                        <span className="font-mono text-[9px] px-1.5 py-0.5 rounded border text-accent-blue border-accent-blue/30 bg-accent-blue/5 flex-shrink-0">
+                          TL
+                        </span>
+                        <span className="font-sans text-sm text-text-primary">{deployedTL.name}</span>
+                      </div>
+                    )}
+                    {deployedMembers.map((v: Volunteer) => (
+                      <div key={v.id} className="flex items-center gap-2">
+                        <span className="font-mono text-[9px] px-1.5 py-0.5 rounded border text-text-muted border-bg-border flex-shrink-0">
+                          V
+                        </span>
+                        <span className="font-sans text-sm text-text-secondary">{v.name}</span>
+                      </div>
+                    ))}
+                    {deployedTeamMembers.length === 0 && (
+                      <p className="font-mono text-[10px] text-text-muted">No members assigned.</p>
+                    )}
+                    <p className="font-mono text-[9px] text-text-muted pt-1">
+                      {deployedTeamMembers[0]?.assignments?.[0]?.zone ?? teamZones[teamNum]}
+                    </p>
+                  </div>
+                ) : (
+                  // setup state — pick TL and members
+                  <div className="space-y-3">
+                    <div>
+                      <label className="label">Team Leader</label>
+                      {leadersForThisTeam.length === 0 ? (
+                        <p className="font-mono text-[10px] text-accent-orange">
+                          No available team leaders. Promote one in the roster below.
+                        </p>
+                      ) : (
+                        <select
+                          value={selectedLeaderId}
+                          onChange={e => setTeamLeaderIds(p => ({ ...p, [teamNum]: e.target.value }))}
+                          className="input">
+                          <option value="">Select team leader...</option>
+                          {leadersForThisTeam.map((v: Volunteer) => (
+                            <option key={v.id} value={v.id}>{v.name}</option>
+                          ))}
+                        </select>
+                      )}
+                    </div>
+                    <div>
+                      <label className="label">
+                        Members
+                        <span className="font-mono text-[9px] text-text-muted normal-case ml-2">
+                          {selectedMemberIds.length} selected
+                        </span>
+                      </label>
+                      {membersForThisTeam.length === 0 ? (
+                        <p className="font-mono text-[10px] text-text-muted">
+                          No available volunteers.
+                        </p>
+                      ) : (
+                        <div className="space-y-1 max-h-40 overflow-y-auto">
+                          {membersForThisTeam.map((v: Volunteer) => {
+                            const checked = selectedMemberIds.includes(v.id);
+                            return (
+                              <label key={v.id}
+                                className={`flex items-center gap-2 px-2 py-1.5 rounded border cursor-pointer transition-colors ${
+                                  checked
+                                    ? 'border-accent-blue/30 bg-accent-blue/5'
+                                    : 'border-bg-border hover:border-bg-border/80 hover:bg-bg-elevated/60'
+                                }`}>
+                                <input
+                                  type="checkbox"
+                                  checked={checked}
+                                  onChange={e => {
+                                    setTeamMemberIds(p => ({
+                                      ...p,
+                                      [teamNum]: e.target.checked
+                                        ? [...p[teamNum], v.id]
+                                        : p[teamNum].filter(id => id !== v.id),
+                                    }));
+                                  }}
+                                  className="accent-accent-blue"
+                                />
+                                <span className="font-sans text-xs text-text-primary">{v.name}</span>
+                              </label>
+                            );
+                          })}
+                        </div>
+                      )}
+                    </div>
+                    <button
+                      onClick={() => deployTeamMutation.mutate({
+                        teamNumber: teamNum,
+                        leaderId: selectedLeaderId,
+                        memberIds: selectedMemberIds,
+                        zone: teamZones[teamNum],
+                      })}
+                      disabled={!canDeploy || deployTeamMutation.isPending}
+                      className="btn-primary w-full text-xs py-2">
+                      {deployTeamMutation.isPending ? 'Deploying...' : `Deploy Team ${teamNum}`}
+                    </button>
+                    {!alertId && (
+                      <p className="font-mono text-[9px] text-text-muted text-center">
+                        REMA must be activated first
+                      </p>
+                    )}
+                  </div>
+                )}
+              </div>
+            );
+          })}
         </div>
       </div>
 
-      {/* full roster table */}
+      {/* ── FULL ROSTER TABLE ─────────────────────────────────────────────── */}
       <div>
         <SectionTitle>Full Roster</SectionTitle>
         <div className="card overflow-x-auto">
@@ -916,7 +1055,7 @@ function VolunteersTab({ districtId, subWarehouseId }: { districtId: string; sub
               </tr>
             </thead>
             <tbody>
-              {!roster || roster.volunteers.length === 0 ? (
+              {allVolunteers.length === 0 ? (
                 <tr>
                   <td colSpan={6} className="px-4 py-8 text-center">
                     <p className="font-mono text-xs text-text-muted">
@@ -924,7 +1063,7 @@ function VolunteersTab({ districtId, subWarehouseId }: { districtId: string; sub
                     </p>
                   </td>
                 </tr>
-              ) : roster.volunteers.map((v: Volunteer) => (
+              ) : allVolunteers.map((v: Volunteer) => (
                 <tr key={v.id} className={`border-b border-bg-border transition-colors ${
                   v.status === 'INACTIVE' ? 'opacity-50' : 'hover:bg-bg-elevated/40'
                 }`}>
@@ -959,7 +1098,6 @@ function VolunteersTab({ districtId, subWarehouseId }: { districtId: string; sub
                       <span className="font-mono text-[9px] text-text-muted">in field</span>
                     ) : (
                       <div className="flex items-center gap-1.5 flex-wrap">
-                        {/* promote / demote */}
                         {v.role === 'TEAM_LEADER' ? (
                           <button
                             onClick={() => roleMutation.mutate({ id: v.id, role: 'VOLUNTEER' })}
@@ -975,7 +1113,6 @@ function VolunteersTab({ districtId, subWarehouseId }: { districtId: string; sub
                             Promote TL
                           </button>
                         )}
-                        {/* activate / deactivate */}
                         {v.status === 'AVAILABLE' ? (
                           <button
                             onClick={() => statusMutation.mutate({ id: v.id, status: 'INACTIVE' })}
@@ -998,6 +1135,43 @@ function VolunteersTab({ districtId, subWarehouseId }: { districtId: string; sub
               ))}
             </tbody>
           </table>
+        </div>
+      </div>
+
+      {/* ── ADD COMMUNITY VOLUNTEER ───────────────────────────────────────── */}
+      <div className="card p-5 max-w-md">
+        <SectionTitle sub="Field helper with no login account">Add Community Volunteer</SectionTitle>
+        <div className="space-y-3">
+          <div>
+            <label className="label">Full Name</label>
+            <input
+              type="text"
+              className="input"
+              placeholder="Nguyen Van A"
+              value={communityName}
+              onChange={e => setCommunityName(e.target.value)}
+            />
+          </div>
+          <div>
+            <label className="label">Phone</label>
+            <input
+              type="tel"
+              className="input"
+              placeholder="+84 901 234 567"
+              value={communityPhone}
+              onChange={e => setCommunityPhone(e.target.value)}
+            />
+          </div>
+          <button
+            onClick={() => communityMutation.mutate()}
+            disabled={communityMutation.isPending || !communityName.trim() || !communityPhone.trim()}
+            className="btn-primary w-full">
+            {communityMutation.isPending ? 'Adding...' : 'Add to Roster'}
+          </button>
+          <p className="font-mono text-[10px] text-text-muted">
+            Community volunteers appear in the roster but cannot log in to REMA.
+            For full access, ask SUPER_ADMIN to create a VOLUNTEER account instead.
+          </p>
         </div>
       </div>
     </div>

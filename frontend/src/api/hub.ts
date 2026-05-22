@@ -288,4 +288,16 @@ export const hubApi = {
     const res = await api.post<RadioCheckin>('/api/radio/checkin', data);
     return res.data;
   },
+
+  assignTeam: async (data: {
+    subWarehouseId: string;
+    alertId: string;
+    zone: string;
+    teamNumber: number;
+    leaderId: string;
+    memberIds: string[];
+  }) => {
+    const res = await api.post('/api/volunteers/assign-team', data);
+    return res.data;
+  },
 };

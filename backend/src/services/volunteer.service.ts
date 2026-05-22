@@ -69,7 +69,7 @@ export async function createVolunteerForUser(
   });
 }
 
-// hub manager can add a community volunteer with no login account
+// hub manager adds a community volunteer with no login account
 export async function createCommunityVolunteer(data: {
   districtId: string;
   name: string;
@@ -85,7 +85,6 @@ export async function createCommunityVolunteer(data: {
       phone:      data.phone,
       role:       VolunteerRole.VOLUNTEER,
       status:     VolunteerStatus.AVAILABLE,
-      // no userId — community volunteer, no login
     },
   });
 
@@ -119,7 +118,6 @@ export async function updateVolunteer(
   return updated;
 }
 
-// promote or demote a volunteer's field role
 export async function setVolunteerRole(id: string, role: VolunteerRole) {
   const existing = await prisma.volunteer.findUnique({ where: { id } });
   if (!existing) throw new Error('Volunteer not found');
@@ -170,6 +168,68 @@ export async function assignVolunteer(data: {
 
   invalidateVolunteerCache(volunteer.districtId);
   return assignment;
+}
+
+// deploy a full team in one transaction — TL + members all marked DEPLOYED together
+export async function assignTeam(data: {
+  subWarehouseId: string;
+  alertId:        string;
+  zone:           string;
+  teamNumber:     number;
+  leaderId:       string;
+  memberIds:      string[];
+}) {
+  const { subWarehouseId, alertId, zone, teamNumber, leaderId, memberIds } = data;
+
+  const sw = await prisma.subWarehouse.findUnique({ where: { id: subWarehouseId } });
+  if (!sw) throw new Error('Sub-warehouse not found');
+
+  const alert = await prisma.floodAlert.findUnique({ where: { id: alertId } });
+  if (!alert) throw new Error('Flood alert not found');
+
+  if (teamNumber < 1 || teamNumber > 3) {
+    throw new Error('teamNumber must be 1, 2, or 3 (Section B.4)');
+  }
+
+  const allIds = [leaderId, ...memberIds];
+
+  const volunteers = await prisma.volunteer.findMany({
+    where: { id: { in: allIds } },
+  });
+
+  if (volunteers.length !== allIds.length) {
+    throw new Error('One or more volunteers not found');
+  }
+
+  const notAvailable = volunteers.filter(v => v.status !== 'AVAILABLE');
+  if (notAvailable.length > 0) {
+    throw new Error(
+      `Not available: ${notAvailable.map(v => v.name).join(', ')}`
+    );
+  }
+
+  const assignments = await prisma.$transaction(async (tx) => {
+    await tx.volunteer.updateMany({
+      where: { id: { in: allIds } },
+      data: { status: VolunteerStatus.DEPLOYED },
+    });
+
+    const created = await Promise.all(
+      allIds.map(volunteerId =>
+        tx.volunteerAssignment.create({
+          data: { volunteerId, subWarehouseId, alertId, zone, teamNumber },
+          include: {
+            volunteer: { select: { name: true, phone: true, role: true } },
+          },
+        })
+      )
+    );
+
+    return created;
+  });
+
+  invalidateVolunteerCache(volunteers[0].districtId);
+  return assignments;
 }
 
 export async function getDistrictRoster(districtId: string) {
