@@ -165,6 +165,13 @@ model Household {
   assessedById         String?
   priorityBand         PriorityBand          @default(STANDARD)
   recommendedEmk       EmkType               @default(EMK1)
+  // household size and quantity fields — added for multi-person delivery logic
+  householdSize        Int                   @default(4)
+  chronicIllCount      Int                   @default(0)
+  emk1Quantity         Int                   @default(1)
+  emk2Quantity         Int                   @default(0)
+  emk3Quantity         Int                   @default(0)
+  totalEmkQuantity     Int                   @default(1)
   deliveryReceipts     DeliveryReceipt[]
   assessments          HouseholdAssessment[]
   assessedBy           User?                 @relation("AssessedBy", fields: [assessedById], references: [id])
