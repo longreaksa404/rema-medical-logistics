@@ -1,14 +1,20 @@
 import { Request, Response } from 'express';
 import { loginUser, refreshAccessToken, logoutUser, getCurrentUser } from '../services/auth.service';
 
-// refresh token cookie config
-// httpOnly so JS can't read it — XSS safe
+// cross-domain cookie config — frontend (Vercel) and backend (Render) are different domains
+// sameSite 'none' + secure true is required for cross-site cookies
 const COOKIE_OPTS = {
   httpOnly: true,
-  secure:   process.env.NODE_ENV === 'production',
-  sameSite: 'lax' as const,
-  maxAge:   7 * 24 * 60 * 60 * 1000, // 7 days in ms
+  secure:   true,
+  sameSite: 'none' as const,
+  maxAge:   7 * 24 * 60 * 60 * 1000,
   path:     '/api/auth',
+};
+
+const CLEAR_OPTS = {
+  path:     '/api/auth',
+  secure:   true,
+  sameSite: 'none' as const,
 };
 
 // ─── POST /api/auth/login ─────────────────────────────────────────────────────
@@ -23,12 +29,9 @@ export async function login(req: Request, res: Response): Promise<void> {
 
   try {
     const result = await loginUser(email, password);
-
-    // refresh token goes in httpOnly cookie — never in response body
     res.cookie('rema_refresh', result.refreshToken, COOKIE_OPTS);
-
     res.json({
-      token: result.accessToken,   // kept as "token" so frontend needs no change
+      token: result.accessToken,
       user:  result.user,
     });
   } catch {
@@ -49,10 +52,9 @@ export async function refresh(req: Request, res: Response): Promise<void> {
   try {
     const result = await refreshAccessToken(rawToken);
     res.json({ token: result.accessToken });
-  } catch (err) {
-    // clear the bad cookie
-    res.clearCookie('rema_refresh', { path: '/api/auth' });
-    res.status(401).json({ error: 'Session expired — please log in again' });
+  } catch {
+    res.clearCookie('rema_refresh', CLEAR_OPTS);
+    res.status(401).json({ error: 'Session expired - please log in again' });
   }
 }
 
@@ -61,7 +63,7 @@ export async function refresh(req: Request, res: Response): Promise<void> {
 export async function logout(req: Request, res: Response): Promise<void> {
   const rawToken = req.cookies?.rema_refresh;
   await logoutUser(rawToken);
-  res.clearCookie('rema_refresh', { path: '/api/auth' });
+  res.clearCookie('rema_refresh', CLEAR_OPTS);
   res.json({ message: 'Logged out successfully' });
 }
 
