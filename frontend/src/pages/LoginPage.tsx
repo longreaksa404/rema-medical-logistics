@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import type { FormEvent } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
@@ -14,11 +14,13 @@ export function LoginPage() {
   const [error, setError] = useState('');
   const [isLoading, setIsLoading] = useState(false);
 
-  // If already logged in, redirect
-  if (user) {
-    navigate('/dashboard', { replace: true });
-    return null;
-  }
+  // redirect already-logged-in users — but only on mount, not after login
+  useEffect(() => {
+    if (user && !isLoading) {
+      navigate('/dashboard', { replace: true });
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);  // empty deps — only runs on mount, never after login state changes
 
   async function handleSubmit(e: FormEvent) {
     e.preventDefault();
