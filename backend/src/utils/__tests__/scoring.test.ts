@@ -17,6 +17,7 @@ import {
   recommendEmk,
   validateScoreInput,
   WORKED_EXAMPLE_CASES,
+  calculateEmkQuantity,
   type ScoreInput,
 } from '../scoring';
 
@@ -368,5 +369,126 @@ describe('scoreHousehold — edge cases', () => {
     const borderlineCritical = scoreHousehold({ cat1: 8, cat2: 5, cat3: 1, cat4: 1, cat5: 0 });
     expect(borderlineCritical.priorityBand).toBe('CRITICAL');
     expect(borderlineCritical.totalScore).toBe(15);
+  });
+});
+
+// ─── EMK QUANTITY CALCULATION ─────────────────────────────────────────────────
+
+describe('calculateEmkQuantity', () => {
+
+  // ── baseline: small households ──────────────────────────────────────────────
+
+  test('household of 1-4, no vulnerability, no chronic illness → 1x EMK1', () => {
+    expect(calculateEmkQuantity(1,  0, false)).toEqual({ emk3: 0, emk2: 0, emk1: 1, total: 1 });
+    expect(calculateEmkQuantity(4,  0, false)).toEqual({ emk3: 0, emk2: 0, emk1: 1, total: 1 });
+  });
+
+  test('household of 5-8, no vulnerability, no chronic illness → 2x EMK1', () => {
+    expect(calculateEmkQuantity(5,  0, false)).toEqual({ emk3: 0, emk2: 0, emk1: 2, total: 2 });
+    expect(calculateEmkQuantity(8,  0, false)).toEqual({ emk3: 0, emk2: 0, emk1: 2, total: 2 });
+  });
+
+  test('household of 9-12, no vulnerability, no chronic illness → 3x EMK1', () => {
+    expect(calculateEmkQuantity(9,  0, false)).toEqual({ emk3: 0, emk2: 0, emk1: 3, total: 3 });
+    expect(calculateEmkQuantity(12, 0, false)).toEqual({ emk3: 0, emk2: 0, emk1: 3, total: 3 });
+  });
+
+  // ── vulnerable member present ────────────────────────────────────────────────
+
+  test('household of 4, infant present → 1x EMK2, 0x EMK1 (fully covered)', () => {
+    expect(calculateEmkQuantity(4, 0, true)).toEqual({ emk3: 0, emk2: 1, emk1: 0, total: 1 });
+  });
+
+  test('household of 5, infant present → 1x EMK2 + 1x EMK1', () => {
+    // emk2 covers 4 people, 1 remaining → 1x EMK1
+    expect(calculateEmkQuantity(5, 0, true)).toEqual({ emk3: 0, emk2: 1, emk1: 1, total: 2 });
+  });
+
+  test('household of 6, infant present → 1x EMK2 + 1x EMK1', () => {
+    expect(calculateEmkQuantity(6, 0, true)).toEqual({ emk3: 0, emk2: 1, emk1: 1, total: 2 });
+  });
+
+  // ── chronic illness present ──────────────────────────────────────────────────
+
+  test('household of 4, 1 diabetic, no vulnerable member → 1x EMK3', () => {
+    expect(calculateEmkQuantity(4, 1, false)).toEqual({ emk3: 1, emk2: 0, emk1: 0, total: 1 });
+  });
+
+  test('household of 6, 1 diabetic, no vulnerable member → 1x EMK3 + 1x EMK1', () => {
+    // emk3 covers 4, remaining 2 → ceil(2/4) = 1x EMK1
+    expect(calculateEmkQuantity(6, 1, false)).toEqual({ emk3: 1, emk2: 0, emk1: 1, total: 2 });
+  });
+
+  test('household of 4, 2 diabetics, no vulnerable member → 2x EMK3', () => {
+    // 2 EMK3 covers 8 people, household is 4 → remaining = 0
+    expect(calculateEmkQuantity(4, 2, false)).toEqual({ emk3: 2, emk2: 0, emk1: 0, total: 2 });
+  });
+
+  // ── mixed: chronic illness + vulnerable member ───────────────────────────────
+
+  test('household of 9, 1 diabetic, elderly present → 1x EMK3 + 1x EMK2 + 1x EMK1', () => {
+    // emk3=1 covers 4, emk2=1 covers 4, remaining=1 → 1x EMK1
+    expect(calculateEmkQuantity(9, 1, true)).toEqual({ emk3: 1, emk2: 1, emk1: 1, total: 3 });
+  });
+
+  test('household of 12, 2 diabetics, pregnant woman → 2x EMK3 + 1x EMK2', () => {
+    // emk3=2 covers 8, emk2=1 covers 4, total covered=12, remaining=0
+    expect(calculateEmkQuantity(12, 2, true)).toEqual({ emk3: 2, emk2: 1, emk1: 0, total: 3 });
+  });
+
+  test('household of 10, 1 diabetic (med low), no vulnerable member → 1x EMK3 + 2x EMK1', () => {
+    // emk3=1 covers 4, remaining=6 → ceil(6/4)=2x EMK1
+    expect(calculateEmkQuantity(10, 1, false)).toEqual({ emk3: 1, emk2: 0, emk1: 2, total: 3 });
+  });
+
+  // ── edge cases ───────────────────────────────────────────────────────────────
+
+  test('household of 1, alone, no issues → 1x EMK1', () => {
+    expect(calculateEmkQuantity(1, 0, false)).toEqual({ emk3: 0, emk2: 0, emk1: 1, total: 1 });
+  });
+
+  test('higher kits cover more people than household size → emk1 = 0, not negative', () => {
+    // household of 2 with 1 diabetic — emk3 covers 4, but only 2 people → emk1 = 0
+    expect(calculateEmkQuantity(2, 1, false)).toEqual({ emk3: 1, emk2: 0, emk1: 0, total: 1 });
+  });
+
+  test('total always equals emk3 + emk2 + emk1', () => {
+    const cases = [
+      calculateEmkQuantity(1,  0, false),
+      calculateEmkQuantity(5,  0, true),
+      calculateEmkQuantity(9,  1, true),
+      calculateEmkQuantity(12, 2, true),
+    ];
+    for (const qty of cases) {
+      expect(qty.total).toBe(qty.emk3 + qty.emk2 + qty.emk1);
+    }
+  });
+});
+
+// ─── NEW FIELD VALIDATION ─────────────────────────────────────────────────────
+
+describe('validateScoreInput — householdSize and chronicIllCount', () => {
+  const base = { cat1: 0, cat2: 0, cat3: 0, cat4: 0, cat5: 0, hasVulnerableMember: false };
+
+  test('valid householdSize and chronicIllCount → null', () => {
+    expect(validateScoreInput({ ...base, householdSize: 4, chronicIllCount: 1 })).toBeNull();
+    expect(validateScoreInput({ ...base, householdSize: 1, chronicIllCount: 0 })).toBeNull();
+  });
+
+  test('householdSize < 1 → error', () => {
+    expect(validateScoreInput({ ...base, householdSize: 0,  chronicIllCount: 0 })).not.toBeNull();
+    expect(validateScoreInput({ ...base, householdSize: -1, chronicIllCount: 0 })).not.toBeNull();
+  });
+
+  test('householdSize non-integer → error', () => {
+    expect(validateScoreInput({ ...base, householdSize: 2.5, chronicIllCount: 0 })).not.toBeNull();
+  });
+
+  test('chronicIllCount < 0 → error', () => {
+    expect(validateScoreInput({ ...base, householdSize: 4, chronicIllCount: -1 })).not.toBeNull();
+  });
+
+  test('chronicIllCount > householdSize → error', () => {
+    expect(validateScoreInput({ ...base, householdSize: 3, chronicIllCount: 4 })).not.toBeNull();
   });
 });
