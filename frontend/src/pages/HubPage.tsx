@@ -756,6 +756,7 @@ function VolunteersTab({ districtId, subWarehouseId }: { districtId: string; sub
   };
 
   const availableVols = roster?.volunteers.filter((v: Volunteer) => v.status === 'AVAILABLE') ?? [];
+  const deployedCount = roster?.volunteers.filter((v: Volunteer) => v.status === 'DEPLOYED').length ?? 0;
 
   const mutationError =
     (assignMutation.error as any)?.response?.data?.error ||
@@ -768,9 +769,7 @@ function VolunteersTab({ districtId, subWarehouseId }: { districtId: string; sub
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
           {[...Array(4)].map((_, i) => <Skeleton key={i} className="h-20" />)}
         </div>
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
-          <Skeleton className="h-48" /><Skeleton className="h-48" />
-        </div>
+        <Skeleton className="h-48" />
         <Skeleton className="h-64" />
       </div>
     );
@@ -785,16 +784,6 @@ function VolunteersTab({ districtId, subWarehouseId }: { districtId: string; sub
         />
       )}
       {success && <SuccessBox msg={success} onDismiss={() => setSuccess('')} />}
-
-      {/* volunteers come from user accounts — not added manually here */}
-      <div className="bg-bg-elevated border border-bg-border rounded px-4 py-3">
-        <p className="font-mono text-[10px] text-text-muted">
-          <span className="text-text-secondary font-bold">How volunteers appear here:</span>{' '}
-          Volunteer accounts are created by SUPER_ADMIN via User Management.
-          Each account automatically appears in this roster.
-          Use the Promote TL button to assign a Team Leader before each deployment.
-        </p>
-      </div>
 
       {/* stat cards */}
       {roster && (
@@ -816,9 +805,7 @@ function VolunteersTab({ districtId, subWarehouseId }: { districtId: string; sub
           </div>
           <div className="card px-4 py-3">
             <p className="font-mono text-[10px] text-text-muted uppercase tracking-widest mb-1">Deployed</p>
-            <p className="font-mono text-2xl font-bold text-accent-orange">
-              {roster.volunteers.filter((v: Volunteer) => v.status === 'DEPLOYED').length}
-            </p>
+            <p className="font-mono text-2xl font-bold text-accent-orange">{deployedCount}</p>
           </div>
         </div>
       )}
@@ -829,52 +816,89 @@ function VolunteersTab({ districtId, subWarehouseId }: { districtId: string; sub
         </div>
       )}
 
-      {/* assign to zone */}
-      <div className="card p-5 max-w-md">
-        <SectionTitle sub="Assign to zone + team">Assign to Zone</SectionTitle>
-        {!alertId ? (
-          <div className="bg-accent-orange/10 border border-accent-orange/30 rounded px-3 py-3">
-            <p className="font-mono text-xs text-accent-orange">
-              REMA must be activated before assigning volunteers to zones.
-            </p>
-          </div>
-        ) : (
+      {/* assign panel + info note side by side */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
+        <div className="card p-5">
+          <SectionTitle sub="Assign available volunteer to zone + team">Assign to Zone</SectionTitle>
+          {!alertId ? (
+            <div className="bg-accent-orange/10 border border-accent-orange/30 rounded px-3 py-3">
+              <p className="font-mono text-xs text-accent-orange">
+                REMA must be activated before assigning volunteers to zones.
+              </p>
+            </div>
+          ) : availableVols.length === 0 ? (
+            <div className="bg-bg-elevated border border-bg-border rounded px-3 py-3">
+              <p className="font-mono text-xs text-text-muted">
+                No available volunteers to assign. All are either deployed or inactive.
+              </p>
+            </div>
+          ) : (
+            <div className="space-y-3">
+              <div>
+                <label className="label">Volunteer</label>
+                <select value={assignVolId} onChange={e => setAssignVolId(e.target.value)} className="input">
+                  <option value="">Select available volunteer...</option>
+                  {availableVols.map((v: Volunteer) => (
+                    <option key={v.id} value={v.id}>
+                      {v.name} {v.role === 'TEAM_LEADER' ? '· TL' : ''}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="label">Zone</label>
+                  <select value={assignZone} onChange={e => setAssignZone(e.target.value)} className="input">
+                    {['Zone A', 'Zone B', 'Zone C'].map(z => <option key={z}>{z}</option>)}
+                  </select>
+                </div>
+                <div>
+                  <label className="label">Team #</label>
+                  <select value={assignTeam} onChange={e => setAssignTeam(Number(e.target.value))} className="input">
+                    {[1, 2, 3].map(n => <option key={n} value={n}>Team {n}</option>)}
+                  </select>
+                </div>
+              </div>
+              <button
+                onClick={() => assignVolId && subWarehouseId && assignMutation.mutate({
+                  volunteerId: assignVolId, subWarehouseId, alertId, zone: assignZone, teamNumber: assignTeam,
+                })}
+                disabled={assignMutation.isPending || !assignVolId || !subWarehouseId}
+                className="btn-primary w-full">
+                {assignMutation.isPending ? 'Assigning...' : 'Assign & Deploy'}
+              </button>
+            </div>
+          )}
+        </div>
+
+        <div className="card p-5">
+          <SectionTitle sub="Volunteers come from VOLUNTEER user accounts">How This Works</SectionTitle>
           <div className="space-y-3">
-            <div>
-              <label className="label">Volunteer</label>
-              <select value={assignVolId} onChange={e => setAssignVolId(e.target.value)} className="input">
-                <option value="">Select available volunteer...</option>
-                {availableVols.map((v: Volunteer) => (
-                  <option key={v.id} value={v.id}>
-                    {v.name} ({v.role === 'TEAM_LEADER' ? 'TL' : 'V'})
-                  </option>
-                ))}
-              </select>
+            <div className="flex items-start gap-3">
+              <span className="font-mono text-xs text-accent-blue mt-0.5">1.</span>
+              <p className="font-mono text-[10px] text-text-muted">
+                SUPER_ADMIN creates a user account with role <span className="text-text-secondary">VOLUNTEER</span> and assigns a district. That person automatically appears in this roster.
+              </p>
             </div>
-            <div className="grid grid-cols-2 gap-3">
-              <div>
-                <label className="label">Zone</label>
-                <select value={assignZone} onChange={e => setAssignZone(e.target.value)} className="input">
-                  {['Zone A', 'Zone B', 'Zone C'].map(z => <option key={z}>{z}</option>)}
-                </select>
-              </div>
-              <div>
-                <label className="label">Team #</label>
-                <select value={assignTeam} onChange={e => setAssignTeam(Number(e.target.value))} className="input">
-                  {[1, 2, 3].map(n => <option key={n} value={n}>Team {n}</option>)}
-                </select>
-              </div>
+            <div className="flex items-start gap-3">
+              <span className="font-mono text-xs text-accent-blue mt-0.5">2.</span>
+              <p className="font-mono text-[10px] text-text-muted">
+                Use <span className="text-accent-blue font-semibold">Promote TL</span> on the roster to designate a Team Leader before each deployment. One per team.
+              </p>
             </div>
-            <button
-              onClick={() => assignVolId && subWarehouseId && assignMutation.mutate({
-                volunteerId: assignVolId, subWarehouseId, alertId, zone: assignZone, teamNumber: assignTeam,
-              })}
-              disabled={assignMutation.isPending || !assignVolId || !subWarehouseId}
-              className="btn-primary w-full">
-              {assignMutation.isPending ? 'Assigning...' : 'Assign & Deploy'}
-            </button>
+            <div className="flex items-start gap-3">
+              <span className="font-mono text-xs text-accent-blue mt-0.5">3.</span>
+              <p className="font-mono text-[10px] text-text-muted">
+                Use <span className="text-text-secondary font-semibold">Assign to Zone</span> to mark volunteers as DEPLOYED and record their zone + team number.
+              </p>
+            </div>
+            <div className="mt-2 pt-3 border-t border-bg-border">
+              <p className="font-mono text-[10px] text-text-muted">
+                Community helpers without a login can be added via the backend. Their rows show <span className="italic">community volunteer</span> instead of an email.
+              </p>
+            </div>
           </div>
-        )}
+        </div>
       </div>
 
       {/* full roster table */}
@@ -901,7 +925,9 @@ function VolunteersTab({ districtId, subWarehouseId }: { districtId: string; sub
                   </td>
                 </tr>
               ) : roster.volunteers.map((v: Volunteer) => (
-                <tr key={v.id} className="border-b border-bg-border hover:bg-bg-elevated/40 transition-colors">
+                <tr key={v.id} className={`border-b border-bg-border transition-colors ${
+                  v.status === 'INACTIVE' ? 'opacity-50' : 'hover:bg-bg-elevated/40'
+                }`}>
                   <td className="px-4 py-3">
                     <p className="font-sans text-sm text-text-primary">{v.name}</p>
                     {v.user ? (
@@ -910,13 +936,15 @@ function VolunteersTab({ districtId, subWarehouseId }: { districtId: string; sub
                       <p className="font-mono text-[9px] text-text-muted italic">community volunteer</p>
                     )}
                   </td>
-                  <td className="px-4 py-3 font-mono text-xs text-text-secondary">{v.phone}</td>
+                  <td className="px-4 py-3 font-mono text-xs text-text-secondary">{v.phone || '—'}</td>
                   <td className="px-4 py-3">
-                    <span className={`font-mono text-[10px] font-semibold ${
-                      v.role === 'TEAM_LEADER' ? 'text-accent-blue' : 'text-text-muted'
-                    }`}>
-                      {v.role === 'TEAM_LEADER' ? 'Team Leader' : 'Volunteer'}
-                    </span>
+                    {v.role === 'TEAM_LEADER' ? (
+                      <span className="font-mono text-[10px] px-2 py-0.5 rounded border text-accent-blue border-accent-blue/30 bg-accent-blue/5">
+                        Team Leader
+                      </span>
+                    ) : (
+                      <span className="font-mono text-[10px] text-text-muted">Volunteer</span>
+                    )}
                   </td>
                   <td className="px-4 py-3">
                     <Badge label={v.status} color={STATUS_COLORS[v.status]} />
@@ -927,29 +955,42 @@ function VolunteersTab({ districtId, subWarehouseId }: { districtId: string; sub
                       : '—'}
                   </td>
                   <td className="px-4 py-3">
-                    {v.status !== 'DEPLOYED' && (
-                      <div className="flex items-center gap-3">
-                        <button
-                          onClick={() => roleMutation.mutate({
-                            id: v.id,
-                            role: v.role === 'TEAM_LEADER' ? 'VOLUNTEER' : 'TEAM_LEADER',
-                          })}
-                          disabled={roleMutation.isPending}
-                          className={`font-mono text-[10px] transition-colors ${
-                            v.role === 'TEAM_LEADER'
-                              ? 'text-text-muted hover:text-accent-orange'
-                              : 'text-text-muted hover:text-accent-blue'
-                          }`}>
-                          {v.role === 'TEAM_LEADER' ? 'Demote' : 'Promote TL'}
-                        </button>
-                        <button
-                          onClick={() => statusMutation.mutate({
-                            id: v.id,
-                            status: v.status === 'AVAILABLE' ? 'INACTIVE' : 'AVAILABLE',
-                          })}
-                          className="font-mono text-[10px] text-text-muted hover:text-text-primary transition-colors">
-                          {v.status === 'AVAILABLE' ? 'Deactivate' : 'Reactivate'}
-                        </button>
+                    {v.status === 'DEPLOYED' ? (
+                      <span className="font-mono text-[9px] text-text-muted">in field</span>
+                    ) : (
+                      <div className="flex items-center gap-1.5 flex-wrap">
+                        {/* promote / demote */}
+                        {v.role === 'TEAM_LEADER' ? (
+                          <button
+                            onClick={() => roleMutation.mutate({ id: v.id, role: 'VOLUNTEER' })}
+                            disabled={roleMutation.isPending}
+                            className="font-mono text-[10px] px-2 py-0.5 rounded border border-accent-orange/30 text-accent-orange hover:bg-accent-orange/10 transition-colors">
+                            Demote
+                          </button>
+                        ) : (
+                          <button
+                            onClick={() => roleMutation.mutate({ id: v.id, role: 'TEAM_LEADER' })}
+                            disabled={roleMutation.isPending}
+                            className="font-mono text-[10px] px-2 py-0.5 rounded border border-accent-blue/30 text-accent-blue hover:bg-accent-blue/10 transition-colors">
+                            Promote TL
+                          </button>
+                        )}
+                        {/* activate / deactivate */}
+                        {v.status === 'AVAILABLE' ? (
+                          <button
+                            onClick={() => statusMutation.mutate({ id: v.id, status: 'INACTIVE' })}
+                            disabled={statusMutation.isPending}
+                            className="font-mono text-[10px] px-2 py-0.5 rounded border border-bg-border text-text-muted hover:border-accent-red/30 hover:text-accent-red transition-colors">
+                            Deactivate
+                          </button>
+                        ) : (
+                          <button
+                            onClick={() => statusMutation.mutate({ id: v.id, status: 'AVAILABLE' })}
+                            disabled={statusMutation.isPending}
+                            className="font-mono text-[10px] px-2 py-0.5 rounded border border-accent-green/30 text-accent-green hover:bg-accent-green/10 transition-colors">
+                            Reactivate
+                          </button>
+                        )}
                       </div>
                     )}
                   </td>
@@ -986,11 +1027,10 @@ function DeliveriesTab({ districtId, subWarehouseId }: { districtId: string; sub
     enabled: !!districtId,
   });
 
-  // FIX: Only TEAM_LEADER role volunteers can lead a delivery run
+  // team leaders regardless of status — they lead runs, that's their job
   const teamLeads = useMemo(
     () => (roster?.volunteers ?? []).filter(
-      (v: Volunteer) => v.role === 'TEAM_LEADER' &&
-        (v.status === 'AVAILABLE' || v.status === 'DEPLOYED')
+      (v: Volunteer) => v.role === 'TEAM_LEADER' && v.status !== 'INACTIVE'
     ),
     [roster]
   );
@@ -1024,12 +1064,6 @@ function DeliveriesTab({ districtId, subWarehouseId }: { districtId: string; sub
   const activeRuns = useMemo(() => runs.filter((r: DeliveryRun) => r.status === 'IN_PROGRESS'), [runs]);
   const pastRuns = useMemo(() => runs.filter((r: DeliveryRun) => r.status !== 'IN_PROGRESS'), [runs]);
 
-  const STATUS_COLORS: Record<string, string> = {
-    IN_PROGRESS: 'text-accent-green border-accent-green/30 bg-accent-green/5',
-    COMPLETE: 'text-text-muted border-bg-border bg-bg-elevated',
-    ABORTED: 'text-accent-red border-accent-red/30 bg-accent-red/5',
-  };
-
   const mutationError =
     (startMutation.error as { response?: { data?: { error?: string } } })?.response?.data?.error ??
     (completeMutation.error as { response?: { data?: { error?: string } } })?.response?.data?.error ??
@@ -1038,7 +1072,9 @@ function DeliveriesTab({ districtId, subWarehouseId }: { districtId: string; sub
   if (runsLoading) {
     return (
       <div className="space-y-4">
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-5"><Skeleton className="h-48" /><Skeleton className="h-48" /></div>
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
+          <Skeleton className="h-48" /><Skeleton className="h-48" />
+        </div>
         <Skeleton className="h-64" />
       </div>
     );
@@ -1046,10 +1082,16 @@ function DeliveriesTab({ districtId, subWarehouseId }: { districtId: string; sub
 
   return (
     <div className="space-y-6">
-      {mutationError && <ErrorBox msg={mutationError} onDismiss={() => { startMutation.reset(); completeMutation.reset(); abortMutation.reset(); }} />}
+      {mutationError && (
+        <ErrorBox msg={mutationError} onDismiss={() => {
+          startMutation.reset(); completeMutation.reset(); abortMutation.reset();
+        }} />
+      )}
       {success && <SuccessBox msg={success} onDismiss={() => setSuccess('')} />}
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
+
+        {/* start run */}
         <div className="card p-5">
           <SectionTitle sub="Fixed departure times: 07:00 / 11:00 / 15:00">Start Delivery Run</SectionTitle>
           <div className="space-y-3">
@@ -1069,16 +1111,18 @@ function DeliveriesTab({ districtId, subWarehouseId }: { districtId: string; sub
             </div>
             <div>
               <label className="label">Team Lead</label>
-              <select value={leadId} onChange={e => setLeadId(e.target.value)} className="input">
-                <option value="">Select team lead...</option>
+              <select value={leadId} onChange={e => setLeadId(e.target.value)} className="input"
+                disabled={teamLeads.length === 0}>
+                <option value="">{teamLeads.length === 0 ? 'No team leaders — promote one first' : 'Select team lead...'}</option>
                 {teamLeads.map((v: Volunteer) => (
-                  // FIX: shows only TEAM_LEADER role, with status label
-                  <option key={v.id} value={v.id}>{v.name} · {v.status}</option>
+                  <option key={v.id} value={v.id}>
+                    {v.name} · {v.status}
+                  </option>
                 ))}
               </select>
               {teamLeads.length === 0 && (
                 <p className="font-mono text-[9px] text-accent-orange mt-1">
-                  No team leaders available. Add volunteers with Team Leader role first.
+                  Go to Volunteers tab and promote someone to Team Leader first.
                 </p>
               )}
             </div>
@@ -1093,50 +1137,67 @@ function DeliveriesTab({ districtId, subWarehouseId }: { districtId: string; sub
           </div>
         </div>
 
+        {/* active runs */}
         <div className="card p-5">
-          <SectionTitle sub={`${activeRuns.length} teams currently in field`}>Active Runs</SectionTitle>
-          {activeRuns.length === 0 ? <Empty message="No active delivery runs." /> : (
+          <SectionTitle sub={`${activeRuns.length} team${activeRuns.length !== 1 ? 's' : ''} currently in field`}>
+            Active Runs
+          </SectionTitle>
+          {activeRuns.length === 0 ? (
+            <Empty message="No active delivery runs." />
+          ) : (
             <div className="space-y-3">
               {activeRuns.map((r: DeliveryRun) => (
                 <div key={r.id} className="bg-bg-elevated rounded-lg border border-accent-green/20 p-3">
-                  <div className="flex items-start justify-between gap-2 mb-2">
+                  <div className="flex items-start justify-between gap-2 mb-1">
                     <div>
                       <p className="font-sans text-sm font-semibold text-text-primary">
                         Team {r.teamNumber} · {r.zone}
                       </p>
                       <p className="font-mono text-[10px] text-text-muted">
-                        Lead: {r.leadVolunteer?.name ?? '—'} · Departed {fmtTime(r.departedAt)}
+                        {r.leadVolunteer?.name ?? '—'} · departed {fmtTime(r.departedAt)}
                       </p>
                     </div>
-                    <Badge label="IN PROGRESS" color="text-accent-green border-accent-green/30 bg-accent-green/5" />
+                    <span className="font-mono text-[9px] px-1.5 py-0.5 rounded border text-accent-green border-accent-green/30 bg-accent-green/5 flex-shrink-0">
+                      IN PROGRESS
+                    </span>
                   </div>
-                  <p className="font-mono text-[10px] text-text-muted mb-2">
+                  <p className="font-mono text-[10px] text-text-muted mb-3">
                     {r.receipts?.length ?? 0} deliveries recorded
                   </p>
                   <div className="flex gap-2">
-                    <button onClick={() => completeMutation.mutate(r.id)} disabled={completeMutation.isPending}
-                      className="flex-1 font-mono text-xs py-1.5 rounded border border-accent-green/40 text-accent-green hover:bg-accent-green/10 transition-colors">
+                    <button
+                      onClick={() => completeMutation.mutate(r.id)}
+                      disabled={completeMutation.isPending}
+                      className="flex-1 font-mono text-xs py-2 rounded border border-accent-green/40 text-accent-green bg-accent-green/5 hover:bg-accent-green/15 transition-colors font-semibold">
                       ✓ Mark Complete
                     </button>
-                    <button onClick={() => setAbortId(abortId === r.id ? '' : r.id)}
-                      className="font-mono text-xs py-1.5 px-3 rounded border border-accent-red/30 text-accent-red hover:bg-accent-red/10 transition-colors">
-                      ⛔ Abort
+                    <button
+                      onClick={() => setAbortId(abortId === r.id ? '' : r.id)}
+                      className={`font-mono text-xs py-2 px-4 rounded border transition-colors ${
+                        abortId === r.id
+                          ? 'border-accent-red/40 text-accent-red bg-accent-red/10'
+                          : 'border-bg-border text-text-muted hover:border-accent-red/30 hover:text-accent-red'
+                      }`}>
+                      Abort
                     </button>
                   </div>
                   {abortId === r.id && (
-                    <div className="mt-2 space-y-2">
+                    <div className="mt-3 space-y-2 pt-3 border-t border-bg-border">
                       <input type="text" className="input text-xs"
-                        placeholder="Abort reason (required — e.g. water >80cm)"
+                        placeholder="Abort reason — required (e.g. water depth >80cm)"
                         value={abortReason} onChange={e => setAbortReason(e.target.value)} />
                       <div className="flex gap-2">
                         <button
                           onClick={() => abortReason.trim() && abortMutation.mutate({ id: r.id, reason: abortReason })}
                           disabled={!abortReason.trim() || abortMutation.isPending}
-                          className="flex-1 btn-danger text-xs py-1.5">
-                          Confirm Abort
+                          className="flex-1 font-mono text-xs py-1.5 rounded border border-accent-red/40 text-accent-red bg-accent-red/10 hover:bg-accent-red/20 transition-colors">
+                          {abortMutation.isPending ? 'Aborting...' : 'Confirm Abort'}
                         </button>
-                        <button onClick={() => { setAbortId(''); setAbortReason(''); }}
-                          className="btn-ghost text-xs py-1.5 px-3">Cancel</button>
+                        <button
+                          onClick={() => { setAbortId(''); setAbortReason(''); }}
+                          className="font-mono text-xs py-1.5 px-3 rounded border border-bg-border text-text-muted hover:text-text-primary transition-colors">
+                          Cancel
+                        </button>
                       </div>
                     </div>
                   )}
@@ -1147,22 +1208,42 @@ function DeliveriesTab({ districtId, subWarehouseId }: { districtId: string; sub
         </div>
       </div>
 
+      {/* run history */}
       {pastRuns.length > 0 && (
         <div>
           <SectionTitle sub="Completed and aborted runs">Run History</SectionTitle>
           <div className="card divide-y divide-bg-border">
-            {pastRuns.map((r: DeliveryRun) => (
-              <div key={r.id} className="px-4 py-3 flex items-start justify-between gap-3">
-                <div>
-                  <p className="font-sans text-sm text-text-primary">Team {r.teamNumber} · {r.zone}</p>
-                  <p className="font-mono text-[10px] text-text-muted">
-                    {r.leadVolunteer?.name ?? '—'} · {fmtTime(r.departedAt)} → {r.returnedAt ? fmtTime(r.returnedAt) : '—'}
-                    {' · '}{r.receipts?.length ?? 0} delivered
-                  </p>
+            {pastRuns.map((r: DeliveryRun) => {
+              const duration = r.returnedAt
+                ? Math.round((new Date(r.returnedAt).getTime() - new Date(r.departedAt).getTime()) / 60000)
+                : null;
+              return (
+                <div key={r.id} className="px-4 py-3 flex items-center justify-between gap-3">
+                  <div className="min-w-0 flex-1">
+                    <div className="flex items-center gap-2 mb-0.5">
+                      <p className="font-sans text-sm text-text-primary">
+                        Team {r.teamNumber} · {r.zone}
+                      </p>
+                      {r.status === 'COMPLETE' ? (
+                        <span className="font-mono text-[9px] px-1.5 py-0.5 rounded border text-accent-green border-accent-green/30 bg-accent-green/5">
+                          COMPLETE
+                        </span>
+                      ) : (
+                        <span className="font-mono text-[9px] px-1.5 py-0.5 rounded border text-accent-red border-accent-red/30 bg-accent-red/5">
+                          ABORTED
+                        </span>
+                      )}
+                    </div>
+                    <p className="font-mono text-[10px] text-text-muted">
+                      {r.leadVolunteer?.name ?? '—'} · {fmtTime(r.departedAt)}
+                      {r.returnedAt ? ` → ${fmtTime(r.returnedAt)}` : ''}
+                      {duration !== null ? ` · ${duration}m` : ''}
+                      {' · '}{r.receipts?.length ?? 0} delivered
+                    </p>
+                  </div>
                 </div>
-                <Badge label={r.status} color={STATUS_COLORS[r.status]} />
-              </div>
-            ))}
+              );
+            })}
           </div>
         </div>
       )}
