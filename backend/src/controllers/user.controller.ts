@@ -55,7 +55,7 @@ export async function create(req: Request, res: Response): Promise<void> {
       role: role as Role,
       districtId,
       temporaryPassword,
-      phone,   // passed through — required when role is VOLUNTEER
+      phone,
     });
     res.status(201).json(user);
   } catch (err) {
@@ -103,7 +103,7 @@ export async function getOne(req: Request, res: Response): Promise<void> {
 // ─── PATCH /api/users/:id — SUPER_ADMIN only ─────────────────────────────────
 
 export async function update(req: Request, res: Response): Promise<void> {
-  const { name, email, role, districtId, active } = req.body;
+  const { name, email, role, districtId, phone, active } = req.body;
 
   if (role) {
     const validRoles = Object.values(Role);
@@ -119,6 +119,7 @@ export async function update(req: Request, res: Response): Promise<void> {
       email,
       role: role as Role | undefined,
       districtId,
+      phone,
       active,
     });
     res.json(user);

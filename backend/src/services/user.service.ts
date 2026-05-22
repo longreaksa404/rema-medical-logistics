@@ -33,10 +33,6 @@ export async function createUser(data: {
     throw new Error(`Role ${role} requires a districtId`);
   }
 
-  if (role === Role.VOLUNTEER && !phone) {
-    throw new Error('Phone number is required when creating a VOLUNTEER account');
-  }
-
   if (districtId) {
     const district = await prisma.district.findUnique({ where: { id: districtId } });
     if (!district) throw new Error(`District not found: ${districtId}`);
@@ -57,6 +53,7 @@ export async function createUser(data: {
           role,
           passwordHash,
           districtId: districtId ?? null,
+          phone:      phone ?? null,
           active: true,
           mustChangePassword: true,
         },
@@ -77,7 +74,7 @@ export async function createUser(data: {
           userId:     user.id,
           districtId: districtId!,
           name:       name,
-          phone:      phone!,
+          phone:      phone ?? '',   // empty string if not provided — updatable later
           role:       'VOLUNTEER',
           status:     'AVAILABLE',
         },
@@ -95,6 +92,7 @@ export async function createUser(data: {
       role,
       passwordHash,
       districtId: districtId ?? null,
+      phone:      phone ?? null,
       active: true,
       mustChangePassword: true,
     },
@@ -132,6 +130,7 @@ export async function listUsers(filters: {
       name: true,
       role: true,
       districtId: true,
+      phone: true,
       active: true,
       createdAt: true,
       updatedAt: true,
@@ -154,6 +153,7 @@ export async function getUser(id: string) {
       name: true,
       role: true,
       districtId: true,
+      phone: true,
       active: true,
       createdAt: true,
       updatedAt: true,
@@ -177,6 +177,7 @@ export async function updateUser(
     email?: string;
     role?: Role;
     districtId?: string | null;
+    phone?: string | null;
     active?: boolean;
   }
 ) {
@@ -212,6 +213,7 @@ export async function updateUser(
       email:      data.email      ?? existing.email,
       role:       data.role       ?? existing.role,
       districtId: data.districtId !== undefined ? data.districtId : existing.districtId,
+      phone:      data.phone      !== undefined ? data.phone      : existing.phone,
       active:     data.active     !== undefined ? data.active     : existing.active,
     },
     select: {
@@ -220,6 +222,7 @@ export async function updateUser(
       name: true,
       role: true,
       districtId: true,
+      phone: true,
       active: true,
       createdAt: true,
       updatedAt: true,

@@ -19,6 +19,7 @@ model User {
   active            Boolean               @default(true)
   mustChangePassword Boolean              @default(false)
   avatarBase64       String?
+  phone              String?
   districtId        String?
   deliveryRuns      DeliveryRun[]
   assessmentsFiled  HouseholdAssessment[]

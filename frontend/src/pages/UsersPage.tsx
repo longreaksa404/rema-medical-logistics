@@ -10,7 +10,8 @@ type Role = 'SUPER_ADMIN' | 'EMERGENCY_COORDINATOR' | 'HUB_MANAGER' | 'VOLUNTEER
 interface District { id: string; name: string; }
 interface User {
   id: string; email: string; name: string; role: Role;
-  districtId: string | null; active: boolean; createdAt: string; updatedAt: string;
+  districtId: string | null; phone: string | null;
+  active: boolean; createdAt: string; updatedAt: string;
   district?: { name: string } | null;
 }
 
@@ -67,6 +68,7 @@ function CreateUserPanel({ districts, onSuccess, onClose }: {
   const [name, setName] = useState('');
   const [role, setRole] = useState<Role>('VOLUNTEER');
   const [districtId, setDistrictId] = useState('');
+  const [phone, setPhone] = useState('');
   const [tempPassword, setTempPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
 
@@ -85,10 +87,16 @@ function CreateUserPanel({ districts, onSuccess, onClose }: {
     if (!email.trim() || !name.trim() || !tempPassword) return;
     if (tempPassword.length < 8) return;
     if (needsDistrict && !districtId) return;
-    const payload: Record<string, unknown> = { email: email.trim(), name: name.trim(), role, temporaryPassword: tempPassword };
+    const payload: Record<string, unknown> = {
+      email: email.trim(),
+      name: name.trim(),
+      role,
+      temporaryPassword: tempPassword,
+    };
     if (districtId) payload.districtId = districtId;
+    if (phone.trim()) payload.phone = phone.trim();
     createMutation.mutate(payload);
-  }, [email, name, tempPassword, role, districtId, needsDistrict, createMutation]);
+  }, [email, name, tempPassword, role, districtId, phone, needsDistrict, createMutation]);
 
   const createError = (createMutation.error as { response?: { data?: { error?: string } } })?.response?.data?.error ?? '';
 
@@ -100,25 +108,36 @@ function CreateUserPanel({ districts, onSuccess, onClose }: {
       </div>
       {createError && <ErrorBox msg={createError} onDismiss={() => createMutation.reset()} />}
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-        <div><label className="label">Full Name</label>
-          <input type="text" className="input" placeholder="Nguyen Van A" value={name} onChange={e => setName(e.target.value)} /></div>
-        <div><label className="label">Email</label>
-          <input type="email" className="input" placeholder="user@rema.vn" value={email} onChange={e => setEmail(e.target.value)} /></div>
+        <div>
+          <label className="label">Full Name</label>
+          <input type="text" className="input" placeholder="Nguyen Van A"
+            value={name} onChange={e => setName(e.target.value)} />
+        </div>
+        <div>
+          <label className="label">Email</label>
+          <input type="email" className="input" placeholder="user@rema.vn"
+            value={email} onChange={e => setEmail(e.target.value)} />
+        </div>
       </div>
       <div>
         <label className="label">Role</label>
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
           {CREATABLE_ROLES.map(r => (
             <button key={r} onClick={() => { setRole(r); if (!DISTRICT_REQUIRED_ROLES.includes(r)) setDistrictId(''); }}
-              className={`font-mono text-[10px] py-2 px-2 rounded border transition-all text-left ${role === r ? ROLE_COLORS[r] : 'bg-bg-elevated border-bg-border text-text-secondary hover:text-text-primary'}`}>
+              className={`font-mono text-[10px] py-2 px-2 rounded border transition-all text-left ${
+                role === r ? ROLE_COLORS[r] : 'bg-bg-elevated border-bg-border text-text-secondary hover:text-text-primary'
+              }`}>
               {ROLE_LABELS[r]}
-              {DISTRICT_REQUIRED_ROLES.includes(r) && <span className="block text-[9px] text-text-muted mt-0.5">Needs district</span>}
+              {DISTRICT_REQUIRED_ROLES.includes(r) && (
+                <span className="block text-[9px] text-text-muted mt-0.5">Needs district</span>
+              )}
             </button>
           ))}
         </div>
       </div>
       {needsDistrict && (
-        <div><label className="label">District <span className="text-accent-red">*</span></label>
+        <div>
+          <label className="label">District <span className="text-accent-red">*</span></label>
           <select value={districtId} onChange={e => setDistrictId(e.target.value)} className="input">
             <option value="">Select district...</option>
             {districts.map(d => <option key={d.id} value={d.id}>{d.name}</option>)}
@@ -126,9 +145,17 @@ function CreateUserPanel({ districts, onSuccess, onClose }: {
         </div>
       )}
       <div>
+        <label className="label">
+          Phone <span className="font-mono text-[9px] text-text-muted normal-case ml-1">(optional — used for field contact)</span>
+        </label>
+        <input type="tel" className="input" placeholder="+855 12 345 678"
+          value={phone} onChange={e => setPhone(e.target.value)} />
+      </div>
+      <div>
         <label className="label">Temporary Password</label>
         <div className="relative">
-          <input type={showPassword ? 'text' : 'password'} className="input pr-16" placeholder="Min. 8 characters"
+          <input type={showPassword ? 'text' : 'password'} className="input pr-16"
+            placeholder="Min. 8 characters"
             value={tempPassword} onChange={e => setTempPassword(e.target.value)} />
           <button type="button" onClick={() => setShowPassword(v => !v)}
             className="absolute right-3 top-1/2 -translate-y-1/2 font-mono text-[10px] text-text-muted hover:text-text-primary transition-colors">
@@ -136,7 +163,9 @@ function CreateUserPanel({ districts, onSuccess, onClose }: {
           </button>
         </div>
         {tempPassword && tempPassword.length < 8 && (
-          <p className="font-mono text-[10px] text-accent-red mt-1">{8 - tempPassword.length} more character{8 - tempPassword.length !== 1 ? 's' : ''} needed</p>
+          <p className="font-mono text-[10px] text-accent-red mt-1">
+            {8 - tempPassword.length} more character{8 - tempPassword.length !== 1 ? 's' : ''} needed
+          </p>
         )}
       </div>
       <div className="bg-bg-elevated border border-bg-border rounded px-3 py-2">
@@ -144,8 +173,12 @@ function CreateUserPanel({ districts, onSuccess, onClose }: {
           <span className="text-accent-orange">Note:</span> SUPER_ADMIN accounts can only be created via the seed script — never via this form.
         </p>
       </div>
-      <button onClick={handleSubmit}
-        disabled={createMutation.isPending || !email.trim() || !name.trim() || !tempPassword || tempPassword.length < 8 || (needsDistrict && !districtId)}
+      <button
+        onClick={handleSubmit}
+        disabled={
+          createMutation.isPending || !email.trim() || !name.trim() ||
+          !tempPassword || tempPassword.length < 8 || (needsDistrict && !districtId)
+        }
         className="btn-primary w-full">
         {createMutation.isPending ? 'Creating...' : 'Create User'}
       </button>
@@ -164,6 +197,7 @@ function EditUserPanel({ user, districts, currentUserId, onSuccess, onClose }: {
   const [email, setEmail] = useState(user.email);
   const [role, setRole] = useState<Role>(user.role);
   const [districtId, setDistrictId] = useState(user.districtId ?? '');
+  const [phone, setPhone] = useState(user.phone ?? '');
   const [active, setActive] = useState(user.active);
   const [resetMode, setResetMode] = useState(false);
   const [newTempPwd, setNewTempPwd] = useState('');
@@ -202,16 +236,17 @@ function EditUserPanel({ user, districts, currentUserId, onSuccess, onClose }: {
           <h3 className="font-sans font-bold text-text-primary">Edit User</h3>
           <p className="font-mono text-[10px] text-text-muted">{user.email}</p>
         </div>
-        <button 
-          onClick={onClose} 
-          className="flex items-center gap-1.5 px-2 py-1 -mr-2 font-mono text-[10px] uppercase tracking-wider hover:text-accent-red hover:bg-accent-red/10 rounded transition-all duration-200 flex-shrink-0"
-        >
+        <button
+          onClick={onClose}
+          className="flex items-center gap-1.5 px-2 py-1 -mr-2 font-mono text-[10px] uppercase tracking-wider hover:text-accent-red hover:bg-accent-red/10 rounded transition-all duration-200 flex-shrink-0">
           <span className="text-xs">✕</span>
           <span>Close</span>
         </button>
       </div>
 
-      {anyError && <ErrorBox msg={anyError} onDismiss={() => { setLocalError(''); updateMutation.reset(); resetMutation.reset(); }} />}
+      {anyError && (
+        <ErrorBox msg={anyError} onDismiss={() => { setLocalError(''); updateMutation.reset(); resetMutation.reset(); }} />
+      )}
 
       {isSuperAdmin ? (
         <div className="bg-accent-red/10 border border-accent-red/20 rounded px-3 py-2">
@@ -220,28 +255,44 @@ function EditUserPanel({ user, districts, currentUserId, onSuccess, onClose }: {
       ) : (
         <>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-            <div><label className="label">Full Name</label><input type="text" className="input" value={name} onChange={e => setName(e.target.value)} /></div>
-            <div><label className="label">Email</label><input type="email" className="input" value={email} onChange={e => setEmail(e.target.value)} /></div>
+            <div>
+              <label className="label">Full Name</label>
+              <input type="text" className="input" value={name} onChange={e => setName(e.target.value)} />
+            </div>
+            <div>
+              <label className="label">Email</label>
+              <input type="email" className="input" value={email} onChange={e => setEmail(e.target.value)} />
+            </div>
           </div>
           <div>
             <label className="label">Role</label>
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
               {CREATABLE_ROLES.map(r => (
                 <button key={r} onClick={() => { setRole(r); if (!DISTRICT_REQUIRED_ROLES.includes(r)) setDistrictId(''); }}
-                  className={`font-mono text-[10px] py-2 px-2 rounded border transition-all ${role === r ? ROLE_COLORS[r] : 'bg-bg-elevated border-bg-border text-text-secondary hover:text-text-primary'}`}>
+                  className={`font-mono text-[10px] py-2 px-2 rounded border transition-all ${
+                    role === r ? ROLE_COLORS[r] : 'bg-bg-elevated border-bg-border text-text-secondary hover:text-text-primary'
+                  }`}>
                   {ROLE_LABELS[r]}
                 </button>
               ))}
             </div>
           </div>
           {(needsDistrict || districtId) && (
-            <div><label className="label">District {needsDistrict && <span className="text-accent-red">*</span>}</label>
+            <div>
+              <label className="label">District {needsDistrict && <span className="text-accent-red">*</span>}</label>
               <select value={districtId} onChange={e => setDistrictId(e.target.value)} className="input">
                 <option value="">No district</option>
                 {districts.map(d => <option key={d.id} value={d.id}>{d.name}</option>)}
               </select>
             </div>
           )}
+          <div>
+            <label className="label">
+              Phone <span className="font-mono text-[9px] text-text-muted normal-case ml-1">(optional)</span>
+            </label>
+            <input type="tel" className="input" placeholder="+855 12 345 678"
+              value={phone} onChange={e => setPhone(e.target.value)} />
+          </div>
           <div className="flex items-center justify-between bg-bg-elevated rounded-lg border border-bg-border px-4 py-3">
             <div>
               <p className="font-sans text-sm text-text-primary">Account Active</p>
@@ -249,23 +300,16 @@ function EditUserPanel({ user, districts, currentUserId, onSuccess, onClose }: {
             </div>
             <button
               onClick={() => {
-                if (isSelf) { 
-                  setLocalError("You cannot deactivate your own account."); 
-                  return; 
-                }
+                if (isSelf) { setLocalError('You cannot deactivate your own account.'); return; }
                 setActive(v => !v);
               }}
-              // This uses the flexbox fix we discussed to ensure perfect alignment
               className={`relative w-11 h-6 rounded-full border transition-all duration-200 flex-shrink-0 flex items-center px-0.5 ${
                 active
                   ? 'bg-accent-green/20 border-accent-green/40 justify-end'
                   : 'bg-bg-primary border-bg-border justify-start'
-              }`}
-            >
+              }`}>
               <span className={`absolute inset-y-0.5 left-0.5 w-5 h-5 rounded-full transition-all duration-200 ${
-                active
-                  ? 'translate-x-5 bg-accent-green'
-                  : 'translate-x-0 bg-text-muted'
+                active ? 'translate-x-5 bg-accent-green' : 'translate-x-0 bg-text-muted'
               }`} />
             </button>
           </div>
@@ -273,7 +317,14 @@ function EditUserPanel({ user, districts, currentUserId, onSuccess, onClose }: {
             onClick={() => {
               if (!name.trim() || !email.trim()) { setLocalError('Name and email required.'); return; }
               if (needsDistrict && !districtId) { setLocalError(`Role ${role} requires a district.`); return; }
-              updateMutation.mutate({ name: name.trim(), email: email.trim(), role, active, districtId: districtId || null });
+              updateMutation.mutate({
+                name: name.trim(),
+                email: email.trim(),
+                role,
+                active,
+                phone: phone.trim() || null,
+                districtId: districtId || null,
+              });
             }}
             disabled={updateMutation.isPending || !name.trim() || !email.trim() || (needsDistrict && !districtId)}
             className="btn-primary w-full">
@@ -285,21 +336,24 @@ function EditUserPanel({ user, districts, currentUserId, onSuccess, onClose }: {
                 <p className="font-sans text-sm font-medium text-text-primary">Reset Password</p>
                 <p className="font-mono text-[10px] text-text-muted">Admin override — no current password needed</p>
               </div>
-              <button onClick={() => setResetMode(v => !v)} className="font-mono text-xs text-accent-orange hover:text-accent-orange/80 transition-colors">
+              <button onClick={() => setResetMode(v => !v)}
+                className="font-mono text-xs text-accent-orange hover:text-accent-orange/80 transition-colors">
                 {resetMode ? 'Cancel' : 'Reset →'}
               </button>
             </div>
             {resetMode && (
               <div className="space-y-3 animate-slide-in">
                 <div className="relative">
-                  <input type={showNewPwd ? 'text' : 'password'} className="input pr-16" placeholder="New temporary password (min. 8 chars)"
+                  <input type={showNewPwd ? 'text' : 'password'} className="input pr-16"
+                    placeholder="New temporary password (min. 8 chars)"
                     value={newTempPwd} onChange={e => setNewTempPwd(e.target.value)} />
                   <button type="button" onClick={() => setShowNewPwd(v => !v)}
                     className="absolute right-3 top-1/2 -translate-y-1/2 font-mono text-[10px] text-text-muted hover:text-text-primary">
                     {showNewPwd ? 'HIDE' : 'SHOW'}
                   </button>
                 </div>
-                <button onClick={() => newTempPwd.length >= 8 && resetMutation.mutate(newTempPwd)}
+                <button
+                  onClick={() => newTempPwd.length >= 8 && resetMutation.mutate(newTempPwd)}
                   disabled={resetMutation.isPending || newTempPwd.length < 8}
                   className="btn-ghost w-full text-accent-orange border-accent-orange/30 hover:bg-accent-orange/10">
                   {resetMutation.isPending ? 'Resetting...' : 'Confirm Password Reset'}
@@ -336,7 +390,6 @@ export function UsersPage() {
     return p;
   }, [filterRole, filterActive]);
 
-  // Parallel: users + districts
   const { data: users = [], isLoading, error } = useQuery({
     queryKey: [...queryKeys.users.list(), params],
     queryFn: () => api.get('/api/users', { params }).then(r => r.data),
@@ -350,7 +403,9 @@ export function UsersPage() {
     if (!search.trim()) return users;
     const q = search.toLowerCase();
     return users.filter((u: User) =>
-      u.name.toLowerCase().includes(q) || u.email.toLowerCase().includes(q) || u.district?.name?.toLowerCase().includes(q)
+      u.name.toLowerCase().includes(q) ||
+      u.email.toLowerCase().includes(q) ||
+      u.district?.name?.toLowerCase().includes(q)
     );
   }, [users, search]);
 
@@ -358,10 +413,14 @@ export function UsersPage() {
     total: users.length,
     active: users.filter((u: User) => u.active).length,
     inactive: users.filter((u: User) => !u.active).length,
-    byRole: CREATABLE_ROLES.reduce((acc, r) => { acc[r] = users.filter((u: User) => u.role === r).length; return acc; }, {} as Record<Role, number>),
+    byRole: CREATABLE_ROLES.reduce((acc, r) => {
+      acc[r] = users.filter((u: User) => u.role === r).length;
+      return acc;
+    }, {} as Record<Role, number>),
   }), [users]);
 
-  const fetchError = (error as { response?: { data?: { error?: string } } })?.response?.data?.error ?? (error ? 'Failed to load users.' : '');
+  const fetchError = (error as { response?: { data?: { error?: string } } })?.response?.data?.error ??
+    (error ? 'Failed to load users.' : '');
 
   return (
     <DashboardLayout title="User Management">
@@ -369,7 +428,7 @@ export function UsersPage() {
         {fetchError && <ErrorBox msg={fetchError} onDismiss={() => {}} />}
         {success && <SuccessBox msg={success} onDismiss={() => setSuccess('')} />}
 
-        {/* Stats row */}
+        {/* stats row */}
         <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
           <div className="card px-4 py-3"><p className="font-mono text-[10px] text-text-muted uppercase tracking-widest mb-1">Total</p><p className="font-mono text-2xl font-bold text-text-primary">{stats.total}</p></div>
           <div className="card px-4 py-3"><p className="font-mono text-[10px] text-text-muted uppercase tracking-widest mb-1">Active</p><p className="font-mono text-2xl font-bold text-accent-green">{stats.active}</p></div>
@@ -382,13 +441,17 @@ export function UsersPage() {
           ))}
         </div>
 
-        {/* Toolbar */}
+        {/* toolbar */}
         <div className="flex items-center justify-between gap-3 flex-wrap">
           <div className="flex items-center gap-2 flex-wrap">
             <div className="flex gap-1 bg-bg-elevated rounded-lg p-1 border border-bg-border">
               {ALL_FILTER_ROLES.map(r => (
                 <button key={r || 'all'} onClick={() => setFilterRole(r)}
-                  className={`font-mono text-[10px] px-2.5 py-1 rounded transition-all ${filterRole === r ? 'bg-bg-primary text-text-primary border border-bg-border shadow-sm' : 'text-text-muted hover:text-text-secondary'}`}>
+                  className={`font-mono text-[10px] px-2.5 py-1 rounded transition-all ${
+                    filterRole === r
+                      ? 'bg-bg-primary text-text-primary border border-bg-border shadow-sm'
+                      : 'text-text-muted hover:text-text-secondary'
+                  }`}>
                   {r ? ROLE_LABELS[r as Role].split(' ')[0].toUpperCase() : 'ALL'}
                 </button>
               ))}
@@ -396,16 +459,22 @@ export function UsersPage() {
             <div className="flex gap-1 bg-bg-elevated rounded-lg p-1 border border-bg-border">
               {(['all', 'active', 'inactive'] as const).map(f => (
                 <button key={f} onClick={() => setFilterActive(f)}
-                  className={`font-mono text-[10px] px-2.5 py-1 rounded transition-all capitalize ${filterActive === f ? 'bg-bg-primary text-text-primary border border-bg-border shadow-sm' : 'text-text-muted hover:text-text-secondary'}`}>
+                  className={`font-mono text-[10px] px-2.5 py-1 rounded transition-all capitalize ${
+                    filterActive === f
+                      ? 'bg-bg-primary text-text-primary border border-bg-border shadow-sm'
+                      : 'text-text-muted hover:text-text-secondary'
+                  }`}>
                   {f}
                 </button>
               ))}
             </div>
           </div>
           <div className="flex items-center gap-2">
-            <input type="text" className="input text-xs py-1.5 w-48" placeholder="Search name, email, district..."
+            <input type="text" className="input text-xs py-1.5 w-48"
+              placeholder="Search name, email, district..."
               value={search} onChange={e => setSearch(e.target.value)} />
-            <button onClick={() => { setEditingUser(null); setShowCreate(v => !v); }}
+            <button
+              onClick={() => { setEditingUser(null); setShowCreate(v => !v); }}
               className={`btn-primary text-xs py-1.5 px-4 flex-shrink-0 ${showCreate ? 'opacity-60' : ''}`}>
               {showCreate ? '✕ Cancel' : '+ New User'}
             </button>
@@ -413,27 +482,40 @@ export function UsersPage() {
         </div>
 
         {showCreate && (
-          <CreateUserPanel districts={districts} onSuccess={msg => setSuccess(msg)} onClose={() => setShowCreate(false)} />
+          <CreateUserPanel
+            districts={districts}
+            onSuccess={msg => setSuccess(msg)}
+            onClose={() => setShowCreate(false)}
+          />
         )}
 
         {editingUser && (
-          <EditUserPanel user={editingUser} districts={districts} currentUserId={currentUser?.id ?? ''}
-            onSuccess={msg => setSuccess(msg)} onClose={() => setEditingUser(null)} />
+          <EditUserPanel
+            user={editingUser}
+            districts={districts}
+            currentUserId={currentUser?.id ?? ''}
+            onSuccess={msg => setSuccess(msg)}
+            onClose={() => setEditingUser(null)}
+          />
         )}
 
-        {/* Table */}
+        {/* table */}
         <div className="card overflow-x-auto">
           {isLoading ? (
-            <div className="py-20 text-center"><p className="font-mono text-xs text-text-muted animate-pulse">Loading users...</p></div>
+            <div className="py-20 text-center">
+              <p className="font-mono text-xs text-text-muted animate-pulse">Loading users...</p>
+            </div>
           ) : filteredUsers.length === 0 ? (
             <div className="py-20 text-center">
-              <p className="font-mono text-xs text-text-muted">{search ? `No users matching "${search}".` : 'No users found.'}</p>
+              <p className="font-mono text-xs text-text-muted">
+                {search ? `No users matching "${search}".` : 'No users found.'}
+              </p>
             </div>
           ) : (
             <table className="w-full">
               <thead>
                 <tr className="border-b border-bg-border">
-                  {['Name', 'Email', 'Role', 'District', 'Status', 'Created', 'Actions'].map(h => (
+                  {['Name', 'Email', 'Role', 'District', 'Phone', 'Status', 'Created', 'Actions'].map(h => (
                     <th key={h} className="px-4 py-2.5 text-left font-mono text-[10px] text-text-muted uppercase tracking-widest whitespace-nowrap">{h}</th>
                   ))}
                 </tr>
@@ -445,6 +527,7 @@ export function UsersPage() {
                     <td className="px-4 py-3 font-mono text-xs text-text-secondary">{u.email}</td>
                     <td className="px-4 py-3"><Badge label={ROLE_LABELS[u.role]} color={ROLE_COLORS[u.role]} /></td>
                     <td className="px-4 py-3 font-mono text-xs text-text-muted">{u.district?.name ?? '—'}</td>
+                    <td className="px-4 py-3 font-mono text-xs text-text-muted">{u.phone ?? '—'}</td>
                     <td className="px-4 py-3">
                       {u.active
                         ? <Badge label="ACTIVE" color="text-accent-green border-accent-green/30 bg-accent-green/5" />
@@ -453,8 +536,11 @@ export function UsersPage() {
                     <td className="px-4 py-3 font-mono text-[10px] text-text-muted">{timeAgo(u.createdAt)}</td>
                     <td className="px-4 py-3">
                       {u.role !== 'SUPER_ADMIN' && (
-                        <button onClick={() => { setShowCreate(false); setEditingUser(editingUser?.id === u.id ? null : u); }}
-                          className={`font-mono text-xs transition-colors ${editingUser?.id === u.id ? 'text-accent-blue' : 'text-text-muted hover:text-text-primary'}`}>
+                        <button
+                          onClick={() => { setShowCreate(false); setEditingUser(editingUser?.id === u.id ? null : u); }}
+                          className={`font-mono text-xs transition-colors ${
+                            editingUser?.id === u.id ? 'text-accent-blue' : 'text-text-muted hover:text-text-primary'
+                          }`}>
                           {editingUser?.id === u.id ? 'Editing ↑' : 'Edit →'}
                         </button>
                       )}
