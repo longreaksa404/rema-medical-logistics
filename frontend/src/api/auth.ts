@@ -18,25 +18,6 @@ export interface LoginResponse {
   user: UserProfile;
 }
 
-export interface ActivityData {
-  role: string;
-  personal: {
-    incidentsReported: number;
-    radioCheckins: number;
-    householdsAssessed?: number;
-    deliveriesLed?: number;
-  };
-  district?: {
-    completedDeliveries: number;
-    householdsServed: number;
-    openIncidents: number;
-  };
-  system?: {
-    completedDeliveries: number;
-    householdsServed: number;
-  };
-}
-
 export const authApi = {
   login: async (email: string, password: string): Promise<LoginResponse> => {
     const res = await api.post<LoginResponse>('/api/auth/login', { email, password });
@@ -62,11 +43,6 @@ export const authApi = {
 
   updateProfile: async (data: { name?: string; phone?: string | null }): Promise<UserProfile> => {
     const res = await api.patch<UserProfile>('/api/users/me/profile', data);
-    return res.data;
-  },
-
-  getActivity: async (): Promise<ActivityData> => {
-    const res = await api.get<ActivityData>('/api/activity/me');
     return res.data;
   },
 };  

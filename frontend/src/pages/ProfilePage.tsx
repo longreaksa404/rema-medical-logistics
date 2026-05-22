@@ -2,7 +2,6 @@ import { useState, useRef, useEffect } from 'react';
 import type { FormEvent, ChangeEvent } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { authApi } from '../api/auth';
-import type { ActivityData } from '../api/auth';
 import { Avatar } from '../components/Avatar';
 import { DashboardLayout } from '../components/DashboardLayout';
 import { usePageTitle } from '../hooks/usePageTitle';
@@ -151,7 +150,6 @@ function EditableField({
   );
 }
 
-// ─── stat tile used in activity panel ────────────────────────────────────────
 
 function StatTile({ label, value, color = 'text-text-primary' }: {
   label: string;
@@ -191,9 +189,6 @@ export function ProfilePage() {
   usePageTitle('My Profile');
   const { user, updateAvatar: ctxUpdateAvatar, updateProfile: ctxUpdateProfile } = useAuth();
 
-  const [activity,        setActivity]        = useState<ActivityData | null>(null);
-  const [activityLoading, setActivityLoading] = useState(true);
-
   // password
   const [currentPw, setCurrentPw] = useState('');
   const [newPw,      setNewPw]     = useState('');
@@ -207,13 +202,6 @@ export function ProfilePage() {
   const [avatarSuccess, setAvatarSuccess] = useState('');
   const [avatarLoading, setAvatarLoading] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
-
-  useEffect(() => {
-    authApi.getActivity()
-      .then(setActivity)
-      .catch(() => setActivity(null))
-      .finally(() => setActivityLoading(false));
-  }, []);
 
   // ── field save handlers ────────────────────────────────────────────────────
 
@@ -280,7 +268,6 @@ export function ProfilePage() {
 
   return (
     <DashboardLayout title="My Profile">
-      {/* two-column grid — left: identity + password, right: activity */}
       <div className="grid grid-cols-1 lg:grid-cols-[1fr_320px] gap-4 max-w-4xl">
 
         {/* ── LEFT COLUMN ─────────────────────────────────────────────── */}
@@ -388,7 +375,6 @@ export function ProfilePage() {
           </div>
         </div>
 
-        {/* ── RIGHT COLUMN — activity ──────────────────────────────────── */}
         <div className="space-y-4">
 
           {/* account timeline */}
@@ -417,70 +403,6 @@ export function ProfilePage() {
               </div>
             </div>
           </div>
-
-          {/* activity stats */}
-          <div className="card p-0 overflow-hidden">
-            <div className="px-4 py-3 border-b border-bg-border">
-              <h2 className="font-mono text-xs text-text-muted uppercase tracking-widest">Activity</h2>
-            </div>
-
-            {activityLoading ? (
-              <div className="px-4 py-6 flex items-center justify-center">
-                <p className="font-mono text-xs text-text-muted">Loading...</p>
-              </div>
-            ) : !activity ? (
-              <div className="px-4 py-6">
-                <p className="font-mono text-xs text-text-muted">Could not load activity.</p>
-              </div>
-            ) : (
-              <div className="px-4 py-4 space-y-4">
-
-                {/* personal stats — all roles */}
-                <div>
-                  <p className="font-mono text-[10px] text-text-muted uppercase tracking-wider mb-2">Personal</p>
-                  <div className="grid grid-cols-2 gap-2">
-                    <StatTile label="Incidents reported" value={activity.personal.incidentsReported} />
-                    <StatTile label="Radio check-ins"    value={activity.personal.radioCheckins} />
-                    {activity.personal.householdsAssessed !== undefined && (
-                      <StatTile label="HH assessed"  value={activity.personal.householdsAssessed} color="text-accent-blue" />
-                    )}
-                    {activity.personal.deliveriesLed !== undefined && (
-                      <StatTile label="Deliveries led" value={activity.personal.deliveriesLed} color="text-accent-green" />
-                    )}
-                  </div>
-                </div>
-
-                {/* district stats — hub manager */}
-                {activity.district && (
-                  <div className="border-t border-bg-border pt-4">
-                    <p className="font-mono text-[10px] text-text-muted uppercase tracking-wider mb-2">District</p>
-                    <div className="grid grid-cols-2 gap-2">
-                      <StatTile label="Deliveries done"  value={activity.district.completedDeliveries} color="text-accent-green" />
-                      <StatTile label="Households served" value={activity.district.householdsServed}   color="text-accent-blue" />
-                      <StatTile
-                        label="Open incidents"
-                        value={activity.district.openIncidents}
-                        color={activity.district.openIncidents > 0 ? 'text-accent-red' : 'text-text-primary'}
-                      />
-                    </div>
-                  </div>
-                )}
-
-                {/* system stats — EC + admin */}
-                {activity.system && (
-                  <div className="border-t border-bg-border pt-4">
-                    <p className="font-mono text-[10px] text-text-muted uppercase tracking-wider mb-2">System-wide</p>
-                    <div className="grid grid-cols-2 gap-2">
-                      <StatTile label="Deliveries done"   value={activity.system.completedDeliveries} color="text-accent-green" />
-                      <StatTile label="Households served" value={activity.system.householdsServed}    color="text-accent-blue" />
-                    </div>
-                  </div>
-                )}
-
-              </div>
-            )}
-          </div>
-
         </div>
       </div>
     </DashboardLayout>
