@@ -1,8 +1,5 @@
 // VolunteerPage.tsx — V8 Volunteer View
-// Fully migrated to React Query.
-// - useQuery for priority queue + active runs (parallel)
-// - useMutation for submit assessment, deliver, report incident
-// - useMemo for live score + sorted queue
+// Updated: householdSize + chronicIllCount inputs, emkQuantity breakdown in score panel
 
 import { useState, useCallback, useMemo } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
@@ -128,6 +125,27 @@ function OptionButton({ selected, onClick, children, danger = false }: {
   );
 }
 
+// ─── EMK QUANTITY BADGE ───────────────────────────────────────────────────────
+// Shows the full kit breakdown: e.g. "1x EMK3 + 1x EMK2 + 1x EMK1"
+
+function EmkQuantityBadge({ emk3, emk2, emk1, total }: { emk3: number; emk2: number; emk1: number; total: number }) {
+  const parts: string[] = [];
+  if (emk3 > 0) parts.push(`${emk3}x EMK3`);
+  if (emk2 > 0) parts.push(`${emk2}x EMK2`);
+  if (emk1 > 0) parts.push(`${emk1}x EMK1`);
+  return (
+    <div className="flex items-center gap-1.5 flex-wrap">
+      <span className="font-mono text-[10px] text-text-muted">Kits:</span>
+      {parts.map((p, i) => (
+        <span key={i} className={`font-mono text-[10px] font-bold ${
+          p.includes('EMK3') ? 'text-accent-red' : p.includes('EMK2') ? 'text-accent-green' : 'text-accent-blue'
+        }`}>{p}</span>
+      ))}
+      <span className="font-mono text-[10px] text-text-muted">= {total} total</span>
+    </div>
+  );
+}
+
 // ─── TAB: ASSESS ─────────────────────────────────────────────────────────────
 
 function AssessTab({ districtId }: { districtId: string }) {
@@ -137,16 +155,19 @@ function AssessTab({ districtId }: { districtId: string }) {
   const [cat3, setCat3] = useState<number>(0);
   const [cat4, setCat4] = useState<number>(0);
   const [cat5, setCat5] = useState<number>(0);
+  const [householdSize, setHouseholdSize] = useState<number>(4);
+  const [chronicIllCount, setChronicIllCount] = useState<number>(0);
   const [address, setAddress] = useState('');
   const [notes, setNotes] = useState('');
   const [submittedResult, setSubmittedResult] = useState<Household | null>(null);
 
   const cat2 = computeCat2(cat2Flags);
+  // derive hasVulnerableMember from cat2 flags — no extra input needed
+  const hasVulnerableMember = cat2Flags.size > 0;
 
-  // useMemo: live score only recomputes when category values change
   const liveScore = useMemo(
-    () => scoreHousehold({ cat1, cat2, cat3, cat4, cat5 } as ScoreInput),
-    [cat1, cat2, cat3, cat4, cat5]
+    () => scoreHousehold({ cat1, cat2, cat3, cat4, cat5, householdSize, chronicIllCount, hasVulnerableMember } as ScoreInput),
+    [cat1, cat2, cat3, cat4, cat5, householdSize, chronicIllCount, hasVulnerableMember]
   );
   const bandCfg = BAND_CONFIG[liveScore.priorityBand];
   const scorePct = (liveScore.totalScore / 20) * 100;
@@ -161,6 +182,7 @@ function AssessTab({ districtId }: { districtId: string }) {
 
   const reset = useCallback(() => {
     setCat1(0); setCat2Flags(new Set()); setCat3(0); setCat4(0); setCat5(0);
+    setHouseholdSize(4); setChronicIllCount(0);
     setAddress(''); setNotes(''); setSubmittedResult(null);
   }, []);
 
@@ -168,7 +190,6 @@ function AssessTab({ districtId }: { districtId: string }) {
     mutationFn: householdsApi.create,
     onSuccess: (result) => {
       setSubmittedResult(result);
-      // Invalidate queue so Deliver tab shows new household immediately
       queryClient.invalidateQueries({ queryKey: queryKeys.households.queue(districtId) });
       queryClient.invalidateQueries({ queryKey: queryKeys.dashboard.summary() });
     },
@@ -215,8 +236,24 @@ function AssessTab({ districtId }: { districtId: string }) {
               <span className="font-sans text-sm text-text-primary">{submittedResult.address}</span>
             </div>
             <div className="flex justify-between items-center py-1.5 border-t border-bg-border">
-              <span className="font-mono text-xs text-text-muted">Recommended EMK</span>
+              <span className="font-mono text-xs text-text-muted">Primary EMK</span>
               <span className={`font-mono text-sm font-bold ${EMK_COLORS[submittedResult.recommendedEmk]}`}>{submittedResult.recommendedEmk}</span>
+            </div>
+            {/* show quantity breakdown if available */}
+            {submittedResult.totalEmkQuantity !== undefined && submittedResult.totalEmkQuantity > 0 && (
+              <div className="flex justify-between items-start py-1.5 border-t border-bg-border">
+                <span className="font-mono text-xs text-text-muted">Kit breakdown</span>
+                <EmkQuantityBadge
+                  emk3={submittedResult.emk3Quantity ?? 0}
+                  emk2={submittedResult.emk2Quantity ?? 0}
+                  emk1={submittedResult.emk1Quantity ?? 0}
+                  total={submittedResult.totalEmkQuantity ?? 1}
+                />
+              </div>
+            )}
+            <div className="flex justify-between items-center py-1.5 border-t border-bg-border">
+              <span className="font-mono text-xs text-text-muted">Household size</span>
+              <span className="font-mono text-xs text-text-secondary">{submittedResult.householdSize ?? householdSize} people</span>
             </div>
             <div className="flex justify-between items-center py-1.5 border-t border-bg-border">
               <span className="font-mono text-xs text-text-muted">Score breakdown</span>
@@ -243,6 +280,45 @@ function AssessTab({ districtId }: { districtId: string }) {
             <SectionTitle>Household Address</SectionTitle>
             <input type="text" className="input" placeholder="e.g. 45 Le Loi Street, Ward 3"
               value={address} onChange={e => setAddress(e.target.value)} />
+          </div>
+
+          {/* ── household size + chronic ill count ── */}
+          <div className="card p-5">
+            <SectionTitle sub="Used to calculate how many kits to deliver">Household Size</SectionTitle>
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <label className="label">Total people in household</label>
+                <div className="flex items-center gap-2">
+                  <button onClick={() => setHouseholdSize(Math.max(1, householdSize - 1))}
+                    className="w-8 h-8 rounded border border-bg-border text-text-secondary hover:text-text-primary font-mono text-lg flex items-center justify-center">-</button>
+                  <span className="font-mono text-xl font-bold text-text-primary w-8 text-center">{householdSize}</span>
+                  <button onClick={() => setHouseholdSize(Math.min(20, householdSize + 1))}
+                    className="w-8 h-8 rounded border border-bg-border text-text-secondary hover:text-text-primary font-mono text-lg flex items-center justify-center">+</button>
+                </div>
+              </div>
+              <div>
+                <label className="label">Members who lost medication access</label>
+                <div className="flex items-center gap-2">
+                  <button onClick={() => setChronicIllCount(Math.max(0, chronicIllCount - 1))}
+                    className="w-8 h-8 rounded border border-bg-border text-text-secondary hover:text-text-primary font-mono text-lg flex items-center justify-center">-</button>
+                  <span className="font-mono text-xl font-bold text-accent-red w-8 text-center">{chronicIllCount}</span>
+                  <button onClick={() => setChronicIllCount(Math.min(householdSize, chronicIllCount + 1))}
+                    className="w-8 h-8 rounded border border-bg-border text-text-secondary hover:text-text-primary font-mono text-lg flex items-center justify-center">+</button>
+                </div>
+                <p className="font-mono text-[9px] text-text-muted mt-1">drives EMK3 quantity</p>
+              </div>
+            </div>
+            {/* live kit preview */}
+            {liveScore.emkQuantity && (
+              <div className="mt-4 pt-3 border-t border-bg-border">
+                <EmkQuantityBadge
+                  emk3={liveScore.emkQuantity.emk3}
+                  emk2={liveScore.emkQuantity.emk2}
+                  emk1={liveScore.emkQuantity.emk1}
+                  total={liveScore.emkQuantity.total}
+                />
+              </div>
+            )}
           </div>
 
           <div className="card p-5">
@@ -282,7 +358,7 @@ function AssessTab({ districtId }: { districtId: string }) {
                   </OptionButton>
                 );
               })}
-              {cat2 >= 5 && <p className="font-mono text-[10px] text-accent-yellow px-1">⚠ Cap reached — additional flags don't add points</p>}
+              {cat2 >= 5 && <p className="font-mono text-[10px] text-accent-yellow px-1">Cap reached — additional flags don't add points</p>}
             </div>
           </div>
 
@@ -369,13 +445,26 @@ function AssessTab({ districtId }: { districtId: string }) {
                   <p className={`font-mono text-xs font-bold ${EMK_COLORS[liveScore.recommendedEmk]}`}>→ {liveScore.recommendedEmk}</p>
                 </div>
               </div>
+
+              {/* kit quantity preview in score panel */}
+              {liveScore.emkQuantity && (
+                <div className="mt-3 pt-3 border-t border-bg-border">
+                  <EmkQuantityBadge
+                    emk3={liveScore.emkQuantity.emk3}
+                    emk2={liveScore.emkQuantity.emk2}
+                    emk1={liveScore.emkQuantity.emk1}
+                    total={liveScore.emkQuantity.total}
+                  />
+                </div>
+              )}
+
               <div className="mt-4 space-y-2">
                 {[
-                  { label: 'Medical', val: cat1, max: 8, color: 'bg-accent-red' },
-                  { label: 'Vulnerability', val: cat2, max: 5, color: 'bg-accent-orange' },
-                  { label: 'Flood Exp.', val: cat3, max: 4, color: 'bg-accent-yellow' },
-                  { label: 'Self-Suff.', val: cat4, max: 2, color: 'bg-accent-blue' },
-                  { label: 'Isolation', val: cat5, max: 1, color: 'bg-accent-green' },
+                  { label: 'Medical',      val: cat1, max: 8, color: 'bg-accent-red'    },
+                  { label: 'Vulnerability',val: cat2, max: 5, color: 'bg-accent-orange' },
+                  { label: 'Flood Exp.',   val: cat3, max: 4, color: 'bg-accent-yellow' },
+                  { label: 'Self-Suff.',   val: cat4, max: 2, color: 'bg-accent-blue'   },
+                  { label: 'Isolation',    val: cat5, max: 1, color: 'bg-accent-green'  },
                 ].map(bar => (
                   <div key={bar.label} className="flex items-center gap-2">
                     <span className="font-mono text-[9px] text-text-muted w-20 flex-shrink-0">{bar.label}</span>
@@ -400,11 +489,17 @@ function AssessTab({ districtId }: { districtId: string }) {
             </div>
 
             <button
-              onClick={() => address.trim() && submitMutation.mutate({ address: address.trim(), districtId, cat1, cat2, cat3, cat4, cat5, notes: notes.trim() || undefined })}
-              disabled={submitMutation.isPending || !address.trim()} className="btn-primary w-full">
+              onClick={() => address.trim() && submitMutation.mutate({
+                address: address.trim(), districtId,
+                cat1, cat2, cat3, cat4, cat5,
+                householdSize, chronicIllCount, hasVulnerableMember,
+                notes: notes.trim() || undefined,
+              })}
+              disabled={submitMutation.isPending || !address.trim()}
+              className="btn-primary w-full">
               {submitMutation.isPending ? 'Submitting...' : `Submit Assessment · ${liveScore.totalScore}/20`}
             </button>
-            <p className="font-mono text-[10px] text-text-muted text-center">Categories, 20-point scale</p>
+            <p className="font-mono text-[10px] text-text-muted text-center">5 categories, 20-point scale</p>
           </div>
         </div>
       </div>
@@ -418,7 +513,6 @@ function DeliverTab({ districtId }: { districtId: string }) {
   const queryClient = useQueryClient();
   const [confirming, setConfirming] = useState<string | null>(null);
 
-  // Parallel fetch: priority queue + active runs
   const { data: households = [], isLoading: queueLoading } = useQuery({
     queryKey: queryKeys.households.queue(districtId),
     queryFn: () => householdsApi.getPriorityQueue(districtId),
@@ -445,7 +539,8 @@ function DeliverTab({ districtId }: { districtId: string }) {
         deliveryRunId: activeRun!.id,
         householdId: household.id,
         emkType: household.recommendedEmk,
-        quantity: 1,
+        // use totalEmkQuantity from household record if available, else 1
+        quantity: household.totalEmkQuantity ?? 1,
         deliveredAt: new Date().toISOString(),
       }),
     onSuccess: () => {
@@ -481,7 +576,7 @@ function DeliverTab({ districtId }: { districtId: string }) {
         </div>
       ) : (
         <div className="card px-4 py-3 border-accent-orange/20">
-          <p className="font-mono text-xs text-accent-orange">⚠ No active delivery run. Contact your Hub Manager to start one.</p>
+          <p className="font-mono text-xs text-accent-orange">No active delivery run. Contact your Hub Manager to start one.</p>
         </div>
       )}
 
@@ -499,6 +594,7 @@ function DeliverTab({ districtId }: { districtId: string }) {
               const cfg = BAND_CONFIG[h.priorityBand];
               const isConfirming = confirming === h.id;
               const isDelivering = deliverMutation.isPending && deliverMutation.variables?.id === h.id;
+              const qty = h.totalEmkQuantity ?? 1;
               return (
                 <div key={h.id} className={`px-4 py-4 transition-colors ${isConfirming ? cfg.bg : ''}`}>
                   <div className="flex items-start gap-3">
@@ -508,17 +604,31 @@ function DeliverTab({ districtId }: { districtId: string }) {
                         <Badge label={cfg.label} color={`${cfg.color} ${cfg.border} ${cfg.bg}`} />
                         <span className={`font-mono text-[10px] font-bold ${EMK_COLORS[h.recommendedEmk]}`}>{h.recommendedEmk}</span>
                         <span className="font-mono text-[10px] text-text-muted">{h.totalScore}/20</span>
+                        {qty > 1 && (
+                          <span className="font-mono text-[10px] text-accent-yellow font-bold">{qty} kits</span>
+                        )}
                       </div>
                       <p className="font-sans text-sm text-text-primary">{h.address}</p>
+                      {/* show kit breakdown if more than 1 kit */}
+                      {qty > 1 && (h.emk3Quantity || h.emk2Quantity || h.emk1Quantity) && (
+                        <div className="mt-1">
+                          <EmkQuantityBadge
+                            emk3={h.emk3Quantity ?? 0}
+                            emk2={h.emk2Quantity ?? 0}
+                            emk1={h.emk1Quantity ?? 0}
+                            total={qty}
+                          />
+                        </div>
+                      )}
                       {h.medicalUrgencyScore >= 5 && (
-                        <p className="font-mono text-[10px] text-accent-red mt-0.5">⚕ Life-sustaining medication</p>
+                        <p className="font-mono text-[10px] text-accent-red mt-0.5">Life-sustaining medication needed</p>
                       )}
                     </div>
                     <div className="flex-shrink-0">
                       {!isConfirming ? (
                         <button onClick={() => setConfirming(h.id)} disabled={!activeRun}
                           className={`font-mono text-xs px-3 py-1.5 rounded border transition-all disabled:opacity-40 ${cfg.bg} ${cfg.border} ${cfg.color} hover:opacity-80`}>
-                          Deliver
+                          Deliver {qty > 1 ? `(${qty})` : ''}
                         </button>
                       ) : (
                         <div className="flex gap-2">
@@ -544,7 +654,7 @@ function DeliverTab({ districtId }: { districtId: string }) {
   );
 }
 
-// ─── TAB: REPORT ──────────────────────────────────────────────────────────────
+// ─── TAB: REPORT (unchanged) ──────────────────────────────────────────────────
 
 function ReportTab({ districtId }: { districtId: string }) {
   const queryClient = useQueryClient();
@@ -579,7 +689,7 @@ function ReportTab({ districtId }: { districtId: string }) {
                 <>
                   <Badge label="AUTO-ESCALATED" color="text-accent-red border-accent-red/30 bg-accent-red/10" />
                   <p className="font-mono text-[10px] text-text-secondary mt-2 leading-relaxed">
-                    VOLUNTEER_SAFETY incident auto-escalated to Operations Center per.
+                    VOLUNTEER_SAFETY incident auto-escalated to Operations Center.
                     If water exceeds 80cm, return to sub-warehouse or shelter in place immediately.
                   </p>
                 </>
@@ -663,14 +773,13 @@ function ReportTab({ districtId }: { districtId: string }) {
   );
 }
 
-// ─── MAIN VOLUNTEER PAGE ──────────────────────────────────────────────────────
+// ─── MAIN VOLUNTEER PAGE (unchanged) ─────────────────────────────────────────
 
 export function VolunteerPage() {
   usePageTitle('Volunteer');
   const { user } = useAuth();
   const [activeTab, setActiveTab] = useState<TabId>('assess');
 
-  // Parallel: district detail + summary fallback
   const { data: districtData, isLoading: districtLoading } = useQuery({
     queryKey: queryKeys.districts.detail(user?.districtId ?? ''),
     queryFn: () => api.get(`/api/districts/${user!.districtId}`).then(r => r.data),
@@ -679,10 +788,10 @@ export function VolunteerPage() {
   const { data: summaryData, isLoading: summaryLoading } = useQuery({
     queryKey: queryKeys.dashboard.summary(),
     queryFn: () => import('../api/dashboard').then(m => m.dashboardApi.getSummary()),
-    enabled: !user?.districtId, // only fetch summary if no direct district
+    enabled: !user?.districtId,
   });
 
-  const realDistricts = (summaryData?.districts ?? []).filter(d => d.name !== '__central__');
+  const realDistricts = (summaryData?.districts ?? []).filter((d: { name: string }) => d.name !== '__central__');
   const districtId = user?.districtId ?? realDistricts[0]?.districtId ?? '';
   const districtName = districtData?.name ?? realDistricts[0]?.name ?? 'Your District';
   const isLoading = user?.districtId ? districtLoading : summaryLoading;
