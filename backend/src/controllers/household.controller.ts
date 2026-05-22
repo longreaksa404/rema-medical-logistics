@@ -10,10 +10,10 @@ import {
 import { ScoreInput } from '../utils/scoring';
 
 // ─── POST /api/score/household ────────────────────────────────────────────────
-// Score only — no DB write. Returns band and EMK recommendation.
+// Score only — no DB write. Returns band, EMK recommendation, and quantity breakdown.
 
 export async function scoreOnly(req: Request, res: Response): Promise<void> {
-  const { cat1, cat2, cat3, cat4, cat5 } = req.body;
+  const { cat1, cat2, cat3, cat4, cat5, householdSize, chronicIllCount, hasVulnerableMember } = req.body;
 
   if (
     cat1 === undefined || cat2 === undefined || cat3 === undefined ||
@@ -24,7 +24,12 @@ export async function scoreOnly(req: Request, res: Response): Promise<void> {
   }
 
   try {
-    const result = computeScore({ cat1, cat2, cat3, cat4, cat5 });
+    const result = computeScore({
+      cat1, cat2, cat3, cat4, cat5,
+      householdSize,
+      chronicIllCount,
+      hasVulnerableMember,
+    });
     res.json(result);
   } catch (err) {
     const message = err instanceof Error ? err.message : 'Scoring error';
@@ -35,7 +40,12 @@ export async function scoreOnly(req: Request, res: Response): Promise<void> {
 // ─── POST /api/households ─────────────────────────────────────────────────────
 
 export async function create(req: Request, res: Response): Promise<void> {
-  const { address, districtId, cat1, cat2, cat3, cat4, cat5, notes } = req.body;
+  const {
+    address, districtId,
+    cat1, cat2, cat3, cat4, cat5,
+    householdSize, chronicIllCount, hasVulnerableMember,
+    notes,
+  } = req.body;
 
   if (!address || !districtId) {
     res.status(400).json({ error: 'address and districtId are required' });
@@ -51,7 +61,12 @@ export async function create(req: Request, res: Response): Promise<void> {
   }
 
   try {
-    const scoreInput: ScoreInput = { cat1, cat2, cat3, cat4, cat5 };
+    const scoreInput: ScoreInput = {
+      cat1, cat2, cat3, cat4, cat5,
+      householdSize,
+      chronicIllCount,
+      hasVulnerableMember,
+    };
     const household = await createHousehold({
       address,
       districtId,
@@ -119,15 +134,22 @@ export async function getOne(req: Request, res: Response): Promise<void> {
 // ─── PATCH /api/households/:id ────────────────────────────────────────────────
 
 export async function update(req: Request, res: Response): Promise<void> {
-  const { cat1, cat2, cat3, cat4, cat5, notes } = req.body;
+  const {
+    cat1, cat2, cat3, cat4, cat5,
+    householdSize, chronicIllCount, hasVulnerableMember,
+    notes,
+  } = req.body;
 
   try {
     const scoreInput: Partial<ScoreInput> = {};
-    if (cat1 !== undefined) scoreInput.cat1 = cat1;
-    if (cat2 !== undefined) scoreInput.cat2 = cat2;
-    if (cat3 !== undefined) scoreInput.cat3 = cat3;
-    if (cat4 !== undefined) scoreInput.cat4 = cat4;
-    if (cat5 !== undefined) scoreInput.cat5 = cat5;
+    if (cat1 !== undefined)               scoreInput.cat1 = cat1;
+    if (cat2 !== undefined)               scoreInput.cat2 = cat2;
+    if (cat3 !== undefined)               scoreInput.cat3 = cat3;
+    if (cat4 !== undefined)               scoreInput.cat4 = cat4;
+    if (cat5 !== undefined)               scoreInput.cat5 = cat5;
+    if (householdSize !== undefined)      scoreInput.householdSize = householdSize;
+    if (chronicIllCount !== undefined)    scoreInput.chronicIllCount = chronicIllCount;
+    if (hasVulnerableMember !== undefined) scoreInput.hasVulnerableMember = hasVulnerableMember;
 
     const household = await updateHousehold(req.params.id, {
       scoreInput: Object.keys(scoreInput).length > 0 ? scoreInput : undefined,

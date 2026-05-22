@@ -5,11 +5,9 @@ import { getCached, setCached, deleteCached } from '../utils/cache';
 const prisma = new PrismaClient();
 
 // ─── CACHE KEYS ───────────────────────────────────────────────────────────────
-// Priority queue is polled by V1 dashboard and V4 Prioritization Tool.
-// Keyed per district — invalidated on create, update, and delivery receipt.
 
 const KEY_QUEUE_PREFIX = 'household:queue:';
-const TTL_QUEUE = 15_000; // 15 s
+const TTL_QUEUE = 15_000;
 
 export function invalidateQueueCache(districtId: string): void {
   deleteCached(`${KEY_QUEUE_PREFIX}${districtId}`);
@@ -32,34 +30,44 @@ export async function createHousehold(data: {
 }) {
   const result = scoreHousehold(data.scoreInput);
 
+  // resolve optional quantity fields with the same defaults as scoring.ts
+  const householdSize  = data.scoreInput.householdSize  ?? 4;
+  const chronicIllCount = data.scoreInput.chronicIllCount ?? 0;
+
   const household = await prisma.household.create({
     data: {
-      address: data.address,
-      districtId: data.districtId,
+      address:             data.address,
+      districtId:          data.districtId,
       medicalUrgencyScore: result.cat1,
-      vulnerabilityScore: result.cat2,
-      floodExposureScore: result.cat3,
+      vulnerabilityScore:  result.cat2,
+      floodExposureScore:  result.cat3,
       selfSufficiencyScore: result.cat4,
-      isolationScore: result.cat5,
-      totalScore: result.totalScore,
-      priorityBand: result.priorityBand as PriorityBand,
-      recommendedEmk: result.recommendedEmk as EmkType,
-      assessedById: data.assessedById ?? null,
+      isolationScore:      result.cat5,
+      totalScore:          result.totalScore,
+      priorityBand:        result.priorityBand as PriorityBand,
+      recommendedEmk:      result.recommendedEmk as EmkType,
+      householdSize,
+      chronicIllCount,
+      emk1Quantity:        result.emkQuantity.emk1,
+      emk2Quantity:        result.emkQuantity.emk2,
+      emk3Quantity:        result.emkQuantity.emk3,
+      totalEmkQuantity:    result.emkQuantity.total,
+      assessedById:        data.assessedById ?? null,
     },
   });
 
   if (data.assessedById) {
     await prisma.householdAssessment.create({
       data: {
-        householdId: household.id,
+        householdId:   household.id,
         submittedById: data.assessedById,
-        cat1Score: result.cat1,
-        cat2Score: result.cat2,
-        cat3Score: result.cat3,
-        cat4Score: result.cat4,
-        cat5Score: result.cat5,
-        totalScore: result.totalScore,
-        notes: data.notes ?? null,
+        cat1Score:     result.cat1,
+        cat2Score:     result.cat2,
+        cat3Score:     result.cat3,
+        cat4Score:     result.cat4,
+        cat5Score:     result.cat5,
+        totalScore:    result.totalScore,
+        notes:         data.notes ?? null,
       },
     });
   }
@@ -69,7 +77,6 @@ export async function createHousehold(data: {
 }
 
 // ─── LIST HOUSEHOLDS ──────────────────────────────────────────────────────────
-// Not cached — supports arbitrary filter combinations, not worth a per-combo key.
 
 export async function listHouseholds(filters: {
   districtId?: string;
@@ -91,20 +98,19 @@ export async function listHouseholds(filters: {
     where,
     orderBy: [{ totalScore: 'desc' }, { createdAt: 'asc' }],
     include: {
-      district: { select: { name: true } },
+      district:   { select: { name: true } },
       assessedBy: { select: { name: true, email: true } },
     },
   });
 }
 
 // ─── GET SINGLE HOUSEHOLD ─────────────────────────────────────────────────────
-// Not cached — includes full assessment history and receipts; changes frequently.
 
 export async function getHousehold(id: string) {
   const household = await prisma.household.findUnique({
     where: { id },
     include: {
-      district: { select: { name: true } },
+      district:   { select: { name: true } },
       assessedBy: { select: { name: true, email: true } },
       assessments: {
         orderBy: { createdAt: 'desc' },
@@ -137,6 +143,11 @@ export async function updateHousehold(
     cat3: data.scoreInput?.cat3 ?? existing.floodExposureScore,
     cat4: data.scoreInput?.cat4 ?? existing.selfSufficiencyScore,
     cat5: data.scoreInput?.cat5 ?? existing.isolationScore,
+    // fall back to stored values so a partial update preserves household size
+    householdSize:       data.scoreInput?.householdSize   ?? existing.householdSize,
+    chronicIllCount:     data.scoreInput?.chronicIllCount ?? existing.chronicIllCount,
+    hasVulnerableMember: data.scoreInput?.hasVulnerableMember
+      ?? (existing.vulnerabilityScore > 0),
   };
 
   const result = scoreHousehold(mergedInput);
@@ -144,30 +155,36 @@ export async function updateHousehold(
   const updated = await prisma.household.update({
     where: { id },
     data: {
-      medicalUrgencyScore: result.cat1,
-      vulnerabilityScore: result.cat2,
-      floodExposureScore: result.cat3,
+      medicalUrgencyScore:  result.cat1,
+      vulnerabilityScore:   result.cat2,
+      floodExposureScore:   result.cat3,
       selfSufficiencyScore: result.cat4,
-      isolationScore: result.cat5,
-      totalScore: result.totalScore,
-      priorityBand: result.priorityBand as PriorityBand,
-      recommendedEmk: result.recommendedEmk as EmkType,
-      assessedById: data.assessedById ?? existing.assessedById,
+      isolationScore:       result.cat5,
+      totalScore:           result.totalScore,
+      priorityBand:         result.priorityBand as PriorityBand,
+      recommendedEmk:       result.recommendedEmk as EmkType,
+      householdSize:        mergedInput.householdSize,
+      chronicIllCount:      mergedInput.chronicIllCount,
+      emk1Quantity:         result.emkQuantity.emk1,
+      emk2Quantity:         result.emkQuantity.emk2,
+      emk3Quantity:         result.emkQuantity.emk3,
+      totalEmkQuantity:     result.emkQuantity.total,
+      assessedById:         data.assessedById ?? existing.assessedById,
     },
   });
 
   if (data.assessedById) {
     await prisma.householdAssessment.create({
       data: {
-        householdId: id,
+        householdId:   id,
         submittedById: data.assessedById,
-        cat1Score: result.cat1,
-        cat2Score: result.cat2,
-        cat3Score: result.cat3,
-        cat4Score: result.cat4,
-        cat5Score: result.cat5,
-        totalScore: result.totalScore,
-        notes: data.notes ?? null,
+        cat1Score:     result.cat1,
+        cat2Score:     result.cat2,
+        cat3Score:     result.cat3,
+        cat4Score:     result.cat4,
+        cat5Score:     result.cat5,
+        totalScore:    result.totalScore,
+        notes:         data.notes ?? null,
       },
     });
   }
@@ -177,16 +194,11 @@ export async function updateHousehold(
 }
 
 // ─── PRIORITY QUEUE ───────────────────────────────────────────────────────────
-// Cached per district for 15 s.
-// Section C tiebreaker rules:
-//   1. Higher cat1 score wins — medical urgency first
-//   2. Infant under 6 months (use cat2 score as proxy)
-//   3. First form submitted (createdAt ASC)
 
 const BAND_ORDER: Record<PriorityBand, number> = {
   CRITICAL: 0,
-  HIGH: 1,
-  MEDIUM: 2,
+  HIGH:     1,
+  MEDIUM:   2,
   STANDARD: 3,
 };
 

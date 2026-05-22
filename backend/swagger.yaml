@@ -225,6 +225,36 @@ components:
           minimum: 0
           maximum: 1
           description: "Isolation: 0 or 1"
+        householdSize:
+          type: integer
+          minimum: 1
+          default: 4
+          description: "Total people in household — drives EMK quantity calculation"
+        chronicIllCount:
+          type: integer
+          minimum: 0
+          default: 0
+          description: "Members who lost medication access — drives EMK3 quantity"
+        hasVulnerableMember:
+          type: boolean
+          default: false
+          description: "True if any vulnerable member present (infant, pregnant, elderly, disabled) — drives EMK2 quantity"
+
+    EmkQuantity:
+      type: object
+      properties:
+        emk3:
+          type: integer
+          description: "Number of EMK3 kits — 1 per chronically ill member without medication"
+        emk2:
+          type: integer
+          description: "Number of EMK2 kits — 1 if vulnerable member present"
+        emk1:
+          type: integer
+          description: "Number of EMK1 kits — covers remaining people at 4 per kit"
+        total:
+          type: integer
+          description: "Total EMK count across all types"
 
     ScoreResult:
       type: object
@@ -249,6 +279,9 @@ components:
         recommendedEmk:
           type: string
           enum: [EMK1, EMK2, EMK3]
+          description: "Primary kit type for this household"
+        emkQuantity:
+          $ref: '#/components/schemas/EmkQuantity'
 
     # ── Households ────────────────────────────────────────────────────────────
     HouseholdDetail:
@@ -283,6 +316,20 @@ components:
         recommendedEmk:
           type: string
           enum: [EMK1, EMK2, EMK3]
+        householdSize:
+          type: integer
+          description: "Total people in household"
+        chronicIllCount:
+          type: integer
+          description: "Members who lost medication access"
+        emk1Quantity:
+          type: integer
+        emk2Quantity:
+          type: integer
+        emk3Quantity:
+          type: integer
+        totalEmkQuantity:
+          type: integer
         delivered:
           type: boolean
         deliveredAt:
