@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import type { FormEvent } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
@@ -14,26 +14,19 @@ export function LoginPage() {
   const [error, setError] = useState('');
   const [isLoading, setIsLoading] = useState(false);
 
-  // redirect already-logged-in users — but only on mount, not after login
-  useEffect(() => {
-    if (user && !isLoading) {
-      navigate('/dashboard', { replace: true });
-    }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);  // empty deps — only runs on mount, never after login state changes
+  // If already logged in, redirect
+  if (user) {
+    navigate('/dashboard', { replace: true });
+    return null;
+  }
 
   async function handleSubmit(e: FormEvent) {
     e.preventDefault();
     setError('');
     setIsLoading(true);
-
     try {
-      const mustChange = await login(email.trim(), password);
-      if (mustChange) {
-        navigate('/change-password', { replace: true });
-      } else {
-        navigate('/dashboard', { replace: true });
-      }
+      await login(email.trim(), password);
+      navigate('/dashboard', { replace: true });
     } catch (err: unknown) {
       const message =
         (err as { response?: { data?: { error?: string } } })?.response?.data?.error ||
