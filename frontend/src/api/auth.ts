@@ -4,9 +4,10 @@ export interface UserProfile {
   id: string;
   email: string;
   name: string;
+  phone?: string | null;
   role: 'SUPER_ADMIN' | 'EMERGENCY_COORDINATOR' | 'HUB_MANAGER' | 'VOLUNTEER' | 'VIEWER';
   districtId: string | null;
-  mustChangePassword?: boolean;  // present on login response, absent on /me
+  mustChangePassword?: boolean;
   avatarBase64?: string | null;
 }
 
@@ -36,5 +37,11 @@ export const authApi = {
 
   updateAvatar: async (avatarBase64: string): Promise<void> => {
     await api.patch('/api/users/me/avatar', { avatarBase64 });
+  },
+
+  // name and/or phone — email is admin-only
+  updateProfile: async (data: { name?: string; phone?: string | null }): Promise<UserProfile> => {
+    const res = await api.patch<UserProfile>('/api/users/me/profile', data);
+    return res.data;
   },
 };

@@ -74,7 +74,7 @@ export async function createUser(data: {
           userId:     user.id,
           districtId: districtId!,
           name:       name,
-          phone:      phone ?? '',   // empty string if not provided — updatable later
+          phone:      phone ?? '',
           role:       'VOLUNTEER',
           status:     'AVAILABLE',
         },
@@ -84,7 +84,6 @@ export async function createUser(data: {
     });
   }
 
-  // all other roles — plain create
   return prisma.user.create({
     data: {
       email,
@@ -167,7 +166,7 @@ export async function getUser(id: string) {
   return user;
 }
 
-// ─── UPDATE USER ──────────────────────────────────────────────────────────────
+// ─── UPDATE USER (SUPER_ADMIN) ────────────────────────────────────────────────
 
 export async function updateUser(
   id: string,
@@ -230,6 +229,57 @@ export async function updateUser(
   });
 }
 
+// ─── UPDATE OWN PROFILE (any auth user) ──────────────────────────────────────
+// only name + phone — email and role are admin-only
+
+export async function updateOwnProfile(
+  userId: string,
+  data: { name?: string; phone?: string | null }
+) {
+  if (data.name !== undefined && data.name.trim().length < 2) {
+    throw new Error('Name must be at least 2 characters');
+  }
+
+  // strip to null if empty string — consistent storage
+  const phone = data.phone === '' ? null : data.phone;
+
+  const updated = await prisma.user.update({
+    where: { id: userId },
+    data: {
+      ...(data.name !== undefined && { name: data.name.trim() }),
+      ...(data.phone !== undefined && { phone }),
+    },
+    select: {
+      id: true,
+      email: true,
+      name: true,
+      role: true,
+      districtId: true,
+      phone: true,
+      active: true,
+      updatedAt: true,
+      avatarBase64: true,
+      mustChangePassword: true,
+    },
+  });
+
+  // keep volunteer record in sync if linked
+  if (data.name !== undefined || data.phone !== undefined) {
+    const volunteer = await prisma.volunteer.findUnique({ where: { userId } });
+    if (volunteer) {
+      await prisma.volunteer.update({
+        where: { userId },
+        data: {
+          ...(data.name  !== undefined && { name: data.name.trim() }),
+          ...(phone      !== undefined && { phone: phone ?? volunteer.phone }),
+        },
+      });
+    }
+  }
+
+  return updated;
+}
+
 // ─── CHANGE OWN PASSWORD ──────────────────────────────────────────────────────
 
 export async function changeOwnPassword(
@@ -255,10 +305,7 @@ export async function changeOwnPassword(
 
   await prisma.user.update({
     where: { id: userId },
-    data: {
-      passwordHash,
-      mustChangePassword: false,
-    },
+    data: { passwordHash, mustChangePassword: false },
   });
 
   return { message: 'Password updated successfully' };
@@ -285,10 +332,7 @@ export async function resetUserPassword(
 
   await prisma.user.update({
     where: { id: targetUserId },
-    data: {
-      passwordHash,
-      mustChangePassword: true,
-    },
+    data: { passwordHash, mustChangePassword: true },
   });
 
   return {

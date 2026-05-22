@@ -1105,6 +1105,33 @@ paths:
         "401":
           description: Unauthorized
  
+  /api/users/me/profile:
+    patch:
+      summary: Update own profile (name and/or phone)
+      tags: [Users]
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                name:
+                  type: string
+                  minLength: 2
+                phone:
+                  type: string
+                  nullable: true
+      responses:
+        '200':
+          description: Updated user profile
+        '400':
+          description: Validation error
+        '401':
+          description: Unauthorized
+
   /api/users/{id}:
     get:
       tags: [User Management]

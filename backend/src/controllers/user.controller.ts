@@ -5,13 +5,14 @@ import {
   listUsers,
   getUser,
   updateUser,
+  updateOwnProfile,
   changeOwnPassword,
   resetUserPassword,
   getPublicStatus,
   updateOwnAvatar,
 } from '../services/user.service';
 
-// ─── GET /api/status (PUBLIC — no auth) ──────────────────────────────────────
+// ─── GET /api/status (PUBLIC) ─────────────────────────────────────────────────
 
 export async function publicStatus(_req: Request, res: Response): Promise<void> {
   try {
@@ -23,7 +24,7 @@ export async function publicStatus(_req: Request, res: Response): Promise<void> 
   }
 }
 
-// ─── POST /api/users — SUPER_ADMIN only ───────────────────────────────────────
+// ─── POST /api/users ──────────────────────────────────────────────────────────
 
 export async function create(req: Request, res: Response): Promise<void> {
   const { email, name, role, districtId, temporaryPassword, phone } = req.body;
@@ -37,9 +38,7 @@ export async function create(req: Request, res: Response): Promise<void> {
 
   const validRoles = Object.values(Role);
   if (!validRoles.includes(role)) {
-    res.status(400).json({
-      error: `Invalid role. Must be one of: ${validRoles.join(', ')}`,
-    });
+    res.status(400).json({ error: `Invalid role. Must be one of: ${validRoles.join(', ')}` });
     return;
   }
 
@@ -49,14 +48,7 @@ export async function create(req: Request, res: Response): Promise<void> {
   }
 
   try {
-    const user = await createUser({
-      email,
-      name,
-      role: role as Role,
-      districtId,
-      temporaryPassword,
-      phone,
-    });
+    const user = await createUser({ email, name, role: role as Role, districtId, temporaryPassword, phone });
     res.status(201).json(user);
   } catch (err) {
     const message = err instanceof Error ? err.message : 'Error creating user';
@@ -64,14 +56,14 @@ export async function create(req: Request, res: Response): Promise<void> {
   }
 }
 
-// ─── GET /api/users — SUPER_ADMIN only ───────────────────────────────────────
+// ─── GET /api/users ───────────────────────────────────────────────────────────
 
 export async function list(req: Request, res: Response): Promise<void> {
   const { role, districtId, active } = req.query;
 
   const validRoles = Object.values(Role);
   if (role && !validRoles.includes(role as Role)) {
-    res.status(400).json({ error: `Invalid role filter` });
+    res.status(400).json({ error: 'Invalid role filter' });
     return;
   }
 
@@ -88,7 +80,7 @@ export async function list(req: Request, res: Response): Promise<void> {
   }
 }
 
-// ─── GET /api/users/:id — SUPER_ADMIN only ────────────────────────────────────
+// ─── GET /api/users/:id ───────────────────────────────────────────────────────
 
 export async function getOne(req: Request, res: Response): Promise<void> {
   try {
@@ -100,7 +92,7 @@ export async function getOne(req: Request, res: Response): Promise<void> {
   }
 }
 
-// ─── PATCH /api/users/:id — SUPER_ADMIN only ─────────────────────────────────
+// ─── PATCH /api/users/:id ─────────────────────────────────────────────────────
 
 export async function update(req: Request, res: Response): Promise<void> {
   const { name, email, role, districtId, phone, active } = req.body;
@@ -108,19 +100,14 @@ export async function update(req: Request, res: Response): Promise<void> {
   if (role) {
     const validRoles = Object.values(Role);
     if (!validRoles.includes(role)) {
-      res.status(400).json({ error: `Invalid role` });
+      res.status(400).json({ error: 'Invalid role' });
       return;
     }
   }
 
   try {
     const user = await updateUser(req.params.id, req.user!.userId, {
-      name,
-      email,
-      role: role as Role | undefined,
-      districtId,
-      phone,
-      active,
+      name, email, role: role as Role | undefined, districtId, phone, active,
     });
     res.json(user);
   } catch (err) {
@@ -129,7 +116,26 @@ export async function update(req: Request, res: Response): Promise<void> {
   }
 }
 
-// ─── PATCH /api/users/me/password — any authenticated user ───────────────────
+// ─── PATCH /api/users/me/profile — any authenticated user ────────────────────
+
+export async function updateProfile(req: Request, res: Response): Promise<void> {
+  const { name, phone } = req.body;
+
+  if (name === undefined && phone === undefined) {
+    res.status(400).json({ error: 'Provide at least one field to update: name or phone' });
+    return;
+  }
+
+  try {
+    const user = await updateOwnProfile(req.user!.userId, { name, phone });
+    res.json(user);
+  } catch (err) {
+    const message = err instanceof Error ? err.message : 'Error updating profile';
+    res.status(400).json({ error: message });
+  }
+}
+
+// ─── PATCH /api/users/me/password ────────────────────────────────────────────
 
 export async function changePassword(req: Request, res: Response): Promise<void> {
   const { currentPassword, newPassword } = req.body;
@@ -140,11 +146,7 @@ export async function changePassword(req: Request, res: Response): Promise<void>
   }
 
   try {
-    const result = await changeOwnPassword(
-      req.user!.userId,
-      currentPassword,
-      newPassword
-    );
+    const result = await changeOwnPassword(req.user!.userId, currentPassword, newPassword);
     res.json(result);
   } catch (err) {
     const message = err instanceof Error ? err.message : 'Error changing password';
@@ -152,7 +154,7 @@ export async function changePassword(req: Request, res: Response): Promise<void>
   }
 }
 
-// ─── POST /api/users/:id/reset-password — SUPER_ADMIN only ───────────────────
+// ─── POST /api/users/:id/reset-password ──────────────────────────────────────
 
 export async function resetPassword(req: Request, res: Response): Promise<void> {
   const { temporaryPassword } = req.body;
