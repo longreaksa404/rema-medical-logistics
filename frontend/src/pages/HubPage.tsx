@@ -14,13 +14,13 @@ import { api } from '../api/client';
 import { hubApi } from '../api/hub';
 import { queryKeys } from '../api/queryKeys';
 import type {
-  StockLevel,CentralStockLevel, StockMovement, DistrictRoster,
+  StockLevel,CentralStockLevel, CentralMovement,  StockMovement, DistrictRoster,
   Volunteer, DeliveryRun, Incident, RadioCheckin,
 } from '../api/hub';
 import type { DistrictCard } from '../api/dashboard.types';
 import { usePageTitle } from '../hooks/usePageTitle';
 
-type TabId = 'stock' | 'volunteers' | 'deliveries' | 'incidents' | 'radio';
+type TabId = 'central' | 'stock' | 'volunteers' | 'deliveries' | 'incidents' | 'radio';
 
 // ─── HELPERS ──────────────────────────────────────────────────────────────────
 
@@ -99,73 +99,58 @@ function SuccessBox({ msg, onDismiss }: { msg: string; onDismiss: () => void }) 
 
 // ─── TAB: STOCK ───────────────────────────────────────────────────────────────
 
-function StockTab({ districtId, subWarehouseId, allSubWarehouses }: {
+// ─── StockTab ─────────────────────────────────────────────────────────────────
+// Clean district-only version.
+// Central warehouse display and management moved to CentralTab.
+// This tab shows: dispatch form, sub-warehouse levels, adjust form, audit log.
+
+function StockTab({ districtId, subWarehouseId }: {
   districtId: string;
   subWarehouseId: string | null;
-  allSubWarehouses?: unknown;
 }) {
-  const { isRole } = useAuth();
-  const isSuperAdmin = isRole('SUPER_ADMIN');
- 
   const queryClient = useQueryClient();
   const [success, setSuccess] = useState('');
- 
+
   // ── Dispatch form ─────────────────────────────────────────────────────────
   const [dispEmkType, setDispEmkType] = useState<'EMK1' | 'EMK2' | 'EMK3'>('EMK1');
-  const [dispQty, setDispQty] = useState('');
-  const [dispReason, setDispReason] = useState('');
- 
-  // ── Sub-warehouse adjust form ─────────────────────────────────────────────
+  const [dispQty,     setDispQty]     = useState('');
+  const [dispReason,  setDispReason]  = useState('');
+
+  // ── Adjust form ───────────────────────────────────────────────────────────
   const [adjEmkType, setAdjEmkType] = useState<'EMK1' | 'EMK2' | 'EMK3'>('EMK1');
-  const [adjQty, setAdjQty] = useState('');
-  const [adjReason, setAdjReason] = useState('');
- 
-  // ── Central replenish form (SUPER_ADMIN) ──────────────────────────────────
-  const [repEmkType, setRepEmkType] = useState<'EMK1' | 'EMK2' | 'EMK3'>('EMK1');
-  const [repQty, setRepQty] = useState('');
-  const [repReason, setRepReason] = useState('');
- 
-  // ── Central adjust form (SUPER_ADMIN) ─────────────────────────────────────
-  const [cadEmkType, setCadEmkType] = useState<'EMK1' | 'EMK2' | 'EMK3'>('EMK1');
-  const [cadQty, setCadQty] = useState('');
-  const [cadReason, setCadReason] = useState('');
- 
-  // ── Set allocation form (SUPER_ADMIN) ─────────────────────────────────────
-  const [allocTarget, setAllocTarget] = useState<'central' | 'subWarehouse'>('subWarehouse');
-  const [allocEmkType, setAllocEmkType] = useState<'EMK1' | 'EMK2' | 'EMK3'>('EMK1');
-  const [allocNewTotal, setAllocNewTotal] = useState('');
-  const [allocReason, setAllocReason] = useState('');
- 
+  const [adjQty,     setAdjQty]     = useState('');
+  const [adjReason,  setAdjReason]  = useState('');
+
   // ── Queries ───────────────────────────────────────────────────────────────
-  const { data: centralStock, isLoading: centralLoading } = useQuery({
+  const { data: centralStock } = useQuery({
     queryKey: queryKeys.hub.centralStock(),
-    queryFn: () => hubApi.getCentralStock(),
+    queryFn:  () => hubApi.getCentralStock(),
     staleTime: 15_000,
   });
- 
+
   const { data: stock, isLoading: stockLoading } = useQuery({
     queryKey: queryKeys.hub.stock(districtId),
-    queryFn: () => hubApi.getDistrictStock(districtId),
-    enabled: !!districtId,
+    queryFn:  () => hubApi.getDistrictStock(districtId),
+    enabled:  !!districtId,
   });
- 
-  const { data: movements = [], isLoading: movementsLoading } = useQuery({
+
+  const { data: movements = [], isLoading: movLoading } = useQuery({
     queryKey: queryKeys.hub.movements(districtId),
-    queryFn: () => hubApi.getMovements(districtId),
-    enabled: !!districtId,
-    select: (data: StockMovement[]) => data.slice(0, 50),
+    queryFn:  () => hubApi.getMovements(districtId),
+    enabled:  !!districtId,
+    select:   (data: StockMovement[]) => data.slice(0, 50),
   });
- 
-  const isLoading = centralLoading || stockLoading || movementsLoading;
- 
-  // ── Cache invalidation ────────────────────────────────────────────────────
+
+  const isLoading = stockLoading || movLoading;
+
   const invalidateStock = useCallback(() => {
     queryClient.invalidateQueries({ queryKey: queryKeys.hub.centralStock() });
+    queryClient.invalidateQueries({ queryKey: queryKeys.hub.centralMovements() });
     queryClient.invalidateQueries({ queryKey: queryKeys.hub.stock(districtId) });
     queryClient.invalidateQueries({ queryKey: queryKeys.hub.movements(districtId) });
     queryClient.invalidateQueries({ queryKey: queryKeys.dashboard.summary() });
   }, [queryClient, districtId]);
- 
+
   // ── Mutations ─────────────────────────────────────────────────────────────
   const dispatchMutation = useMutation({
     mutationFn: hubApi.dispatch,
@@ -175,44 +160,16 @@ function StockTab({ districtId, subWarehouseId, allSubWarehouses }: {
       invalidateStock();
     },
   });
- 
+
   const adjustMutation = useMutation({
     mutationFn: hubApi.adjust,
     onSuccess: (_, vars) => {
-      setSuccess(`Sub-warehouse adjustment: ${Number(vars.quantity) > 0 ? '+' : ''}${vars.quantity}× ${vars.emkType}.`);
+      setSuccess(`Adjustment: ${Number(vars.quantity) > 0 ? '+' : ''}${vars.quantity}× ${vars.emkType}.`);
       setAdjQty(''); setAdjReason('');
       invalidateStock();
     },
   });
- 
-  const replenishMutation = useMutation({
-    mutationFn: hubApi.replenishCentral,
-    onSuccess: (_, vars) => {
-      setSuccess(`Central warehouse replenished: +${vars.quantity}× ${vars.emkType}.`);
-      setRepQty(''); setRepReason('');
-      invalidateStock();
-    },
-  });
- 
-  const centralAdjustMutation = useMutation({
-    mutationFn: hubApi.adjustCentral,
-    onSuccess: (_, vars) => {
-      setSuccess(`Central warehouse adjusted: ${Number(vars.quantity) > 0 ? '+' : ''}${vars.quantity}× ${vars.emkType}.`);
-      setCadQty(''); setCadReason('');
-      invalidateStock();
-    },
-  });
- 
-  const allocationMutation = useMutation({
-    mutationFn: hubApi.setAllocation,
-    onSuccess: (_, vars) => {
-      const target = vars.target === 'central' ? 'Central warehouse' : 'Sub-warehouse';
-      setSuccess(`${target} ${vars.emkType} allocation set to ${vars.newTotal}.`);
-      setAllocNewTotal(''); setAllocReason('');
-      invalidateStock();
-    },
-  });
- 
+
   // ── Constants ─────────────────────────────────────────────────────────────
   const EMK_TYPES: Array<'EMK1' | 'EMK2' | 'EMK3'> = ['EMK1', 'EMK2', 'EMK3'];
   const EMK_COLORS = { EMK1: 'text-accent-blue', EMK2: 'text-accent-green', EMK3: 'text-accent-yellow' };
@@ -223,11 +180,10 @@ function StockTab({ districtId, subWarehouseId, allSubWarehouses }: {
     REALLOCATION: 'text-accent-blue border-accent-blue/30 bg-accent-blue/5',
     ADJUSTMENT:   'text-accent-orange border-accent-orange/30 bg-accent-orange/5',
   };
- 
+
   if (isLoading) {
     return (
       <div className="space-y-4">
-        <Skeleton className="h-40" />
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
           {[...Array(3)].map((_, i) => <Skeleton key={i} className="h-28" />)}
         </div>
@@ -238,309 +194,37 @@ function StockTab({ districtId, subWarehouseId, allSubWarehouses }: {
       </div>
     );
   }
- 
-  const allErrors = [
-    (dispatchMutation.error       as { response?: { data?: { error?: string } } } | null)?.response?.data?.error,
-    (adjustMutation.error         as { response?: { data?: { error?: string } } } | null)?.response?.data?.error,
-    (replenishMutation.error      as { response?: { data?: { error?: string } } } | null)?.response?.data?.error,
-    (centralAdjustMutation.error  as { response?: { data?: { error?: string } } } | null)?.response?.data?.error,
-    (allocationMutation.error     as { response?: { data?: { error?: string } } } | null)?.response?.data?.error,
-  ].filter(Boolean);
-  const mutationError = allErrors[0] ?? '';
- 
+
+  const dispError = (dispatchMutation.error as { response?: { data?: { error?: string } } } | null)?.response?.data?.error ?? '';
+  const adjError  = (adjustMutation.error  as { response?: { data?: { error?: string } } } | null)?.response?.data?.error ?? '';
+  const mutationError = dispError || adjError;
+
+  // Central available for selected dispatch EMK type
   const centralAvailable = centralStock
     ? (centralStock[`${dispEmkType.toLowerCase()}Remaining` as keyof CentralStockLevel] as number)
     : null;
- 
-  // Current total for selected allocation target — shown as hint
-  const currentAllocTotal = allocTarget === 'central'
-    ? centralStock
-      ? (centralStock[`${allocEmkType.toLowerCase()}Total` as keyof CentralStockLevel] as number)
-      : null
-    : stock
-      ? (stock[`${allocEmkType.toLowerCase()}Total` as keyof StockLevel] as number)
-      : null;
- 
+
   return (
     <div className="space-y-6">
       {mutationError && (
-        <ErrorBox
-          msg={mutationError}
-          onDismiss={() => {
-            dispatchMutation.reset(); adjustMutation.reset();
-            replenishMutation.reset(); centralAdjustMutation.reset();
-            allocationMutation.reset();
-          }}
-        />
+        <ErrorBox msg={mutationError} onDismiss={() => { dispatchMutation.reset(); adjustMutation.reset(); }} />
       )}
       {success && <SuccessBox msg={success} onDismiss={() => setSuccess('')} />}
- 
-      {/* ── CENTRAL WAREHOUSE DISPLAY ──────────────────────────────────────── */}
-      <div className="card p-5 border-accent-blue/20 bg-bg-elevated/40">
-        <div className="flex items-start justify-between mb-4">
-          <div>
-            <h3 className="font-sans font-bold text-text-primary">Central Warehouse</h3>
-            <p className="font-mono text-[10px] text-text-muted mt-0.5">
-              Master stock — each dispatch reduces Remaining. Total = allocation reference.
-            </p>
-          </div>
-          <span className="font-mono text-[10px] text-text-muted bg-bg-elevated px-2 py-1 rounded border border-bg-border">
-            30% reserve
-          </span>
-        </div>
- 
-        {centralStock ? (
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-            {EMK_TYPES.map((type) => {
-              const key    = type.toLowerCase() as 'emk1' | 'emk2' | 'emk3';
-              const rem    = centralStock[`${key}Remaining` as keyof CentralStockLevel] as number;
-              const total  = centralStock[`${key}Total`     as keyof CentralStockLevel] as number;
-              const pct    = centralStock[`${key}Pct`       as keyof CentralStockLevel] as number;
-              const scarce = centralStock[`${key}Scarce`    as keyof CentralStockLevel] as boolean;
-              const above  = rem > total;
-              return (
-                <div key={type} className={`bg-bg-elevated rounded-lg border p-4 ${scarce ? 'border-accent-red/40' : above ? 'border-accent-blue/30' : 'border-bg-border'}`}>
-                  <div className="flex items-center justify-between mb-2">
-                    <span className={`font-mono text-sm font-bold ${EMK_COLORS[type]}`}>{type}</span>
-                    {scarce && (
-                      <span className="font-mono text-[9px] text-accent-red bg-accent-red/10 px-1.5 py-0.5 rounded border border-accent-red/30 animate-pulse">
-                        ⚠ SCARCE
-                      </span>
-                    )}
-                    {!scarce && above && (
-                      <span className="font-mono text-[9px] text-accent-blue bg-accent-blue/10 px-1.5 py-0.5 rounded border border-accent-blue/30">
-                        ↑ EXTRA
-                      </span>
-                    )}
-                  </div>
-                  <p className="font-mono text-2xl font-bold text-text-primary">{fmt(rem)}</p>
-                  <p className="font-mono text-[10px] text-text-muted mt-0.5">of {fmt(total)} · {pct}%</p>
-                  <div className="mt-2 h-1.5 bg-bg-border rounded-full overflow-hidden">
-                    <div
-                      className={`h-full rounded-full transition-all duration-500 ${
-                        scarce ? 'bg-accent-red' : above ? 'bg-accent-blue' : pct > 60 ? 'bg-accent-blue' : pct > 30 ? 'bg-accent-yellow' : 'bg-accent-orange'
-                      }`}
-                      style={{ width: `${Math.max(pct, 2)}%` }}
-                    />
-                  </div>
-                  {type === 'EMK3' && total === 0 && (
-                    <p className="font-mono text-[9px] text-text-muted mt-1.5">
-                      MoH cold storage — transferred at activation
-                    </p>
-                  )}
-                </div>
-              );
-            })}
-          </div>
-        ) : (
-          <div className="bg-accent-orange/10 border border-accent-orange/30 rounded px-3 py-2">
-            <p className="font-mono text-xs text-accent-orange">
-              Central warehouse not found. Run <code>npm run seed</code>.
-            </p>
-          </div>
-        )}
-      </div>
- 
-      {/* ── SUPER_ADMIN MANAGEMENT PANELS ─────────────────────────────────── */}
-      {isSuperAdmin && (
-        <div className="space-y-4">
-          <div className="flex items-center gap-2">
-            <span className="font-mono text-[10px] text-text-muted uppercase tracking-widest">
-              Central Warehouse Management
-            </span>
-            <span className="font-mono text-[9px] text-accent-blue bg-accent-blue/10 px-2 py-0.5 rounded border border-accent-blue/30">
-              SUPER_ADMIN
-            </span>
-          </div>
- 
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
-            {/* ── Replenish ─────────────────────────────────────────────── */}
-            <div className="card p-5 border-accent-blue/20">
-              <SectionTitle sub="New shipment received — increases Remaining only">
-                Replenish Central Stock
-              </SectionTitle>
-              <p className="font-mono text-[10px] text-text-muted mb-3">
-                Use when a donor shipment or MoH delivery arrives. Total stays fixed.
-              </p>
-              <div className="space-y-3">
-                <div className="grid grid-cols-2 gap-3">
-                  <div>
-                    <label className="label">EMK Type</label>
-                    <select value={repEmkType} onChange={e => setRepEmkType(e.target.value as 'EMK1' | 'EMK2' | 'EMK3')} className="input">
-                      {EMK_TYPES.map(t => <option key={t} value={t}>{t}</option>)}
-                    </select>
-                  </div>
-                  <div>
-                    <label className="label">Quantity</label>
-                    <input type="number" min="1" className="input" placeholder="e.g. 1000"
-                      value={repQty} onChange={e => setRepQty(e.target.value)} />
-                  </div>
-                </div>
-                <div>
-                  <label className="label">Reason (required)</label>
-                  <input type="text" className="input" placeholder="e.g. UNICEF donation batch 3"
-                    value={repReason} onChange={e => setRepReason(e.target.value)} />
-                </div>
-                <button
-                  onClick={() => { if (!repQty || !repReason.trim()) return; replenishMutation.mutate({ emkType: repEmkType, quantity: Number(repQty), reason: repReason.trim() }); }}
-                  disabled={replenishMutation.isPending || !repQty || !repReason.trim()}
-                  className="btn-primary w-full">
-                  {replenishMutation.isPending ? 'Recording...' : '+ Replenish Central Stock'}
-                </button>
-              </div>
-            </div>
- 
-            {/* ── Central Adjust ────────────────────────────────────────── */}
-            <div className="card p-5">
-              <SectionTitle sub="Correction only — changes Remaining but NOT Total">
-                Adjust Central Stock
-              </SectionTitle>
-              <p className="font-mono text-[10px] text-text-muted mb-3">
-                Use for damaged, lost, or miscounted kits. Use Replenish for new stock.
-              </p>
-              <div className="space-y-3">
-                <div className="grid grid-cols-2 gap-3">
-                  <div>
-                    <label className="label">EMK Type</label>
-                    <select value={cadEmkType} onChange={e => setCadEmkType(e.target.value as 'EMK1' | 'EMK2' | 'EMK3')} className="input">
-                      {EMK_TYPES.map(t => <option key={t} value={t}>{t}</option>)}
-                    </select>
-                  </div>
-                  <div>
-                    <label className="label">Quantity (+/−)</label>
-                    <input type="number" className="input" placeholder="-10 or +5"
-                      value={cadQty} onChange={e => setCadQty(e.target.value)} />
-                  </div>
-                </div>
-                <div>
-                  <label className="label">Reason (required)</label>
-                  <input type="text" className="input" placeholder="e.g. 10 EMK2 kits water-damaged"
-                    value={cadReason} onChange={e => setCadReason(e.target.value)} />
-                </div>
-                <button
-                  onClick={() => { if (!cadQty || !cadReason.trim()) return; centralAdjustMutation.mutate({ emkType: cadEmkType, quantity: Number(cadQty), reason: cadReason.trim() }); }}
-                  disabled={centralAdjustMutation.isPending || !cadQty || !cadReason.trim()}
-                  className="btn-ghost w-full">
-                  {centralAdjustMutation.isPending ? 'Adjusting...' : 'Record Central Adjustment'}
-                </button>
-              </div>
-            </div>
-          </div>
- 
-          {/* ── Set Allocation ──────────────────────────────────────────── */}
-          <div className="card p-5 border-accent-orange/20">
-            <div className="flex items-start justify-between mb-1">
-              <SectionTitle sub="Changes Total reference only — Remaining is unaffected">
-                Set Stock Allocation
-              </SectionTitle>
-            </div>
-            <p className="font-mono text-[10px] text-text-muted mb-4">
-              Use when a formal capacity decision changes — e.g. new donor agreement, district reallocation plan, or correcting the seed allocation. 
-              This changes the <span className="text-text-primary">Total</span> reference number used for the scarcity % calculation.
-            </p>
- 
-            <div className="space-y-3">
-              {/* Target toggle */}
-              <div>
-                <label className="label">Target</label>
-                <div className="flex gap-2">
-                  {(['central', 'subWarehouse'] as const).map(t => (
-                    <button key={t} onClick={() => setAllocTarget(t)}
-                      className={`flex-1 font-mono text-xs py-2 rounded border transition-all ${
-                        allocTarget === t
-                          ? 'bg-accent-orange/10 border-accent-orange/40 text-accent-orange'
-                          : 'bg-bg-elevated border-bg-border text-text-secondary hover:text-text-primary'
-                      }`}>
-                      {t === 'central' ? '🏛 Central Warehouse' : '🏪 This Sub-Warehouse'}
-                    </button>
-                  ))}
-                </div>
-              </div>
- 
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="label">EMK Type</label>
-                  <select value={allocEmkType} onChange={e => setAllocEmkType(e.target.value as 'EMK1' | 'EMK2' | 'EMK3')} className="input">
-                    {EMK_TYPES.map(t => <option key={t} value={t}>{t}</option>)}
-                  </select>
-                </div>
-                <div>
-                  <label className="label">
-                    New Total
-                    {currentAllocTotal !== null && (
-                      <span className="ml-2 font-mono text-[10px] text-text-muted normal-case">
-                        current: {fmt(currentAllocTotal)}
-                      </span>
-                    )}
-                  </label>
-                  <input type="number" min="0" className="input" placeholder="e.g. 8000"
-                    value={allocNewTotal} onChange={e => setAllocNewTotal(e.target.value)} />
-                </div>
-              </div>
- 
-              <div>
-                <label className="label">Reason (required)</label>
-                <input type="text" className="input"
-                  placeholder="e.g. New donor agreement increases District 1 EMK1 allocation to 8,000"
-                  value={allocReason} onChange={e => setAllocReason(e.target.value)} />
-              </div>
- 
-              {/* Warning if new total is lower than remaining */}
-              {allocNewTotal && currentAllocTotal !== null && (() => {
-                const newT = Number(allocNewTotal);
-                const curRem = allocTarget === 'central'
-                  ? centralStock ? (centralStock[`${allocEmkType.toLowerCase()}Remaining` as keyof CentralStockLevel] as number) : 0
-                  : stock ? (stock[`${allocEmkType.toLowerCase()}Remaining` as keyof StockLevel] as number) : 0;
-                return newT < curRem ? (
-                  <div className="bg-accent-orange/10 border border-accent-orange/30 rounded px-3 py-2">
-                    <p className="font-mono text-[10px] text-accent-orange">
-                      ⚠ New total ({fmt(newT)}) is less than current remaining ({fmt(curRem)}).
-                      This will show the stock as above allocation (↑ EXTRA badge).
-                    </p>
-                  </div>
-                ) : null;
-              })()}
- 
-              <button
-                onClick={() => {
-                  if (!allocNewTotal || !allocReason.trim()) return;
-                  allocationMutation.mutate({
-                    target: allocTarget,
-                    subWarehouseId: allocTarget === 'subWarehouse' ? (subWarehouseId ?? undefined) : undefined,
-                    emkType: allocEmkType,
-                    newTotal: Number(allocNewTotal),
-                    reason: allocReason.trim(),
-                  });
-                }}
-                disabled={allocationMutation.isPending || !allocNewTotal || !allocReason.trim() || (allocTarget === 'subWarehouse' && !subWarehouseId)}
-                className="btn-ghost w-full border-accent-orange/40 text-accent-orange hover:bg-accent-orange/10">
-                {allocationMutation.isPending ? 'Updating...' : 'Set Allocation'}
-              </button>
- 
-              {allocTarget === 'subWarehouse' && !subWarehouseId && (
-                <p className="font-mono text-[10px] text-accent-orange">
-                  No sub-warehouse found for this district.
-                </p>
-              )}
-            </div>
-          </div>
-        </div>
-      )}
- 
+
       {/* ── SUB-WAREHOUSE STOCK LEVELS ─────────────────────────────────────── */}
       <div>
-        <SectionTitle sub="Current remaining / total allocation for this sub-warehouse">
+        <SectionTitle sub="Remaining / Total allocation for this sub-warehouse">
           Sub-Warehouse Stock Levels
         </SectionTitle>
         {stock ? (
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
             {EMK_TYPES.map((type) => {
               const key    = type.toLowerCase() as 'emk1' | 'emk2' | 'emk3';
-              const rem    = stock[`${key}Remaining`       as keyof StockLevel] as number;
-              const total  = stock[`${key}Total`           as keyof StockLevel] as number;
-              const pct    = stock[`${key}Pct`             as keyof StockLevel] as number;
-              const scarce = stock[`${key}Scarce`          as keyof StockLevel] as boolean;
-              const above  = stock[`${key}AboveAllocation` as keyof StockLevel] as boolean;
+              const rem    = stock[`${key}Remaining`        as keyof StockLevel] as number;
+              const total  = stock[`${key}Total`            as keyof StockLevel] as number;
+              const pct    = stock[`${key}Pct`              as keyof StockLevel] as number;
+              const scarce = stock[`${key}Scarce`           as keyof StockLevel] as boolean;
+              const above  = stock[`${key}AboveAllocation`  as keyof StockLevel] as boolean;
               return (
                 <div key={type} className={`card p-4 ${scarce ? 'border-accent-red/40' : above ? 'border-accent-blue/30' : ''}`}>
                   <div className="flex items-center justify-between mb-2">
@@ -584,13 +268,16 @@ function StockTab({ districtId, subWarehouseId, allSubWarehouses }: {
           <Empty message="No stock record found for this district." />
         )}
       </div>
- 
-      {/* ── DISPATCH + SUB-WAREHOUSE ADJUST ───────────────────────────────── */}
+
+      {/* ── DISPATCH + ADJUST ──────────────────────────────────────────────── */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
+
+        {/* Dispatch */}
         <div className="card p-5">
           <SectionTitle sub="Moves stock from central warehouse → this sub-warehouse">
             Record Dispatch
           </SectionTitle>
+
           {centralAvailable !== null && (
             <div className="mb-3 bg-bg-elevated rounded px-3 py-2 border border-bg-border">
               <p className="font-mono text-[10px] text-text-muted">
@@ -601,6 +288,7 @@ function StockTab({ districtId, subWarehouseId, allSubWarehouses }: {
               </p>
             </div>
           )}
+
           <div className="space-y-3">
             <div className="grid grid-cols-2 gap-3">
               <div>
@@ -621,7 +309,10 @@ function StockTab({ districtId, subWarehouseId, allSubWarehouses }: {
                 value={dispReason} onChange={e => setDispReason(e.target.value)} />
             </div>
             <button
-              onClick={() => { if (!subWarehouseId || !dispQty) return; dispatchMutation.mutate({ subWarehouseId, emkType: dispEmkType, quantity: Number(dispQty), reason: dispReason || undefined }); }}
+              onClick={() => {
+                if (!subWarehouseId || !dispQty) return;
+                dispatchMutation.mutate({ subWarehouseId, emkType: dispEmkType, quantity: Number(dispQty), reason: dispReason || undefined });
+              }}
               disabled={dispatchMutation.isPending || !dispQty || !subWarehouseId}
               className="btn-primary w-full">
               {dispatchMutation.isPending ? 'Dispatching...' : 'Dispatch to Sub-Warehouse'}
@@ -631,9 +322,10 @@ function StockTab({ districtId, subWarehouseId, allSubWarehouses }: {
             )}
           </div>
         </div>
- 
+
+        {/* Adjust */}
         <div className="card p-5">
-          <SectionTitle sub="Manual correction at sub-warehouse with mandatory reason">
+          <SectionTitle sub="Manual correction with mandatory reason (Section B.7)">
             Manual Adjustment
           </SectionTitle>
           <div className="space-y-3">
@@ -656,7 +348,10 @@ function StockTab({ districtId, subWarehouseId, allSubWarehouses }: {
                 value={adjReason} onChange={e => setAdjReason(e.target.value)} />
             </div>
             <button
-              onClick={() => { if (!subWarehouseId || !adjQty || !adjReason.trim()) return; adjustMutation.mutate({ subWarehouseId, emkType: adjEmkType, quantity: Number(adjQty), reason: adjReason }); }}
+              onClick={() => {
+                if (!subWarehouseId || !adjQty || !adjReason.trim()) return;
+                adjustMutation.mutate({ subWarehouseId, emkType: adjEmkType, quantity: Number(adjQty), reason: adjReason });
+              }}
               disabled={adjustMutation.isPending || !adjQty || !adjReason.trim() || !subWarehouseId}
               className="btn-ghost w-full">
               {adjustMutation.isPending ? 'Adjusting...' : 'Record Adjustment'}
@@ -664,8 +359,8 @@ function StockTab({ districtId, subWarehouseId, allSubWarehouses }: {
           </div>
         </div>
       </div>
- 
-      {/* ── AUDIT LOG ─────────────────────────────────────────────────────── */}
+
+      {/* ── AUDIT LOG ──────────────────────────────────────────────────────── */}
       <div>
         <SectionTitle sub="Last 50 stock movements for this district">Audit Log</SectionTitle>
         <div className="card divide-y divide-bg-border">
@@ -1936,12 +1631,467 @@ function RadioTab({ districtId }: { districtId: string }) {
   );
 }
 
+
+// ─── CentralTab ───────────────────────────────────────────────────────────────
+// Add this function to HubPage.tsx alongside the other Tab functions.
+// Visible only to SUPER_ADMIN and EMERGENCY_COORDINATOR.
+//
+// Shows:
+//   - Central stock levels (all 3 EMK types)
+//   - Replenish form (SUPER_ADMIN only)
+//   - Adjust form (SUPER_ADMIN only)
+//   - Set Allocation form (SUPER_ADMIN only)
+//   - Full central audit log
+
+function CentralTab({ subWarehouseId, allSubWarehouses }: {
+  subWarehouseId: string | null;
+  allSubWarehouses: Array<{ subWarehouseId: string; name: string; districtName: string }>;
+}) {
+  const { isRole } = useAuth();
+  const isSuperAdmin = isRole('SUPER_ADMIN');
+
+  const queryClient = useQueryClient();
+  const [success, setSuccess] = useState('');
+
+  // ── Replenish form ────────────────────────────────────────────────────────
+  const [repEmkType, setRepEmkType] = useState<'EMK1' | 'EMK2' | 'EMK3'>('EMK1');
+  const [repQty,    setRepQty]      = useState('');
+  const [repReason, setRepReason]   = useState('');
+
+  // ── Adjust form ───────────────────────────────────────────────────────────
+  const [cadEmkType, setCadEmkType] = useState<'EMK1' | 'EMK2' | 'EMK3'>('EMK1');
+  const [cadQty,     setCadQty]     = useState('');
+  const [cadReason,  setCadReason]  = useState('');
+
+  // ── Allocation form ───────────────────────────────────────────────────────
+  const [allocTarget,   setAllocTarget]   = useState<'central' | 'subWarehouse'>('central');
+  const [allocSwId,     setAllocSwId]     = useState('');
+  const [allocEmkType,  setAllocEmkType]  = useState<'EMK1' | 'EMK2' | 'EMK3'>('EMK1');
+  const [allocNewTotal, setAllocNewTotal] = useState('');
+  const [allocReason,   setAllocReason]   = useState('');
+
+  // ── Queries ───────────────────────────────────────────────────────────────
+  const { data: centralStock, isLoading: stockLoading } = useQuery({
+    queryKey: queryKeys.hub.centralStock(),
+    queryFn:  () => hubApi.getCentralStock(),
+    staleTime: 15_000,
+  });
+
+  const { data: movements = [], isLoading: movLoading } = useQuery({
+    queryKey: queryKeys.hub.centralMovements(),
+    queryFn:  () => hubApi.getCentralMovements(),
+    staleTime: 15_000,
+  });
+
+  const isLoading = stockLoading || movLoading;
+
+  const invalidateCentral = useCallback(() => {
+    queryClient.invalidateQueries({ queryKey: queryKeys.hub.centralStock() });
+    queryClient.invalidateQueries({ queryKey: queryKeys.hub.centralMovements() });
+    queryClient.invalidateQueries({ queryKey: queryKeys.dashboard.summary() });
+  }, [queryClient]);
+
+  // ── Mutations ─────────────────────────────────────────────────────────────
+  const replenishMutation = useMutation({
+    mutationFn: hubApi.replenishCentral,
+    onSuccess: (_, vars) => {
+      setSuccess(`Central replenished: +${vars.quantity}× ${vars.emkType}.`);
+      setRepQty(''); setRepReason('');
+      invalidateCentral();
+    },
+  });
+
+  const adjustMutation = useMutation({
+    mutationFn: hubApi.adjustCentral,
+    onSuccess: (_, vars) => {
+      setSuccess(`Central adjusted: ${Number(vars.quantity) > 0 ? '+' : ''}${vars.quantity}× ${vars.emkType}.`);
+      setCadQty(''); setCadReason('');
+      invalidateCentral();
+    },
+  });
+
+  const allocationMutation = useMutation({
+    mutationFn: hubApi.setAllocation,
+    onSuccess: (_, vars) => {
+      const target = vars.target === 'central' ? 'Central' : 'Sub-warehouse';
+      setSuccess(`${target} ${vars.emkType} allocation set to ${vars.newTotal.toLocaleString()}.`);
+      setAllocNewTotal(''); setAllocReason('');
+      invalidateCentral();
+      // also invalidate sub-warehouse stock if that was the target
+      if (vars.target === 'subWarehouse') {
+        queryClient.invalidateQueries({ queryKey: ['hub'] });
+      }
+    },
+  });
+
+  // ── Constants ─────────────────────────────────────────────────────────────
+  const EMK_TYPES: Array<'EMK1' | 'EMK2' | 'EMK3'> = ['EMK1', 'EMK2', 'EMK3'];
+  const EMK_COLORS = { EMK1: 'text-accent-blue', EMK2: 'text-accent-green', EMK3: 'text-accent-yellow' };
+
+  const MOV_COLORS: Record<string, string> = {
+    DISPATCH:          'text-accent-orange border-accent-orange/30 bg-accent-orange/5',
+    MOH_TRANSFER:      'text-accent-yellow border-accent-yellow/30 bg-accent-yellow/5',
+    REPLENISH:         'text-accent-green border-accent-green/30 bg-accent-green/5',
+    ADJUSTMENT:        'text-accent-blue border-accent-blue/30 bg-accent-blue/5',
+    ALLOCATION_CHANGE: 'text-text-muted border-bg-border bg-bg-elevated',
+  };
+
+  if (isLoading) {
+    return (
+      <div className="space-y-4">
+        <Skeleton className="h-40" />
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
+          <Skeleton className="h-56" /><Skeleton className="h-56" />
+        </div>
+        <Skeleton className="h-56" />
+        <Skeleton className="h-64" />
+      </div>
+    );
+  }
+
+  const allErrors = [
+    (replenishMutation.error   as { response?: { data?: { error?: string } } } | null)?.response?.data?.error,
+    (adjustMutation.error      as { response?: { data?: { error?: string } } } | null)?.response?.data?.error,
+    (allocationMutation.error  as { response?: { data?: { error?: string } } } | null)?.response?.data?.error,
+  ].filter(Boolean);
+  const mutationError = allErrors[0] ?? '';
+
+  // Current total hint for allocation form
+  const currentAllocTotal = (() => {
+    if (allocTarget === 'central' && centralStock) {
+      return centralStock[`${allocEmkType.toLowerCase()}Total` as keyof CentralStockLevel] as number;
+    }
+    return null; // sub-warehouse total fetched separately — just show placeholder
+  })();
+
+  return (
+    <div className="space-y-6">
+      {mutationError && (
+        <ErrorBox
+          msg={mutationError}
+          onDismiss={() => { replenishMutation.reset(); adjustMutation.reset(); allocationMutation.reset(); }}
+        />
+      )}
+      {success && <SuccessBox msg={success} onDismiss={() => setSuccess('')} />}
+
+      {/* ── STOCK DISPLAY ────────────────────────────────────────────────── */}
+      <div className="card p-5 border-accent-blue/20 bg-bg-elevated/40">
+        <div className="flex items-start justify-between mb-4">
+          <div>
+            <h3 className="font-sans font-bold text-text-primary">Central Warehouse — Stock Levels</h3>
+            <p className="font-mono text-[10px] text-text-muted mt-0.5">
+              Remaining = available to dispatch · Total = allocation reference
+            </p>
+          </div>
+          <span className="font-mono text-[10px] text-text-muted bg-bg-elevated px-2 py-1 rounded border border-bg-border">
+            30% reserve
+          </span>
+        </div>
+
+        {centralStock ? (
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+            {EMK_TYPES.map((type) => {
+              const key    = type.toLowerCase() as 'emk1' | 'emk2' | 'emk3';
+              const rem    = centralStock[`${key}Remaining` as keyof CentralStockLevel] as number;
+              const total  = centralStock[`${key}Total`     as keyof CentralStockLevel] as number;
+              const pct    = centralStock[`${key}Pct`       as keyof CentralStockLevel] as number;
+              const scarce = centralStock[`${key}Scarce`    as keyof CentralStockLevel] as boolean;
+              const above  = rem > total;
+              return (
+                <div key={type} className={`bg-bg-elevated rounded-lg border p-4 ${scarce ? 'border-accent-red/40' : above ? 'border-accent-blue/30' : 'border-bg-border'}`}>
+                  <div className="flex items-center justify-between mb-2">
+                    <span className={`font-mono text-sm font-bold ${EMK_COLORS[type]}`}>{type}</span>
+                    {scarce && (
+                      <span className="font-mono text-[9px] text-accent-red bg-accent-red/10 px-1.5 py-0.5 rounded border border-accent-red/30 animate-pulse">
+                        ⚠ SCARCE
+                      </span>
+                    )}
+                    {!scarce && above && (
+                      <span className="font-mono text-[9px] text-accent-blue bg-accent-blue/10 px-1.5 py-0.5 rounded border border-accent-blue/30">
+                        ↑ EXTRA
+                      </span>
+                    )}
+                  </div>
+                  <p className="font-mono text-2xl font-bold text-text-primary">{fmt(rem)}</p>
+                  <p className="font-mono text-[10px] text-text-muted mt-0.5">of {fmt(total)} · {pct}%</p>
+                  <div className="mt-2 h-1.5 bg-bg-border rounded-full overflow-hidden">
+                    <div
+                      className={`h-full rounded-full transition-all duration-500 ${
+                        scarce ? 'bg-accent-red' : above ? 'bg-accent-blue' : pct > 60 ? 'bg-accent-blue' : pct > 30 ? 'bg-accent-yellow' : 'bg-accent-orange'
+                      }`}
+                      style={{ width: `${Math.max(pct, 2)}%` }}
+                    />
+                  </div>
+                  {type === 'EMK3' && total === 0 && (
+                    <p className="font-mono text-[9px] text-text-muted mt-1.5">
+                      MoH cold storage — transferred at activation
+                    </p>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        ) : (
+          <div className="bg-accent-orange/10 border border-accent-orange/30 rounded px-3 py-2">
+            <p className="font-mono text-xs text-accent-orange">
+              Central warehouse not found. Run <code>npm run seed</code>.
+            </p>
+          </div>
+        )}
+      </div>
+
+      {/* ── MANAGEMENT FORMS (SUPER_ADMIN only) ──────────────────────────── */}
+      {isSuperAdmin && (
+        <>
+          <div className="flex items-center gap-2">
+            <span className="font-mono text-[10px] text-text-muted uppercase tracking-widest">
+              Stock Management
+            </span>
+            <span className="font-mono text-[9px] text-accent-blue bg-accent-blue/10 px-2 py-0.5 rounded border border-accent-blue/30">
+              SUPER_ADMIN
+            </span>
+          </div>
+
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
+            {/* Replenish */}
+            <div className="card p-5 border-accent-green/20">
+              <SectionTitle sub="New shipment — increases Remaining only. Total stays fixed.">
+                Replenish Central Stock
+              </SectionTitle>
+              <div className="space-y-3">
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="label">EMK Type</label>
+                    <select value={repEmkType} onChange={e => setRepEmkType(e.target.value as 'EMK1' | 'EMK2' | 'EMK3')} className="input">
+                      {EMK_TYPES.map(t => <option key={t} value={t}>{t}</option>)}
+                    </select>
+                  </div>
+                  <div>
+                    <label className="label">Quantity</label>
+                    <input type="number" min="1" className="input" placeholder="e.g. 1000"
+                      value={repQty} onChange={e => setRepQty(e.target.value)} />
+                  </div>
+                </div>
+                <div>
+                  <label className="label">Reason (required)</label>
+                  <input type="text" className="input" placeholder="e.g. UNICEF donation batch 3"
+                    value={repReason} onChange={e => setRepReason(e.target.value)} />
+                </div>
+                <button
+                  onClick={() => { if (!repQty || !repReason.trim()) return; replenishMutation.mutate({ emkType: repEmkType, quantity: Number(repQty), reason: repReason.trim() }); }}
+                  disabled={replenishMutation.isPending || !repQty || !repReason.trim()}
+                  className="btn-primary w-full">
+                  {replenishMutation.isPending ? 'Recording...' : '+ Replenish'}
+                </button>
+              </div>
+            </div>
+
+            {/* Adjust */}
+            <div className="card p-5">
+              <SectionTitle sub="Signed correction — changes Remaining only (not Total)">
+                Adjust Central Stock
+              </SectionTitle>
+              <p className="font-mono text-[10px] text-text-muted mb-3">
+                For damaged, lost, or miscounted kits. Use Replenish for new stock.
+              </p>
+              <div className="space-y-3">
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="label">EMK Type</label>
+                    <select value={cadEmkType} onChange={e => setCadEmkType(e.target.value as 'EMK1' | 'EMK2' | 'EMK3')} className="input">
+                      {EMK_TYPES.map(t => <option key={t} value={t}>{t}</option>)}
+                    </select>
+                  </div>
+                  <div>
+                    <label className="label">Quantity (+/−)</label>
+                    <input type="number" className="input" placeholder="-10 or +5"
+                      value={cadQty} onChange={e => setCadQty(e.target.value)} />
+                  </div>
+                </div>
+                <div>
+                  <label className="label">Reason (required)</label>
+                  <input type="text" className="input" placeholder="e.g. 10 EMK2 kits water-damaged"
+                    value={cadReason} onChange={e => setCadReason(e.target.value)} />
+                </div>
+                <button
+                  onClick={() => { if (!cadQty || !cadReason.trim()) return; adjustMutation.mutate({ emkType: cadEmkType, quantity: Number(cadQty), reason: cadReason.trim() }); }}
+                  disabled={adjustMutation.isPending || !cadQty || !cadReason.trim()}
+                  className="btn-ghost w-full">
+                  {adjustMutation.isPending ? 'Adjusting...' : 'Record Adjustment'}
+                </button>
+              </div>
+            </div>
+          </div>
+
+          {/* Set Allocation */}
+          <div className="card p-5 border-accent-orange/20">
+            <SectionTitle sub="Changes Total reference only — Remaining is unaffected">
+              Set Stock Allocation
+            </SectionTitle>
+            <p className="font-mono text-[10px] text-text-muted mb-4">
+              Use when a formal capacity decision changes — new donor agreement, reallocation plan,
+              or correcting seed data. Changes the <span className="text-text-primary">Total</span> used
+              for the scarcity % bar.
+            </p>
+            <div className="space-y-3">
+              {/* Target toggle */}
+              <div>
+                <label className="label">Target</label>
+                <div className="flex gap-2">
+                  {(['central', 'subWarehouse'] as const).map(t => (
+                    <button key={t} onClick={() => setAllocTarget(t)}
+                      className={`flex-1 font-mono text-xs py-2 rounded border transition-all ${
+                        allocTarget === t
+                          ? 'bg-accent-orange/10 border-accent-orange/40 text-accent-orange'
+                          : 'bg-bg-elevated border-bg-border text-text-secondary hover:text-text-primary'
+                      }`}>
+                      {t === 'central' ? '🏛 Central Warehouse' : '🏪 Sub-Warehouse'}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* Sub-warehouse selector — only shown when target = subWarehouse */}
+              {allocTarget === 'subWarehouse' && (
+                <div>
+                  <label className="label">Sub-Warehouse</label>
+                  <select value={allocSwId} onChange={e => setAllocSwId(e.target.value)} className="input">
+                    <option value="">Select sub-warehouse...</option>
+                    {allSubWarehouses.map(sw => (
+                      <option key={sw.subWarehouseId} value={sw.subWarehouseId}>
+                        {sw.districtName} — {sw.name}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              )}
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="label">EMK Type</label>
+                  <select value={allocEmkType} onChange={e => setAllocEmkType(e.target.value as 'EMK1' | 'EMK2' | 'EMK3')} className="input">
+                    {EMK_TYPES.map(t => <option key={t} value={t}>{t}</option>)}
+                  </select>
+                </div>
+                <div>
+                  <label className="label">
+                    New Total
+                    {currentAllocTotal !== null && (
+                      <span className="ml-2 font-mono text-[10px] text-text-muted normal-case">
+                        current: {fmt(currentAllocTotal)}
+                      </span>
+                    )}
+                  </label>
+                  <input type="number" min="0" className="input" placeholder="e.g. 8000"
+                    value={allocNewTotal} onChange={e => setAllocNewTotal(e.target.value)} />
+                </div>
+              </div>
+
+              <div>
+                <label className="label">Reason (required)</label>
+                <input type="text" className="input"
+                  placeholder="e.g. New donor agreement increases allocation to 8,000"
+                  value={allocReason} onChange={e => setAllocReason(e.target.value)} />
+              </div>
+
+              {/* Warning if new total < current remaining */}
+              {allocTarget === 'central' && allocNewTotal && centralStock && (() => {
+                const newT   = Number(allocNewTotal);
+                const curRem = centralStock[`${allocEmkType.toLowerCase()}Remaining` as keyof CentralStockLevel] as number;
+                return newT < curRem ? (
+                  <div className="bg-accent-orange/10 border border-accent-orange/30 rounded px-3 py-2">
+                    <p className="font-mono text-[10px] text-accent-orange">
+                      ⚠ New total ({fmt(newT)}) is less than current remaining ({fmt(curRem)}).
+                      The ↑ EXTRA badge will appear until stock is consumed or adjusted.
+                    </p>
+                  </div>
+                ) : null;
+              })()}
+
+              <button
+                onClick={() => {
+                  if (!allocNewTotal || !allocReason.trim()) return;
+                  if (allocTarget === 'subWarehouse' && !allocSwId) return;
+                  allocationMutation.mutate({
+                    target:          allocTarget,
+                    subWarehouseId:  allocTarget === 'subWarehouse' ? allocSwId : undefined,
+                    emkType:         allocEmkType,
+                    newTotal:        Number(allocNewTotal),
+                    reason:          allocReason.trim(),
+                  });
+                }}
+                disabled={
+                  allocationMutation.isPending ||
+                  !allocNewTotal ||
+                  !allocReason.trim() ||
+                  (allocTarget === 'subWarehouse' && !allocSwId)
+                }
+                className="w-full font-mono text-xs py-2.5 rounded border border-accent-orange/40 text-accent-orange hover:bg-accent-orange/10 transition-all disabled:opacity-40">
+                {allocationMutation.isPending ? 'Updating...' : 'Set Allocation'}
+              </button>
+            </div>
+          </div>
+        </>
+      )}
+
+      {/* ── CENTRAL AUDIT LOG ────────────────────────────────────────────── */}
+      <div>
+        <SectionTitle sub="All central warehouse operations — last 100 entries">
+          Central Warehouse Audit Log
+        </SectionTitle>
+        <div className="card divide-y divide-bg-border">
+          {movements.length === 0 ? (
+            <Empty message="No central warehouse movements yet." />
+          ) : (
+            movements.map((m: CentralMovement) => {
+              const isAlloc = m.movementType === 'ALLOCATION_CHANGE';
+              return (
+                <div key={m.id} className="px-4 py-3 flex items-start justify-between gap-3">
+                  <div className="min-w-0 flex-1">
+                    <div className="flex items-center gap-2 flex-wrap mb-0.5">
+                      <span className={`font-mono text-[10px] px-1.5 py-0.5 rounded border ${MOV_COLORS[m.movementType] ?? 'text-text-muted border-bg-border'}`}>
+                        {m.movementType.replace('_', ' ')}
+                      </span>
+                      <span className={`font-mono text-xs font-semibold ${EMK_COLORS[m.emkType]}`}>
+                        {m.emkType}
+                      </span>
+                      {isAlloc ? (
+                        <span className="font-mono text-sm font-bold text-text-muted">
+                          → {fmt(m.quantity)} total
+                        </span>
+                      ) : (
+                        <span className={`font-mono text-sm font-bold ${m.quantity > 0 ? 'text-accent-green' : 'text-accent-red'}`}>
+                          {m.quantity > 0 ? '+' : ''}{fmt(m.quantity)}
+                        </span>
+                      )}
+                    </div>
+                    {m.reason && (
+                      <p className="font-mono text-[10px] text-text-muted truncate">{m.reason}</p>
+                    )}
+                    <p className="font-mono text-[10px] text-text-muted mt-0.5">
+                      by {m.performedBy?.name ?? '—'}
+                    </p>
+                  </div>
+                  <span className="font-mono text-[10px] text-text-muted flex-shrink-0">
+                    {timeAgo(m.createdAt)}
+                  </span>
+                </div>
+              );
+            })
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // ─── MAIN HUB PAGE ────────────────────────────────────────────────────────────
 
 export function HubPage() {
   usePageTitle('Hub Portal');
   const { user, isRole } = useAuth();
-  const [activeTab, setActiveTab] = useState<TabId>('stock');
+  const isSuperAdminOrEC = isRole('SUPER_ADMIN') || isRole('EMERGENCY_COORDINATOR');
+  const [activeTab, setActiveTab] = useState<TabId>(isSuperAdminOrEC ? 'central' : 'stock');
   const [selectedDistrictId, setSelectedDistrictId] = useState('');
 
   const isManager = isRole('HUB_MANAGER');
@@ -1977,17 +2127,24 @@ export function HubPage() {
   // Pass all sub-warehouses to StockTab for cross-district reallocation
   const allSubWarehouses = useMemo(
     () => districts
-      .map(d => ({ ...d, subWarehouseId: d.subWarehouseId ?? '' }))
-      .filter(d => d.subWarehouseId),
+      .filter(d => d.subWarehouseId)
+      .map(d => ({
+        subWarehouseId: d.subWarehouseId!,
+        name: `Sub-Warehouse`,   // sub-warehouse name not in DistrictCard — use district name
+        districtName: d.name,
+      })),
     [districts]
   );
 
-  const TABS: Array<{ id: TabId; label: string; icon: string }> = [
+  const canSeeCentral = isRole('SUPER_ADMIN') || isRole('EMERGENCY_COORDINATOR');
+
+  const TABS: Array<{ id: TabId; label: string; icon: string; hidden?: boolean }> = [
+    { id: 'central',    label: 'Central',    icon: '🏛', hidden: !canSeeCentral },
     { id: 'stock',      label: 'Stock',      icon: '⬡' },
-    { id: 'volunteers', label: 'Volunteers',  icon: '⊕' },
-    { id: 'deliveries', label: 'Deliveries',  icon: '⟁' },
-    { id: 'incidents',  label: 'Incidents',   icon: '⚠' },
-    { id: 'radio',      label: 'Radio',       icon: '◈' },
+    { id: 'volunteers', label: 'Volunteers', icon: '⊕' },
+    { id: 'deliveries', label: 'Deliveries', icon: '⟁' },
+    { id: 'incidents',  label: 'Incidents',  icon: '⚠' },
+    { id: 'radio',      label: 'Radio',      icon: '◈' },
   ];
 
   if (summaryLoading && districts.length === 0) {
@@ -2053,27 +2210,35 @@ export function HubPage() {
           </div>
         )}
 
-        <div className="flex gap-0.5 bg-bg-elevated rounded-lg p-1 border border-bg-border w-fit">
-          {TABS.map(tab => (
+        <div className="flex gap-0.5 bg-bg-elevated rounded-lg p-1 border border-bg-border w-fit overflow-x-auto">
+          {TABS.filter(t => !t.hidden).map(tab => (
             <button key={tab.id} onClick={() => setActiveTab(tab.id)}
-              className={`flex items-center gap-1.5 px-4 py-2 rounded font-sans text-sm font-medium transition-all duration-100 ${
+              className={`flex items-center gap-1.5 px-4 py-2 rounded font-sans text-sm font-medium transition-all duration-100 whitespace-nowrap ${
                 activeTab === tab.id
                   ? 'bg-bg-primary text-text-primary border border-bg-border shadow-sm'
                   : 'text-text-muted hover:text-text-secondary'
               }`}>
-              <span className="font-mono text-xs">{tab.icon}</span>
+              <span className="text-xs">{tab.icon}</span>
               {tab.label}
+              {tab.id === 'central' && (
+                <span className="font-mono text-[8px] text-accent-blue ml-0.5">HQ</span>
+              )}
             </button>
           ))}
         </div>
 
         {resolvedDistrictId ? (
           <div className="animate-fade-in">
+            {activeTab === 'central' && canSeeCentral && (
+              <CentralTab
+                subWarehouseId={subWarehouseId}
+                allSubWarehouses={allSubWarehouses}
+              />
+            )}
             {activeTab === 'stock' && (
               <StockTab
                 districtId={resolvedDistrictId}
                 subWarehouseId={subWarehouseId}
-                allSubWarehouses={allSubWarehouses}
               />
             )}
             {activeTab === 'volunteers' && (

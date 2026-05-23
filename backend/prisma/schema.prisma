@@ -9,31 +9,27 @@ datasource db {
 }
 
 model User {
-  id                String                @id @default(cuid())
-  createdAt         DateTime              @default(now())
-  updatedAt         DateTime              @updatedAt
-  email             String                @unique
-  passwordHash      String
-  name              String
-  role              Role
-  active            Boolean               @default(true)
-  mustChangePassword Boolean              @default(false)
-  avatarBase64       String?
-  phone              String?
-  districtId        String?
-  deliveryRuns      DeliveryRun[]
-  assessmentsFiled  HouseholdAssessment[]
-  householdAssessed Household[]           @relation("AssessedBy")
-  incidentsReported Incident[]            @relation("ReportedBy")
-  incidentsResolved Incident[]            @relation("ResolvedBy")
-  notifications     Notification[]
-  refreshTokens     RefreshToken[]
-  volunteer         Volunteer?
-  radioCheckins     RadioCheckin[]
-  routeLogs         RouteLog[]
-  stockMovements    StockMovement[]
-  district          District?             @relation(fields: [districtId], references: [id])
-  lastLoginAt DateTime?
+  id                    String                 @id @default(cuid())
+  createdAt             DateTime               @default(now())
+  updatedAt             DateTime               @updatedAt
+  email                 String                 @unique
+  passwordHash          String
+  name                  String
+  role                  Role
+  active                Boolean                @default(true)
+  districtId            String?
+  deliveryRuns          DeliveryRun[]
+  assessmentsFiled      HouseholdAssessment[]
+  householdAssessed     Household[]            @relation("AssessedBy")
+  incidentsReported     Incident[]             @relation("ReportedBy")
+  incidentsResolved     Incident[]             @relation("ResolvedBy")
+  notifications         Notification[]
+  radioCheckins         RadioCheckin[]
+  routeLogs             RouteLog[]
+  stockMovements        StockMovement[]
+  centralMovements      CentralStockMovement[]
+  district              District?              @relation(fields: [districtId], references: [id])
+
   @@map("users")
 }
 
@@ -55,16 +51,37 @@ model District {
 }
 
 model CentralWarehouse {
-  id            String   @id @default(cuid())
-  updatedAt     DateTime @updatedAt
-  emk1Total     Int      @default(0)
-  emk1Remaining Int      @default(0)
-  emk2Total     Int      @default(0)
-  emk2Remaining Int      @default(0)
-  emk3Total     Int      @default(0)
-  emk3Remaining Int      @default(0)
+  id            String                 @id @default(cuid())
+  updatedAt     DateTime               @updatedAt
+  emk1Total     Int                    @default(0)
+  emk1Remaining Int                    @default(0)
+  emk2Total     Int                    @default(0)
+  emk2Remaining Int                    @default(0)
+  emk3Total     Int                    @default(0)
+  emk3Remaining Int                    @default(0)
+  movements     CentralStockMovement[]
 
   @@map("central_warehouse")
+}
+
+// Audit log for all central warehouse operations.
+// Separate from StockMovement because central has no subWarehouseId FK.
+model CentralStockMovement {
+  id                 String           @id @default(cuid())
+  createdAt          DateTime         @default(now())
+  centralWarehouseId String
+  emkType            EmkType
+  // DISPATCH | REPLENISH | ADJUSTMENT | ALLOCATION_CHANGE | MOH_TRANSFER
+  movementType       String
+  // Signed: positive = in, negative = out, newTotal value for ALLOCATION_CHANGE
+  quantity           Int
+  reason             String?
+  performedById      String
+  centralWarehouse   CentralWarehouse @relation(fields: [centralWarehouseId], references: [id])
+  performedBy        User             @relation(fields: [performedById], references: [id])
+
+  @@index([createdAt])
+  @@map("central_stock_movements")
 }
 
 model SubWarehouse {
@@ -102,19 +119,6 @@ model Stock {
   subWarehouse   SubWarehouse @relation(fields: [subWarehouseId], references: [id])
 
   @@map("stock")
-}
-
-model CentralStock {
-  id            String   @id @default(cuid())
-  updatedAt     DateTime @updatedAt
-  emk1Total     Int      @default(0)
-  emk1Remaining Int      @default(0)
-  emk2Total     Int      @default(0)
-  emk2Remaining Int      @default(0)
-  emk3Total     Int      @default(0)
-  emk3Remaining Int      @default(0)
-
-  @@map("central_stock")
 }
 
 model StockMovement {
@@ -165,13 +169,6 @@ model Household {
   assessedById         String?
   priorityBand         PriorityBand          @default(STANDARD)
   recommendedEmk       EmkType               @default(EMK1)
-  // household size and quantity fields — added for multi-person delivery logic
-  householdSize        Int                   @default(4)
-  chronicIllCount      Int                   @default(0)
-  emk1Quantity         Int                   @default(1)
-  emk2Quantity         Int                   @default(0)
-  emk3Quantity         Int                   @default(0)
-  totalEmkQuantity     Int                   @default(1)
   deliveryReceipts     DeliveryReceipt[]
   assessments          HouseholdAssessment[]
   assessedBy           User?                 @relation("AssessedBy", fields: [assessedById], references: [id])
@@ -208,10 +205,9 @@ model Volunteer {
   phone        String
   role         VolunteerRole         @default(VOLUNTEER)
   status       VolunteerStatus       @default(AVAILABLE)
-  userId       String?               @unique   // linked user account — nullable for community vols
-  user         User?                 @relation(fields: [userId], references: [id])
   deliveryRuns DeliveryRun[]
   assignments  VolunteerAssignment[]
+
   @@map("volunteers")
 }
 
@@ -340,19 +336,6 @@ model Notification {
 
   @@index([userId, read])
   @@map("notifications")
-}
-
-model RefreshToken {
-  id        String   @id @default(cuid())
-  tokenHash String   @unique
-  userId    String
-  expiresAt DateTime
-  revoked   Boolean  @default(false)
-  createdAt DateTime @default(now())
-  user      User     @relation(fields: [userId], references: [id])
-
-  @@index([userId])
-  @@map("refresh_tokens")
 }
 
 enum Role {

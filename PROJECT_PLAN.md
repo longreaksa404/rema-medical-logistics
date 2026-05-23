@@ -410,6 +410,12 @@
 - [x] `frontend/src/App.tsx` — added `/profile` route inside AppShell
 - [x] `frontend/src/components/Sidebar.tsx` — replaced bottom footer with clickable user card navigating to `/profile`; uses `Avatar` component in both collapsed and expanded states; removed separate change password button
 
+### Fix 7 - TypeScript compile errors (hub.ts)
+- [x] Added `user` field to Volunteer interface
+- [x] getRoster() accepts optional alertId param
+- [x] Added setVolunteerRole(), createCommunityVolunteer(), assignTeam()
+- [x] All 7 ts(2339)/ts(2554) errors resolved
+
 ---
 
 ## Full FILE STRUCTURE

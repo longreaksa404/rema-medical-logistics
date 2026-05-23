@@ -21,6 +21,16 @@ export interface CentralStockLevel {
   updatedAt: string;
 }
 
+export interface CentralMovement {
+  id: string;
+  createdAt: string;
+  emkType: 'EMK1' | 'EMK2' | 'EMK3';
+  movementType: 'DISPATCH' | 'REPLENISH' | 'ADJUSTMENT' | 'ALLOCATION_CHANGE' | 'MOH_TRANSFER';
+  quantity: number;
+  reason: string | null;
+  performedBy: { name: string; email: string; role: string };
+}
+
 export interface StockMovement {
   id: string;
   createdAt: string;
@@ -41,7 +51,8 @@ export interface Volunteer {
   role: 'TEAM_LEADER' | 'VOLUNTEER';
   status: 'AVAILABLE' | 'DEPLOYED' | 'INACTIVE';
   createdAt: string;
-  user?: { id: string; email: string } | null;
+  // present when volunteer is linked to a REMA user account
+  user?: { id: string; email: string; name: string } | null;
   assignments: {
     id: string;
     zone: string;
@@ -111,12 +122,48 @@ export interface RadioCheckin {
 
 export const hubApi = {
 
-  // ── Stock ──────────────────────────────────────────────────────────────────
+  // ── Central warehouse ──────────────────────────────────────────────────────
 
   getCentralStock: async (): Promise<CentralStockLevel> => {
     const res = await api.get<CentralStockLevel>('/api/stock/central');
     return res.data;
   },
+
+  getCentralMovements: async (): Promise<CentralMovement[]> => {
+    const res = await api.get<CentralMovement[]>('/api/stock/central/movements');
+    return res.data;
+  },
+
+  replenishCentral: async (data: {
+    emkType: 'EMK1' | 'EMK2' | 'EMK3';
+    quantity: number;
+    reason: string;
+  }) => {
+    const res = await api.post('/api/stock/central/replenish', data);
+    return res.data;
+  },
+
+  adjustCentral: async (data: {
+    emkType: 'EMK1' | 'EMK2' | 'EMK3';
+    quantity: number;
+    reason: string;
+  }) => {
+    const res = await api.patch('/api/stock/central', data);
+    return res.data;
+  },
+
+  setAllocation: async (data: {
+    target: 'central' | 'subWarehouse';
+    subWarehouseId?: string;
+    emkType: 'EMK1' | 'EMK2' | 'EMK3';
+    newTotal: number;
+    reason: string;
+  }) => {
+    const res = await api.patch('/api/stock/allocation', data);
+    return res.data;
+  },
+
+  // ── Sub-warehouse stock ────────────────────────────────────────────────────
 
   getDistrictStock: async (districtId: string): Promise<StockLevel> => {
     const res = await api.get<StockLevel>(`/api/stock/${districtId}`);
@@ -159,40 +206,9 @@ export const hubApi = {
     return res.data;
   },
 
-  // New stock arriving at central — increases Remaining only, Total stays fixed
-  replenishCentral: async (data: {
-    emkType: 'EMK1' | 'EMK2' | 'EMK3';
-    quantity: number;
-    reason: string;
-  }) => {
-    const res = await api.post('/api/stock/central/replenish', data);
-    return res.data;
-  },
-
-  // Manual correction at central — signed quantity, only Remaining changes
-  adjustCentral: async (data: {
-    emkType: 'EMK1' | 'EMK2' | 'EMK3';
-    quantity: number;
-    reason: string;
-  }) => {
-    const res = await api.patch('/api/stock/central', data);
-    return res.data;
-  },
-
-  // Set Total allocation reference — changes only Total, not Remaining
-  setAllocation: async (data: {
-    target: 'central' | 'subWarehouse';
-    subWarehouseId?: string;
-    emkType: 'EMK1' | 'EMK2' | 'EMK3';
-    newTotal: number;
-    reason: string;
-  }) => {
-    const res = await api.patch('/api/stock/allocation', data);
-    return res.data;
-  },
-
   // ── Volunteers ─────────────────────────────────────────────────────────────
 
+  // alertId is optional - backend filters assignments by alert when provided
   getRoster: async (districtId: string, alertId?: string): Promise<DistrictRoster> => {
     const res = await api.get<DistrictRoster>(`/api/volunteers/${districtId}/roster`, {
       params: alertId ? { alertId } : undefined,
@@ -200,15 +216,22 @@ export const hubApi = {
     return res.data;
   },
 
-  createCommunityVolunteer: async (data: {
-    districtId: string; name: string; phone: string;
+  createVolunteer: async (data: {
+    districtId: string; name: string; phone: string; role?: 'TEAM_LEADER' | 'VOLUNTEER';
   }): Promise<Volunteer> => {
     const res = await api.post<Volunteer>('/api/volunteers', data);
     return res.data;
   },
 
-  setVolunteerRole: async (id: string, role: 'TEAM_LEADER' | 'VOLUNTEER') => {
-    const res = await api.patch(`/api/volunteers/${id}/role`, { role });
+  // community volunteer = no REMA user account, field helper only
+  createCommunityVolunteer: async (data: {
+    districtId: string; name: string; phone: string;
+  }): Promise<Volunteer> => {
+    const res = await api.post<Volunteer>('/api/volunteers', {
+      ...data,
+      role: 'VOLUNTEER',
+      isCommunity: true,
+    });
     return res.data;
   },
 
@@ -220,12 +243,37 @@ export const hubApi = {
     return res.data;
   },
 
+  // convenience wrapper - sets role only
+  setVolunteerRole: async (id: string, role: 'TEAM_LEADER' | 'VOLUNTEER') => {
+    const res = await api.patch(`/api/volunteers/${id}`, { role });
+    return res.data;
+  },
+
   assignVolunteer: async (data: {
     volunteerId: string; subWarehouseId: string; alertId: string;
     zone: string; teamNumber: number;
   }) => {
     const res = await api.post('/api/volunteers/assign', data);
     return res.data;
+  },
+
+  // assigns all members of a team in one go - fires assignVolunteer for each member
+  assignTeam: async (data: {
+    subWarehouseId: string;
+    alertId: string;
+    zone: string;
+    teamNumber: number;
+    leaderId: string;
+    memberIds: string[];
+  }) => {
+    const { subWarehouseId, alertId, zone, teamNumber, leaderId, memberIds } = data;
+    const all = [leaderId, ...memberIds];
+    const results = await Promise.all(
+      all.map(volunteerId =>
+        api.post('/api/volunteers/assign', { volunteerId, subWarehouseId, alertId, zone, teamNumber })
+      )
+    );
+    return results.map(r => r.data);
   },
 
   // ── Deliveries ─────────────────────────────────────────────────────────────
@@ -288,18 +336,6 @@ export const hubApi = {
     notes?: string;
   }): Promise<RadioCheckin> => {
     const res = await api.post<RadioCheckin>('/api/radio/checkin', data);
-    return res.data;
-  },
-
-  assignTeam: async (data: {
-    subWarehouseId: string;
-    alertId: string;
-    zone: string;
-    teamNumber: number;
-    leaderId: string;
-    memberIds: string[];
-  }) => {
-    const res = await api.post('/api/volunteers/assign-team', data);
     return res.data;
   },
 };

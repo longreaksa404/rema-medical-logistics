@@ -1,34 +1,18 @@
-## Last Session — Household Size + EMK Quantity Feature
+## Last Session - TypeScript compile errors in HubPage.tsx
 
 ### What changed
-- `backend/src/utils/scoring.ts` — added householdSize, chronicIllCount,
-  hasVulnerableMember to ScoreInput; added EmkQuantity interface;
-  added calculateEmkQuantity(); scoreHousehold now returns emkQuantity
-- `backend/src/utils/__tests__/scoring.test.ts` — 20 new quantity tests,
-  133 total passing
-- `backend/prisma/schema.prisma` — added householdSize, chronicIllCount,
-  emk1Quantity, emk2Quantity, emk3Quantity, totalEmkQuantity to Household
-- Migration: add_household_size_and_emk_quantity
-- `backend/src/services/household.service.ts` — createHousehold and
-  updateHousehold persist quantity fields; updateHousehold falls back to
-  stored values on partial update
-- `backend/src/controllers/household.controller.ts` — accepts new fields
-  in POST /api/households and POST /api/score/household
-- `backend/swagger.yaml` — added EmkQuantity schema, updated HouseholdScore
-  and HouseholdDetail
-- `frontend/src/utils/scoring.ts` — added EmkQuantity, new ScoreInput fields,
-  calculateEmkQuantity(), scoreHousehold returns emkQuantity
-- `frontend/src/api/households.ts` — Household and CreateHouseholdPayload
-  updated with new fields
-- `frontend/src/pages/VolunteerPage.tsx` — householdSize stepper,
-  chronicIllCount stepper, EmkQuantityBadge component, live kit preview
-  in score panel and household size card, kit breakdown in deliver queue,
-  delivery receipt uses totalEmkQuantity not hardcoded 1
+- `frontend/src/api/hub.ts` - fixed all 7 TypeScript errors:
+  - Added `user?: { id, email, name } | null` to Volunteer interface
+  - getRoster: added optional alertId second param (passed as query param)
+  - Added setVolunteerRole() - PATCH /api/volunteers/:id with role only
+  - Added createCommunityVolunteer() - POST /api/volunteers with isCommunity flag
+  - Added assignTeam() - fans out to POST /api/volunteers/assign for each member via Promise.all
+  - replenishCentral, adjustCentral, setAllocation already existed - were present in old hub.ts
 
 ### Current system state
-- Backend: running locally, all 133 tests passing
-- Frontend: working, quantity preview live in Volunteer assess tab
-- DB: migration applied
+- Backend: live on Render, unchanged
+- Frontend: 0 TypeScript errors in hub.ts after this fix
+- DB: unchanged
 
 ### Live URLs
 - Frontend: https://rema-system.vercel.app
