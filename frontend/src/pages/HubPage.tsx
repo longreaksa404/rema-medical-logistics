@@ -704,11 +704,12 @@ function VolunteersTab({ districtId, subWarehouseId }: { districtId: string; sub
   const queryClient = useQueryClient();
   const [success, setSuccess] = useState('');
 
-  // community volunteer form state
+  // dynamic team slots — starts at 3, hub manager can add more
+  const [teamSlots, setTeamSlots] = useState<number[]>([1, 2, 3]);
+
   const [communityName, setCommunityName] = useState('');
   const [communityPhone, setCommunityPhone] = useState('');
 
-  // per-team setup state — zone + TL + member selection for each of 3 teams
   const [teamZones, setTeamZones] = useState<Record<number, string>>({ 1: 'Zone A', 2: 'Zone B', 3: 'Zone C' });
   const [teamLeaderIds, setTeamLeaderIds] = useState<Record<number, string>>({ 1: '', 2: '', 3: '' });
   const [teamMemberIds, setTeamMemberIds] = useState<Record<number, string[]>>({ 1: [], 2: [], 3: [] });
@@ -718,14 +719,33 @@ function VolunteersTab({ districtId, subWarehouseId }: { districtId: string; sub
     queryFn: () => hubApi.getRoster(districtId),
     enabled: !!districtId,
   });
+
+  // source of truth for team lock state — a team is locked only when it has an IN_PROGRESS run
+  const { data: runs = [], isLoading: runsLoading } = useQuery({
+    queryKey: queryKeys.hub.deliveries(districtId),
+    queryFn: () => hubApi.getDeliveryRuns(districtId),
+    enabled: !!districtId,
+    refetchInterval: 30_000,
+  });
+
   const { data: alertData } = useQuery({
     queryKey: queryKeys.alert.status(),
     queryFn: () => api.get('/api/alert/status').then(r => r.data),
   });
   const alertId = alertData?.id ?? '';
 
+  // keyed by teamNumber — only IN_PROGRESS runs lock the card
+  const activeRunByTeam = useMemo(() => {
+    const map: Record<number, DeliveryRun> = {};
+    runs
+      .filter((r: DeliveryRun) => r.status === 'IN_PROGRESS')
+      .forEach((r: DeliveryRun) => { map[r.teamNumber] = r; });
+    return map;
+  }, [runs]);
+
   const invalidateRoster = useCallback(() => {
     queryClient.invalidateQueries({ queryKey: queryKeys.hub.volunteers(districtId) });
+    queryClient.invalidateQueries({ queryKey: queryKeys.hub.deliveries(districtId) });
   }, [queryClient, districtId]);
 
   const deployTeamMutation = useMutation({
@@ -740,7 +760,6 @@ function VolunteersTab({ districtId, subWarehouseId }: { districtId: string; sub
       }),
     onSuccess: (_, vars) => {
       setSuccess(`Team ${vars.teamNumber} deployed to ${vars.zone}.`);
-      // clear that team's selections after deploy
       setTeamLeaderIds(p => ({ ...p, [vars.teamNumber]: '' }));
       setTeamMemberIds(p => ({ ...p, [vars.teamNumber]: [] }));
       invalidateRoster();
@@ -779,25 +798,27 @@ function VolunteersTab({ districtId, subWarehouseId }: { districtId: string; sub
     },
   });
 
+  const removeTeamSlot = useCallback((teamNum: number) => {
+    setTeamSlots(p => p.filter(n => n !== teamNum));
+    setTeamZones(p => { const n = { ...p }; delete n[teamNum]; return n; });
+    setTeamLeaderIds(p => { const n = { ...p }; delete n[teamNum]; return n; });
+    setTeamMemberIds(p => { const n = { ...p }; delete n[teamNum]; return n; });
+  }, []);
+
   const STATUS_COLORS: Record<string, string> = {
     AVAILABLE: 'text-accent-green border-accent-green/30 bg-accent-green/5',
     DEPLOYED:  'text-accent-blue border-accent-blue/30 bg-accent-blue/5',
     INACTIVE:  'text-text-muted border-bg-border bg-bg-elevated',
   };
 
-  const allVolunteers   = roster?.volunteers ?? [];
-  const availableVols   = allVolunteers.filter((v: Volunteer) => v.status === 'AVAILABLE');
-  const availableTLs    = availableVols.filter((v: Volunteer) => v.role === 'TEAM_LEADER');
+  const allVolunteers    = roster?.volunteers ?? [];
+  const availableVols    = allVolunteers.filter((v: Volunteer) => v.status === 'AVAILABLE');
+  const availableTLs     = availableVols.filter((v: Volunteer) => v.role === 'TEAM_LEADER');
   const availableMembers = availableVols.filter((v: Volunteer) => v.role === 'VOLUNTEER');
-  const deployedCount   = allVolunteers.filter((v: Volunteer) => v.status === 'DEPLOYED').length;
+  const deployedCount    = allVolunteers.filter((v: Volunteer) => v.status === 'DEPLOYED').length;
 
-  // compute which members are already picked by another team
-  const allPickedMemberIds = new Set(
-    [1, 2, 3].flatMap(n => teamMemberIds[n])
-  );
-  const allPickedLeaderIds = new Set(
-    [1, 2, 3].map(n => teamLeaderIds[n]).filter(Boolean)
-  );
+  const allPickedMemberIds = new Set([1, 2, 3].flatMap(n => teamMemberIds[n]));
+  const allPickedLeaderIds = new Set([1, 2, 3].map(n => teamLeaderIds[n]).filter(Boolean));
 
   const mutationError =
     (deployTeamMutation.error as any)?.response?.data?.error ||
@@ -805,7 +826,7 @@ function VolunteersTab({ districtId, subWarehouseId }: { districtId: string; sub
     (statusMutation.error as any)?.response?.data?.error ||
     (communityMutation.error as any)?.response?.data?.error || '';
 
-  if (rosterLoading) {
+  if (rosterLoading || runsLoading) {
     return (
       <div className="space-y-4">
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
@@ -867,94 +888,121 @@ function VolunteersTab({ districtId, subWarehouseId }: { districtId: string; sub
 
       {/* ── TEAM SETUP ────────────────────────────────────────────────────── */}
       <div>
-        <div className="flex items-center gap-2 mb-3">
-          <h3 className="font-sans font-bold text-text-primary">Team Setup</h3>
-          {!alertId && (
-            <span className="font-mono text-[9px] text-accent-orange bg-accent-orange/10 px-2 py-0.5 rounded border border-accent-orange/30">
-              Activate REMA to deploy
-            </span>
-          )}
+        <div className="flex items-center justify-between mb-3">
+          <div className="flex items-center gap-2">
+            <h3 className="font-sans font-bold text-text-primary">Team Setup</h3>
+            {!alertId && (
+              <span className="font-mono text-[9px] text-accent-orange bg-accent-orange/10 px-2 py-0.5 rounded border border-accent-orange/30">
+                Activate REMA to deploy
+              </span>
+            )}
+          </div>
+          <button
+            onClick={() => {
+              const next = teamSlots[teamSlots.length - 1] + 1;
+              setTeamSlots(p => [...p, next]);
+              setTeamZones(p => ({ ...p, [next]: 'Zone A' }));
+              setTeamLeaderIds(p => ({ ...p, [next]: '' }));
+              setTeamMemberIds(p => ({ ...p, [next]: [] }));
+            }}
+            className="font-mono text-[10px] px-3 py-1 rounded border border-bg-border text-text-muted hover:text-text-primary hover:border-accent-blue/30 transition-colors">
+            + Add Team
+          </button>
         </div>
 
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
-          {[1, 2, 3].map(teamNum => {
-            // find deployed volunteers for this team from roster assignments
-            const deployedTeamMembers = allVolunteers.filter(
-              (v: Volunteer) =>
-                v.status === 'DEPLOYED' &&
-                v.assignments?.[0]?.teamNumber === teamNum
-            );
-            const isDeployed = deployedTeamMembers.length > 0;
-            const deployedTL = deployedTeamMembers.find((v: Volunteer) => v.role === 'TEAM_LEADER');
-            const deployedMembers = deployedTeamMembers.filter((v: Volunteer) => v.role === 'VOLUNTEER');
+          {teamSlots.map(teamNum => {
+            // locked = there is an IN_PROGRESS delivery run for this team number
+            const activeRun = activeRunByTeam[teamNum] ?? null;
+            const isLocked = !!activeRun;
 
-            // members available for this team = available volunteers not picked by other teams
+            // members for this team = available + not picked by another team setup card
             const membersForThisTeam = availableMembers.filter(
               (v: Volunteer) =>
                 !allPickedMemberIds.has(v.id) ||
                 teamMemberIds[teamNum].includes(v.id)
             );
-
-            // TLs available for this team = available TLs not picked by other teams
             const leadersForThisTeam = availableTLs.filter(
               (v: Volunteer) =>
                 !allPickedLeaderIds.has(v.id) ||
                 teamLeaderIds[teamNum] === v.id
             );
 
-            const selectedLeaderId = teamLeaderIds[teamNum];
+            const selectedLeaderId  = teamLeaderIds[teamNum];
             const selectedMemberIds = teamMemberIds[teamNum];
-            const canDeploy = !!alertId && !!subWarehouseId && !!selectedLeaderId && !isDeployed;
+            const canDeploy = !!alertId && !!subWarehouseId && !!selectedLeaderId && !isLocked;
 
             return (
-              <div key={teamNum} className={`card p-4 ${isDeployed ? 'border-accent-green/30 bg-accent-green/5' : 'border-bg-border'}`}>
+              <div key={teamNum} className={`card p-4 ${isLocked ? 'border-accent-green/30 bg-accent-green/5' : 'border-bg-border'}`}>
                 <div className="flex items-center justify-between mb-3">
                   <div className="flex items-center gap-2">
                     <span className="font-mono text-sm font-bold text-text-primary">Team {teamNum}</span>
-                    {isDeployed && (
+                    {isLocked && (
                       <span className="font-mono text-[9px] px-1.5 py-0.5 rounded border text-accent-green border-accent-green/30 bg-accent-green/5">
-                        DEPLOYED
+                        IN FIELD
                       </span>
                     )}
                   </div>
-                  {/* zone selector — always visible */}
-                  <select
-                    value={teamZones[teamNum]}
-                    onChange={e => setTeamZones(p => ({ ...p, [teamNum]: e.target.value }))}
-                    disabled={isDeployed}
-                    className="input py-1 text-xs w-28">
-                    {['Zone A', 'Zone B', 'Zone C'].map(z => <option key={z}>{z}</option>)}
-                  </select>
+                  <div className="flex items-center gap-2">
+                    <select
+                      value={teamZones[teamNum]}
+                      onChange={e => setTeamZones(p => ({ ...p, [teamNum]: e.target.value }))}
+                      disabled={isLocked}
+                      className="input py-1 text-xs w-28">
+                      {['Zone A', 'Zone B', 'Zone C'].map(z => <option key={z}>{z}</option>)}
+                    </select>
+                    {/* only extra teams (4+) can be removed, and only when not locked */}
+                    {teamNum > 3 && !isLocked && (
+                      <button
+                        onClick={() => removeTeamSlot(teamNum)}
+                        className="font-mono text-[10px] px-2 py-1 rounded border border-bg-border text-text-muted hover:border-accent-red/30 hover:text-accent-red transition-colors flex-shrink-0">
+                        ✕
+                      </button>
+                    )}
+                  </div>
                 </div>
 
-                {isDeployed ? (
-                  // deployed state — show who's in the team
+                {isLocked ? (
+                  // locked — show active run info, no setup form
                   <div className="space-y-2">
-                    {deployedTL && (
-                      <div className="flex items-center gap-2">
-                        <span className="font-mono text-[9px] px-1.5 py-0.5 rounded border text-accent-blue border-accent-blue/30 bg-accent-blue/5 flex-shrink-0">
-                          TL
-                        </span>
-                        <span className="font-sans text-sm text-text-primary">{deployedTL.name}</span>
-                      </div>
-                    )}
-                    {deployedMembers.map((v: Volunteer) => (
-                      <div key={v.id} className="flex items-center gap-2">
-                        <span className="font-mono text-[9px] px-1.5 py-0.5 rounded border text-text-muted border-bg-border flex-shrink-0">
-                          V
-                        </span>
-                        <span className="font-sans text-sm text-text-secondary">{v.name}</span>
-                      </div>
-                    ))}
-                    {deployedTeamMembers.length === 0 && (
-                      <p className="font-mono text-[10px] text-text-muted">No members assigned.</p>
-                    )}
-                    <p className="font-mono text-[9px] text-text-muted pt-1">
-                      {deployedTeamMembers[0]?.assignments?.[0]?.zone ?? teamZones[teamNum]}
-                    </p>
+                    <div className="flex items-center gap-2">
+                      <span className="font-mono text-[9px] px-1.5 py-0.5 rounded border text-accent-blue border-accent-blue/30 bg-accent-blue/5 flex-shrink-0">
+                        TL
+                      </span>
+                      <span className="font-sans text-sm text-text-primary">
+                        {activeRun.leadVolunteer?.name ?? '—'}
+                      </span>
+                    </div>
+                    {/* members deployed under this team from roster */}
+                    {allVolunteers
+                      .filter(
+                        (v: Volunteer) =>
+                          v.status === 'DEPLOYED' &&
+                          v.role === 'VOLUNTEER' &&
+                          v.assignments?.[0]?.teamNumber === teamNum
+                      )
+                      .map((v: Volunteer) => (
+                        <div key={v.id} className="flex items-center gap-2">
+                          <span className="font-mono text-[9px] px-1.5 py-0.5 rounded border text-text-muted border-bg-border flex-shrink-0">
+                            V
+                          </span>
+                          <span className="font-sans text-sm text-text-secondary">{v.name}</span>
+                        </div>
+                      ))}
+                    <div className="pt-2 border-t border-bg-border mt-2">
+                      <p className="font-mono text-[9px] text-text-muted">
+                        {activeRun.zone} · departed {fmtTime(activeRun.departedAt)}
+                      </p>
+                      <p className="font-mono text-[9px] text-text-muted mt-0.5">
+                        {activeRun.receipts?.length ?? 0} deliveries recorded
+                      </p>
+                      <p className="font-mono text-[9px] text-accent-orange mt-1.5">
+                        Complete or abort this run in the Deliveries tab to unlock.
+                      </p>
+                    </div>
                   </div>
                 ) : (
-                  // setup state — pick TL and members
+                  // unlocked — show setup form
                   <div className="space-y-3">
                     <div>
                       <label className="label">Team Leader</label>
@@ -994,7 +1042,7 @@ function VolunteersTab({ districtId, subWarehouseId }: { districtId: string; sub
                                 className={`flex items-center gap-2 px-2 py-1.5 rounded border cursor-pointer transition-colors ${
                                   checked
                                     ? 'border-accent-blue/30 bg-accent-blue/5'
-                                    : 'border-bg-border hover:border-bg-border/80 hover:bg-bg-elevated/60'
+                                    : 'border-bg-border hover:bg-bg-elevated/60'
                                 }`}>
                                 <input
                                   type="checkbox"
@@ -1037,6 +1085,43 @@ function VolunteersTab({ districtId, subWarehouseId }: { districtId: string; sub
               </div>
             );
           })}
+        </div>
+      </div>
+
+      {/* ── ADD COMMUNITY VOLUNTEER ───────────────────────────────────────── */}
+      <div className="card p-5 max-w-md">
+        <SectionTitle sub="Field helper with no login account">Add Community Volunteer</SectionTitle>
+        <div className="space-y-3">
+          <div>
+            <label className="label">Full Name</label>
+            <input
+              type="text"
+              className="input"
+              placeholder="Nguyen Van A"
+              value={communityName}
+              onChange={e => setCommunityName(e.target.value)}
+            />
+          </div>
+          <div>
+            <label className="label">Phone</label>
+            <input
+              type="tel"
+              className="input"
+              placeholder="+84 901 234 567"
+              value={communityPhone}
+              onChange={e => setCommunityPhone(e.target.value)}
+            />
+          </div>
+          <button
+            onClick={() => communityMutation.mutate()}
+            disabled={communityMutation.isPending || !communityName.trim() || !communityPhone.trim()}
+            className="btn-primary w-full">
+            {communityMutation.isPending ? 'Adding...' : 'Add to Roster'}
+          </button>
+          <p className="font-mono text-[10px] text-text-muted">
+            Community volunteers appear in the roster but cannot log in to REMA.
+            For full access, ask SUPER_ADMIN to create a VOLUNTEER account instead.
+          </p>
         </div>
       </div>
 
@@ -1135,43 +1220,6 @@ function VolunteersTab({ districtId, subWarehouseId }: { districtId: string; sub
               ))}
             </tbody>
           </table>
-        </div>
-      </div>
-
-      {/* ── ADD COMMUNITY VOLUNTEER ───────────────────────────────────────── */}
-      <div className="card p-5 max-w-md">
-        <SectionTitle sub="Field helper with no login account">Add Community Volunteer</SectionTitle>
-        <div className="space-y-3">
-          <div>
-            <label className="label">Full Name</label>
-            <input
-              type="text"
-              className="input"
-              placeholder="Nguyen Van A"
-              value={communityName}
-              onChange={e => setCommunityName(e.target.value)}
-            />
-          </div>
-          <div>
-            <label className="label">Phone</label>
-            <input
-              type="tel"
-              className="input"
-              placeholder="+84 901 234 567"
-              value={communityPhone}
-              onChange={e => setCommunityPhone(e.target.value)}
-            />
-          </div>
-          <button
-            onClick={() => communityMutation.mutate()}
-            disabled={communityMutation.isPending || !communityName.trim() || !communityPhone.trim()}
-            className="btn-primary w-full">
-            {communityMutation.isPending ? 'Adding...' : 'Add to Roster'}
-          </button>
-          <p className="font-mono text-[10px] text-text-muted">
-            Community volunteers appear in the roster but cannot log in to REMA.
-            For full access, ask SUPER_ADMIN to create a VOLUNTEER account instead.
-          </p>
         </div>
       </div>
     </div>

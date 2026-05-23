@@ -4,14 +4,9 @@ import { recordDelivery } from './stock.service';
 import { invalidateQueueCache } from './household.service';
 import { getCached, setCached, deleteCached } from '../utils/cache';
 
-// ─── CACHE KEYS ───────────────────────────────────────────────────────────────
-// Delivery runs list is polled by Hub Manager portal and the V1 dashboard.
-// 10 s TTL — runs change state frequently (start/complete/abort) during active ops.
-// Per-district keys allow targeted invalidation from the Hub Manager's district.
-
 const KEY_ALL = 'delivery:runs:all';
 const KEY_DISTRICT_PREFIX = 'delivery:runs:district:';
-const TTL = 10_000; // 10 s
+const TTL = 10_000;
 
 function invalidateRunsCache(districtId?: string): void {
   deleteCached(KEY_ALL);
@@ -22,8 +17,43 @@ function invalidateRunsCache(districtId?: string): void {
   }
 }
 
+// reset all volunteers who were deployed under this team back to AVAILABLE
+async function returnTeamToBase(subWarehouseId: string, teamNumber: number): Promise<void> {
+  const sw = await prisma.subWarehouse.findUnique({ where: { id: subWarehouseId } });
+  if (!sw) return;
+
+  // find volunteers in this district who are DEPLOYED and whose most recent
+  // assignment matches this team number — those are the ones returning
+  const deployed = await prisma.volunteer.findMany({
+    where: {
+      districtId: sw.districtId,
+      status: 'DEPLOYED',
+    },
+    include: {
+      assignments: {
+        orderBy: { createdAt: 'desc' },
+        take: 1,
+      },
+    },
+  });
+
+  const returningIds = deployed
+    .filter(v => v.assignments[0]?.teamNumber === teamNumber)
+    .map(v => v.id);
+
+  if (returningIds.length === 0) return;
+
+  await prisma.volunteer.updateMany({
+    where: { id: { in: returningIds } },
+    data: { status: 'AVAILABLE' },
+  });
+
+  // bust volunteer roster cache for this district
+  deleteCached(`volunteers:roster:${sw.districtId}`);
+  deleteCached('volunteers:list');
+}
+
 // ─── START A DELIVERY RUN ────────────────────────────────────────────────────
-// Section B.5: Team Leader collects household list, loads EMKs, departs.
 
 export async function startDeliveryRun(data: {
   subWarehouseId: string;
@@ -62,39 +92,32 @@ export async function startDeliveryRun(data: {
 }
 
 // ─── LIST DELIVERY RUNS ───────────────────────────────────────────────────────
-// Cached 10 s. Status filter applied in-memory when using cached data.
 
 export async function listDeliveryRuns(filters: {
   districtId?: string;
   status?: DeliveryRunStatus;
 }) {
   if (filters.districtId) {
-    // District-scoped cache
     const key = `${KEY_DISTRICT_PREFIX}${filters.districtId}`;
     const sw = await prisma.subWarehouse.findUnique({
       where: { districtId: filters.districtId },
     });
-
     if (!sw) return [];
-
     const cached = getCached<Awaited<ReturnType<typeof fetchRunsByWarehouse>>>(key);
     const all = cached ?? await (async () => {
       const result = await fetchRunsByWarehouse(sw.id);
       setCached(key, result, TTL);
       return result;
     })();
-
     return filters.status ? all.filter(r => r.status === filters.status) : all;
   }
 
-  // All-runs cache (used by dashboard)
   const cached = getCached<Awaited<ReturnType<typeof fetchAllRuns>>>(KEY_ALL);
   const all = cached ?? await (async () => {
     const result = await fetchAllRuns();
     setCached(KEY_ALL, result, TTL);
     return result;
   })();
-
   return filters.status ? all.filter(r => r.status === filters.status) : all;
 }
 
@@ -126,7 +149,6 @@ async function fetchRunsByWarehouse(subWarehouseId: string) {
 }
 
 // ─── GET SINGLE RUN WITH RECEIPTS ────────────────────────────────────────────
-// Not cached — full detail view with receipt + household data; changes per receipt.
 
 export async function getDeliveryRun(id: string) {
   const run = await prisma.deliveryRun.findUnique({
@@ -149,13 +171,11 @@ export async function getDeliveryRun(id: string) {
       },
     },
   });
-
   if (!run) throw new Error('Delivery run not found');
   return run;
 }
 
 // ─── RECORD DELIVERY RECEIPT ──────────────────────────────────────────────────
-// Section B.5: Confirm household identity, deliver EMK, get signature.
 
 export async function createDeliveryReceipt(data: {
   deliveryRunId: string;
@@ -210,12 +230,9 @@ export async function createDeliveryReceipt(data: {
     }),
   ]);
 
-  // Household is delivered — remove from priority queue cache
   invalidateQueueCache(household.districtId);
-  // Run has a new receipt — bust runs list cache for this district
   const sw = await prisma.subWarehouse.findUnique({ where: { id: run.subWarehouseId } });
   if (sw) invalidateRunsCache(sw.districtId);
-
   return receipt;
 }
 
@@ -226,7 +243,6 @@ export async function completeDeliveryRun(id: string, performedById: string) {
     where: { id },
     include: { receipts: true },
   });
-
   if (!run) throw new Error('Delivery run not found');
   if (run.status === DeliveryRunStatus.COMPLETE) throw new Error('Delivery run is already complete');
   if (run.status === DeliveryRunStatus.ABORTED) throw new Error('Cannot complete an aborted run');
@@ -243,14 +259,15 @@ export async function completeDeliveryRun(id: string, performedById: string) {
     },
   });
 
+  // return team volunteers to AVAILABLE now that run is complete
+  await returnTeamToBase(run.subWarehouseId, run.teamNumber);
+
   const sw = await prisma.subWarehouse.findUnique({ where: { id: run.subWarehouseId } });
   if (sw) invalidateRunsCache(sw.districtId);
-
   return updated;
 }
 
 // ─── ABORT A DELIVERY RUN ─────────────────────────────────────────────────────
-// Section A.4: Volunteer safety — suspend delivery above 80cm water depth.
 
 export async function abortDeliveryRun(id: string, reason: string) {
   const run = await prisma.deliveryRun.findUnique({ where: { id } });
@@ -269,8 +286,10 @@ export async function abortDeliveryRun(id: string, reason: string) {
     },
   });
 
+  // return team volunteers to AVAILABLE — aborted run means team stood down
+  await returnTeamToBase(run.subWarehouseId, run.teamNumber);
+
   const sw = await prisma.subWarehouse.findUnique({ where: { id: run.subWarehouseId } });
   if (sw) invalidateRunsCache(sw.districtId);
-
   return updated;
 }
