@@ -103,10 +103,10 @@ export function recommendEmk(input: ScoreInput): EmkRecommendation {
 
 export function calculateEmkQuantity(
   householdSize: number,
-  chronicIllCount: number,
+  cat1: number,
   hasVulnerableMember: boolean,
 ): EmkQuantity {
-  const emk3 = chronicIllCount;
+  const emk3 = cat1 >= 5 ? 1 : 0;
   const emk2 = hasVulnerableMember ? 1 : 0;
 
   const coveredByHigherKits = (emk3 + emk2) * 4;
@@ -119,15 +119,13 @@ export function calculateEmkQuantity(
 // ─── MAIN SCORING FUNCTION ────────────────────────────────────────────────────
 
 export function scoreHousehold(input: ScoreInput): ScoreResult {
-  // resolve optionals
   const householdSize       = input.householdSize       ?? 4;
-  const chronicIllCount     = input.chronicIllCount     ?? 0;
   const hasVulnerableMember = input.hasVulnerableMember ?? false;
 
   const totalScore     = input.cat1 + input.cat2 + input.cat3 + input.cat4 + input.cat5;
   const priorityBand   = assignBand(totalScore);
   const recommendedEmk = recommendEmk(input);
-  const emkQuantity    = calculateEmkQuantity(householdSize, chronicIllCount, hasVulnerableMember);
+  const emkQuantity    = calculateEmkQuantity(householdSize, input.cat1, hasVulnerableMember);
 
   return {
     cat1: input.cat1,
