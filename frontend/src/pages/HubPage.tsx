@@ -6,7 +6,7 @@
 //   4. Civil defense escalation note on VOLUNTEER_SAFETY incidents
 //   5. Radio tab subtitle clarified
 
-import { useState, useCallback, useMemo } from 'react';
+import { useState, useCallback, useMemo, useEffect } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { DashboardLayout } from '../components/DashboardLayout';
 import { useAuth } from '../context/AuthContext';
@@ -1233,7 +1233,6 @@ function DeliveriesTab({ districtId, subWarehouseId }: { districtId: string; sub
   const [success, setSuccess] = useState('');
   const [zone, setZone] = useState('Zone A');
   const [team, setTeam] = useState(1);
-  const [leadId, setLeadId] = useState('');
   const [abortId, setAbortId] = useState('');
   const [abortReason, setAbortReason] = useState('');
 
@@ -1249,13 +1248,21 @@ function DeliveriesTab({ districtId, subWarehouseId }: { districtId: string; sub
     enabled: !!districtId,
   });
 
-  // team leaders regardless of status — they lead runs, that's their job
-  const teamLeads = useMemo(
-    () => (roster?.volunteers ?? []).filter(
-      (v: Volunteer) => v.role === 'TEAM_LEADER' && v.status !== 'INACTIVE'
-    ),
-    [roster]
-  );
+  // find the TL assigned to the selected team number
+  const assignedTL = useMemo(() => {
+    const allVols = roster?.volunteers ?? [];
+    return allVols.find(
+      (v: Volunteer) =>
+        v.role === 'TEAM_LEADER' &&
+        v.status !== 'INACTIVE' &&
+        v.assignments?.[0]?.teamNumber === team
+    ) ?? null;
+  }, [roster, team]);
+
+  // auto-fill lead when team selection changes
+  useEffect(() => {
+    setLeadId(assignedTL?.id ?? '');
+  }, [assignedTL]);
 
   const invalidateDeliveries = useCallback(() => {
     queryClient.invalidateQueries({ queryKey: queryKeys.hub.deliveries(districtId) });
@@ -1333,26 +1340,32 @@ function DeliveriesTab({ districtId, subWarehouseId }: { districtId: string; sub
             </div>
             <div>
               <label className="label">Team Lead</label>
-              <select value={leadId} onChange={e => setLeadId(e.target.value)} className="input"
-                disabled={teamLeads.length === 0}>
-                <option value="">{teamLeads.length === 0 ? 'No team leaders — promote one first' : 'Select team lead...'}</option>
-                {teamLeads.map((v: Volunteer) => (
-                  <option key={v.id} value={v.id}>
-                    {v.name} · {v.status}
-                  </option>
-                ))}
-              </select>
-              {teamLeads.length === 0 && (
-                <p className="font-mono text-[9px] text-accent-orange mt-1">
-                  Go to Volunteers tab and promote someone to Team Leader first.
-                </p>
+              {assignedTL ? (
+                <div className="bg-bg-elevated rounded border border-bg-border px-3 py-2 flex items-center justify-between">
+                  <div>
+                    <span className="font-sans text-sm text-text-primary">{assignedTL.name}</span>
+                    <span className={`ml-2 font-mono text-[10px] ${
+                      assignedTL.status === 'DEPLOYED' ? 'text-accent-blue' : 'text-accent-green'
+                    }`}>· {assignedTL.status}</span>
+                  </div>
+                  <span className="font-mono text-[9px] px-1.5 py-0.5 rounded border text-accent-blue border-accent-blue/30 bg-accent-blue/5">
+                    TL
+                  </span>
+                </div>
+              ) : (
+                <div className="bg-bg-elevated rounded border border-accent-orange/20 px-3 py-2">
+                  <p className="font-mono text-[10px] text-accent-orange">
+                    No team leader assigned to Team {team}.
+                    Go to Volunteers tab and deploy a team first.
+                  </p>
+                </div>
               )}
             </div>
             <button
-              onClick={() => subWarehouseId && leadId && startMutation.mutate({
-                subWarehouseId, teamNumber: team, zone, leadVolunteerId: leadId,
+              onClick={() => subWarehouseId && assignedTL && startMutation.mutate({
+                subWarehouseId, teamNumber: team, zone, leadVolunteerId: assignedTL.id,
               })}
-              disabled={startMutation.isPending || !leadId || !subWarehouseId}
+              disabled={startMutation.isPending || !assignedTL || !subWarehouseId}
               className="btn-primary w-full">
               {startMutation.isPending ? 'Departing...' : '▶ Start Run'}
             </button>
