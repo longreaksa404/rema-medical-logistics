@@ -193,8 +193,10 @@ export const hubApi = {
 
   // ── Volunteers ─────────────────────────────────────────────────────────────
 
-  getRoster: async (districtId: string): Promise<DistrictRoster> => {
-    const res = await api.get<DistrictRoster>(`/api/volunteers/${districtId}/roster`);
+  getRoster: async (districtId: string, alertId?: string): Promise<DistrictRoster> => {
+    const res = await api.get<DistrictRoster>(`/api/volunteers/${districtId}/roster`, {
+      params: alertId ? { alertId } : undefined,
+    });
     return res.data;
   },
 

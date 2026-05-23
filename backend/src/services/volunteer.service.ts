@@ -232,7 +232,11 @@ export async function assignTeam(data: {
   return assignments;
 }
 
-export async function getDistrictRoster(districtId: string) {
+export async function getDistrictRoster(districtId: string, alertId?: string) {
+  // don't cache when alertId provided — active deployment state changes frequently
+  if (alertId) {
+    return buildRoster(districtId, alertId);
+  }
   const key    = `${KEY_ROSTER_PREFIX}${districtId}`;
   const cached = getCached<Awaited<ReturnType<typeof buildRoster>>>(key);
   if (cached) return cached;
@@ -242,7 +246,7 @@ export async function getDistrictRoster(districtId: string) {
   return result;
 }
 
-async function buildRoster(districtId: string) {
+async function buildRoster(districtId: string, alertId?: string) {
   const district = await prisma.district.findUnique({ where: { id: districtId } });
   if (!district) throw new Error('District not found');
 
@@ -252,11 +256,13 @@ async function buildRoster(districtId: string) {
     include: {
       user: { select: { id: true, email: true } },
       assignments: {
+        // if alertId provided, filter to current alert only
+        where: alertId ? { alertId } : undefined,
         orderBy: { createdAt: 'desc' },
         take: 1,
         include: {
           subWarehouse: { select: { name: true } },
-          alert:        { select: { activated: true, phase: true } },
+          alert: { select: { activated: true, phase: true } },
         },
       },
     },

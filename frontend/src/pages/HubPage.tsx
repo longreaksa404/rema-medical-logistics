@@ -6,7 +6,7 @@
 //   4. Civil defense escalation note on VOLUNTEER_SAFETY incidents
 //   5. Radio tab subtitle clarified
 
-import { useState, useCallback, useMemo, useEffect } from 'react';
+import { useState, useCallback, useMemo, useEffect  } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { DashboardLayout } from '../components/DashboardLayout';
 import { useAuth } from '../context/AuthContext';
@@ -714,9 +714,16 @@ function VolunteersTab({ districtId, subWarehouseId }: { districtId: string; sub
   const [teamLeaderIds, setTeamLeaderIds] = useState<Record<number, string>>({ 1: '', 2: '', 3: '' });
   const [teamMemberIds, setTeamMemberIds] = useState<Record<number, string[]>>({ 1: [], 2: [], 3: [] });
 
+  const { data: alertData } = useQuery({
+    queryKey: queryKeys.alert.status(),
+    queryFn: () => api.get('/api/alert/status').then(r => r.data),
+  });
+
+  const alertId = alertData?.id ?? '';
+
   const { data: roster, isLoading: rosterLoading } = useQuery({
-    queryKey: queryKeys.hub.volunteers(districtId),
-    queryFn: () => hubApi.getRoster(districtId),
+    queryKey: [...queryKeys.hub.volunteers(districtId), alertId],
+    queryFn: () => hubApi.getRoster(districtId, alertId || undefined),
     enabled: !!districtId,
   });
 
@@ -728,11 +735,11 @@ function VolunteersTab({ districtId, subWarehouseId }: { districtId: string; sub
     refetchInterval: 30_000,
   });
 
-  const { data: alertData } = useQuery({
-    queryKey: queryKeys.alert.status(),
-    queryFn: () => api.get('/api/alert/status').then(r => r.data),
-  });
-  const alertId = alertData?.id ?? '';
+  
+
+  
+  
+  
 
   // keyed by teamNumber — only IN_PROGRESS runs lock the card
   const activeRunByTeam = useMemo(() => {
@@ -1231,10 +1238,15 @@ function VolunteersTab({ districtId, subWarehouseId }: { districtId: string; sub
 function DeliveriesTab({ districtId, subWarehouseId }: { districtId: string; subWarehouseId: string | null }) {
   const queryClient = useQueryClient();
   const [success, setSuccess] = useState('');
-  const [zone, setZone] = useState('Zone A');
   const [team, setTeam] = useState(1);
   const [abortId, setAbortId] = useState('');
   const [abortReason, setAbortReason] = useState('');
+
+  const { data: alertData } = useQuery({
+    queryKey: queryKeys.alert.status(),
+    queryFn: () => api.get('/api/alert/status').then(r => r.data),
+  });
+  const alertId = alertData?.id ?? '';
 
   const { data: runs = [], isLoading: runsLoading } = useQuery({
     queryKey: queryKeys.hub.deliveries(districtId),
@@ -1242,27 +1254,41 @@ function DeliveriesTab({ districtId, subWarehouseId }: { districtId: string; sub
     enabled: !!districtId,
     refetchInterval: 30_000,
   });
+
+  // fetch roster with current alertId so assignments reflect this deployment session
   const { data: roster } = useQuery({
-    queryKey: queryKeys.hub.volunteers(districtId),
-    queryFn: () => hubApi.getRoster(districtId),
-    enabled: !!districtId,
+    queryKey: [...queryKeys.hub.volunteers(districtId), alertId],
+    queryFn: () => hubApi.getRoster(districtId, alertId || undefined),
+    enabled: !!districtId && !!alertId,
   });
 
-  // find the TL assigned to the selected team number
-  const assignedTL = useMemo(() => {
-    const allVols = roster?.volunteers ?? [];
-    return allVols.find(
-      (v: Volunteer) =>
-        v.role === 'TEAM_LEADER' &&
-        v.status !== 'INACTIVE' &&
-        v.assignments?.[0]?.teamNumber === team
-    ) ?? null;
-  }, [roster, team]);
+  // build team map from current alert assignments
+  // teamMap[teamNumber] = { tl, zone }
+  const teamMap = useMemo(() => {
+    const map: Record<number, { tl: Volunteer; zone: string }> = {};
+    (roster?.volunteers ?? []).forEach((v: Volunteer) => {
+      if (v.role === 'TEAM_LEADER' && v.assignments?.[0]) {
+        const a = v.assignments[0];
+        map[a.teamNumber] = { tl: v, zone: a.zone };
+      }
+    });
+    return map;
+  }, [roster]);
 
-  // auto-fill lead when team selection changes
+  // available team numbers = teams with a TL assigned this alert
+  const deployedTeamNumbers = useMemo(
+    () => Object.keys(teamMap).map(Number).sort((a, b) => a - b),
+    [teamMap]
+  );
+
+  // auto-select first available team on load
   useEffect(() => {
-    setLeadId(assignedTL?.id ?? '');
-  }, [assignedTL]);
+    if (deployedTeamNumbers.length > 0 && !deployedTeamNumbers.includes(team)) {
+      setTeam(deployedTeamNumbers[0]);
+    }
+  }, [deployedTeamNumbers]);
+
+  const selectedTeamData = teamMap[team] ?? null;
 
   const invalidateDeliveries = useCallback(() => {
     queryClient.invalidateQueries({ queryKey: queryKeys.hub.deliveries(districtId) });
@@ -1272,26 +1298,37 @@ function DeliveriesTab({ districtId, subWarehouseId }: { districtId: string; sub
   const startMutation = useMutation({
     mutationFn: hubApi.startRun,
     onSuccess: (_, vars) => {
-      setSuccess(`Team ${vars.teamNumber} departed for ${vars.zone}.`);
-      setLeadId('');
+      setSuccess(`Team ${vars.teamNumber} departed for ${selectedTeamData?.zone ?? ''}.`);
       invalidateDeliveries();
     },
   });
   const completeMutation = useMutation({
     mutationFn: hubApi.completeRun,
-    onSuccess: () => { setSuccess('Run marked complete.'); invalidateDeliveries(); },
+    onSuccess: () => {
+      setSuccess('Run marked complete. Team returned to base.');
+      invalidateDeliveries();
+      // also bust roster so volunteer statuses update
+      queryClient.invalidateQueries({ queryKey: queryKeys.hub.volunteers(districtId) });
+    },
   });
   const abortMutation = useMutation({
     mutationFn: ({ id, reason }: { id: string; reason: string }) => hubApi.abortRun(id, reason),
     onSuccess: () => {
-      setSuccess('Run aborted. Volunteers standing down.');
+      setSuccess('Run aborted. Team standing down.');
       setAbortId(''); setAbortReason('');
       invalidateDeliveries();
+      queryClient.invalidateQueries({ queryKey: queryKeys.hub.volunteers(districtId) });
     },
   });
 
   const activeRuns = useMemo(() => runs.filter((r: DeliveryRun) => r.status === 'IN_PROGRESS'), [runs]);
-  const pastRuns = useMemo(() => runs.filter((r: DeliveryRun) => r.status !== 'IN_PROGRESS'), [runs]);
+  const pastRuns   = useMemo(() => runs.filter((r: DeliveryRun) => r.status !== 'IN_PROGRESS'), [runs]);
+
+  // team is locked if it already has an active run
+  const activeRunForTeam = useMemo(
+    () => activeRuns.find((r: DeliveryRun) => r.teamNumber === team) ?? null,
+    [activeRuns, team]
+  );
 
   const mutationError =
     (startMutation.error as { response?: { data?: { error?: string } } })?.response?.data?.error ??
@@ -1324,29 +1361,48 @@ function DeliveriesTab({ districtId, subWarehouseId }: { districtId: string; sub
         <div className="card p-5">
           <SectionTitle sub="Fixed departure times: 07:00 / 11:00 / 15:00">Start Delivery Run</SectionTitle>
           <div className="space-y-3">
-            <div className="grid grid-cols-2 gap-3">
+
+            <div>
+              <label className="label">Team #</label>
+              {deployedTeamNumbers.length === 0 ? (
+                <div className="bg-accent-orange/10 border border-accent-orange/20 rounded px-3 py-2">
+                  <p className="font-mono text-[10px] text-accent-orange">
+                    No teams deployed yet. Go to Volunteers tab and deploy a team first.
+                  </p>
+                </div>
+              ) : (
+                <select
+                  value={team}
+                  onChange={e => setTeam(Number(e.target.value))}
+                  className="input">
+                  {deployedTeamNumbers.map(n => (
+                    <option key={n} value={n}>Team {n}</option>
+                  ))}
+                </select>
+              )}
+            </div>
+
+            {/* zone — auto-filled from team assignment, read only */}
+            {selectedTeamData && (
               <div>
                 <label className="label">Zone</label>
-                <select value={zone} onChange={e => setZone(e.target.value)} className="input">
-                  {['Zone A', 'Zone B', 'Zone C'].map(z => <option key={z}>{z}</option>)}
-                </select>
+                <div className="bg-bg-elevated rounded border border-bg-border px-3 py-2">
+                  <span className="font-mono text-sm text-text-primary">{selectedTeamData.zone}</span>
+                  <span className="font-mono text-[10px] text-text-muted ml-2">from team assignment</span>
+                </div>
               </div>
-              <div>
-                <label className="label">Team #</label>
-                <select value={team} onChange={e => setTeam(Number(e.target.value))} className="input">
-                  {[1, 2, 3].map(n => <option key={n} value={n}>Team {n}</option>)}
-                </select>
-              </div>
-            </div>
+            )}
+
+            {/* team lead — auto-filled from team assignment, read only */}
             <div>
               <label className="label">Team Lead</label>
-              {assignedTL ? (
+              {selectedTeamData ? (
                 <div className="bg-bg-elevated rounded border border-bg-border px-3 py-2 flex items-center justify-between">
                   <div>
-                    <span className="font-sans text-sm text-text-primary">{assignedTL.name}</span>
+                    <span className="font-sans text-sm text-text-primary">{selectedTeamData.tl.name}</span>
                     <span className={`ml-2 font-mono text-[10px] ${
-                      assignedTL.status === 'DEPLOYED' ? 'text-accent-blue' : 'text-accent-green'
-                    }`}>· {assignedTL.status}</span>
+                      selectedTeamData.tl.status === 'DEPLOYED' ? 'text-accent-blue' : 'text-accent-green'
+                    }`}>· {selectedTeamData.tl.status}</span>
                   </div>
                   <span className="font-mono text-[9px] px-1.5 py-0.5 rounded border text-accent-blue border-accent-blue/30 bg-accent-blue/5">
                     TL
@@ -1356,19 +1412,30 @@ function DeliveriesTab({ districtId, subWarehouseId }: { districtId: string; sub
                 <div className="bg-bg-elevated rounded border border-accent-orange/20 px-3 py-2">
                   <p className="font-mono text-[10px] text-accent-orange">
                     No team leader assigned to Team {team}.
-                    Go to Volunteers tab and deploy a team first.
                   </p>
                 </div>
               )}
             </div>
-            <button
-              onClick={() => subWarehouseId && assignedTL && startMutation.mutate({
-                subWarehouseId, teamNumber: team, zone, leadVolunteerId: assignedTL.id,
-              })}
-              disabled={startMutation.isPending || !assignedTL || !subWarehouseId}
-              className="btn-primary w-full">
-              {startMutation.isPending ? 'Departing...' : '▶ Start Run'}
-            </button>
+
+            {activeRunForTeam ? (
+              <div className="bg-accent-orange/10 border border-accent-orange/20 rounded px-3 py-2">
+                <p className="font-mono text-[10px] text-accent-orange">
+                  Team {team} already has an active run. Complete or abort it first.
+                </p>
+              </div>
+            ) : (
+              <button
+                onClick={() => subWarehouseId && selectedTeamData && startMutation.mutate({
+                  subWarehouseId,
+                  teamNumber: team,
+                  zone: selectedTeamData.zone,
+                  leadVolunteerId: selectedTeamData.tl.id,
+                })}
+                disabled={startMutation.isPending || !selectedTeamData || !subWarehouseId}
+                className="btn-primary w-full">
+                {startMutation.isPending ? 'Departing...' : '▶ Start Run'}
+              </button>
+            )}
           </div>
         </div>
 

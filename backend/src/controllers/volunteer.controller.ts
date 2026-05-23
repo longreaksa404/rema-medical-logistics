@@ -138,7 +138,8 @@ export async function assignTeamHandler(req: Request, res: Response): Promise<vo
 
 export async function roster(req: Request, res: Response): Promise<void> {
   try {
-    const result = await getDistrictRoster(req.params.districtId);
+    const alertId = req.query.alertId as string | undefined;
+    const result = await getDistrictRoster(req.params.districtId, alertId);
     res.json(result);
   } catch (err) {
     const message = err instanceof Error ? err.message : 'District not found';
