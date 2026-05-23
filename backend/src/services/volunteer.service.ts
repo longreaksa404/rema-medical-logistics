@@ -149,8 +149,8 @@ export async function assignVolunteer(data: {
   const alert = await prisma.floodAlert.findUnique({ where: { id: alertId } });
   if (!alert) throw new Error('Flood alert not found');
 
-  if (teamNumber < 1 || teamNumber > 3) {
-    throw new Error('teamNumber must be 1, 2, or 3 (Section B.4)');
+  if (teamNumber < 1) {
+    throw new Error('teamNumber must be 1 or greater');
   }
 
   await prisma.volunteer.update({
@@ -187,8 +187,8 @@ export async function assignTeam(data: {
   const alert = await prisma.floodAlert.findUnique({ where: { id: alertId } });
   if (!alert) throw new Error('Flood alert not found');
 
-  if (teamNumber < 1 || teamNumber > 3) {
-    throw new Error('teamNumber must be 1, 2, or 3 (Section B.4)');
+  if (teamNumber < 1) {
+    throw new Error('teamNumber must be 1 or greater');
   }
 
   const allIds = [leaderId, ...memberIds];
