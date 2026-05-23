@@ -1,5 +1,5 @@
 // VolunteerPage.tsx — V8 Volunteer View
-// Updated: householdSize + chronicIllCount inputs, emkQuantity breakdown in score panel
+// Updated: 70/30 layout, audit log history under live score panel
 
 import { useState, useCallback, useMemo } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
@@ -51,6 +51,18 @@ const INCIDENT_TYPES = [
 ] as const;
 
 const BAND_ORDER: Record<PriorityBand, number> = { CRITICAL: 0, HIGH: 1, MEDIUM: 2, STANDARD: 3 };
+
+// ─── HELPERS ──────────────────────────────────────────────────────────────────
+
+function timeAgo(iso: string) {
+  const diff = Date.now() - new Date(iso).getTime();
+  const m = Math.floor(diff / 60000);
+  if (m < 1) return 'just now';
+  if (m < 60) return `${m}m ago`;
+  const h = Math.floor(m / 60);
+  if (h < 24) return `${h}h ago`;
+  return `${Math.floor(h / 24)}d ago`;
+}
 
 // ─── SKELETON ─────────────────────────────────────────────────────────────────
 
@@ -126,7 +138,6 @@ function OptionButton({ selected, onClick, children, danger = false }: {
 }
 
 // ─── EMK QUANTITY BADGE ───────────────────────────────────────────────────────
-// Shows the full kit breakdown: e.g. "1x EMK3 + 1x EMK2 + 1x EMK1"
 
 function EmkQuantityBadge({ emk3, emk2, emk1, total }: { emk3: number; emk2: number; emk1: number; total: number }) {
   const parts: string[] = [];
@@ -146,6 +157,66 @@ function EmkQuantityBadge({ emk3, emk2, emk1, total }: { emk3: number; emk2: num
   );
 }
 
+// ─── AUDIT LOG ────────────────────────────────────────────────────────────────
+// Shows last 10 assessed households for this district — placed below live score
+
+function AssessAuditLog({ districtId }: { districtId: string }) {
+  const { data: history = [], isLoading } = useQuery({
+    queryKey: [...queryKeys.households.queue(districtId), 'all'],
+    queryFn: () => householdsApi.list({ districtId }),
+    enabled: !!districtId,
+    staleTime: 15_000,
+  });
+
+  // sort by createdAt descending, take last 10
+  const recent = useMemo(
+    () => [...history]
+      .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
+      .slice(0, 10),
+    [history]
+  );
+
+  if (isLoading) {
+    return (
+      <div className="card p-4 space-y-2">
+        <p className="font-mono text-[10px] text-text-muted uppercase tracking-widest mb-3">Assessment History</p>
+        {[...Array(3)].map((_, i) => <Skeleton key={i} className="h-10" />)}
+      </div>
+    );
+  }
+
+  return (
+    <div className="card p-4">
+      <p className="font-mono text-[10px] text-text-muted uppercase tracking-widest mb-3">
+        Assessment History
+      </p>
+      {recent.length === 0 ? (
+        <p className="font-mono text-[10px] text-text-muted text-center py-4">No assessments yet this session.</p>
+      ) : (
+        <div className="space-y-2">
+          {recent.map(h => {
+            const cfg = BAND_CONFIG[h.priorityBand];
+            return (
+              <div key={h.id} className="flex items-start gap-2 py-2 border-b border-bg-border last:border-0">
+                <div className={`w-1.5 h-1.5 rounded-full flex-shrink-0 mt-1.5 ${cfg.dot}`} />
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-1.5 flex-wrap mb-0.5">
+                    <span className={`font-mono text-[9px] font-bold ${cfg.color}`}>{cfg.label}</span>
+                    <span className={`font-mono text-[9px] font-bold ${EMK_COLORS[h.recommendedEmk]}`}>{h.recommendedEmk}</span>
+                    <span className="font-mono text-[9px] text-text-muted">{h.totalScore}/20</span>
+                  </div>
+                  <p className="font-mono text-[9px] text-text-secondary truncate">{h.address}</p>
+                </div>
+                <span className="font-mono text-[9px] text-text-muted flex-shrink-0">{timeAgo(h.createdAt)}</span>
+              </div>
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
+}
+
 // ─── TAB: ASSESS ─────────────────────────────────────────────────────────────
 
 function AssessTab({ districtId }: { districtId: string }) {
@@ -161,7 +232,6 @@ function AssessTab({ districtId }: { districtId: string }) {
   const [submittedResult, setSubmittedResult] = useState<Household | null>(null);
 
   const cat2 = computeCat2(cat2Flags);
-  // derive hasVulnerableMember from cat2 flags — no extra input needed
   const hasVulnerableMember = cat2Flags.size > 0;
 
   const liveScore = useMemo(
@@ -190,6 +260,8 @@ function AssessTab({ districtId }: { districtId: string }) {
     onSuccess: (result) => {
       setSubmittedResult(result);
       queryClient.invalidateQueries({ queryKey: queryKeys.households.queue(districtId) });
+      // invalidate audit log too
+      queryClient.invalidateQueries({ queryKey: [...queryKeys.households.queue(districtId), 'all'] });
       queryClient.invalidateQueries({ queryKey: queryKeys.dashboard.summary() });
     },
   });
@@ -238,7 +310,6 @@ function AssessTab({ districtId }: { districtId: string }) {
               <span className="font-mono text-xs text-text-muted">Primary EMK</span>
               <span className={`font-mono text-sm font-bold ${EMK_COLORS[submittedResult.recommendedEmk]}`}>{submittedResult.recommendedEmk}</span>
             </div>
-            {/* show quantity breakdown if available */}
             {submittedResult.totalEmkQuantity !== undefined && submittedResult.totalEmkQuantity > 0 && (
               <div className="flex justify-between items-start py-1.5 border-t border-bg-border">
                 <span className="font-mono text-xs text-text-muted">Kit breakdown</span>
@@ -267,49 +338,49 @@ function AssessTab({ districtId }: { districtId: string }) {
     );
   }
 
-  // ── Form view ────────────────────────────────────────────────────────────────
+  // ── Form view — 70/30 layout ──────────────────────────────────────────────
   return (
     <div className="space-y-5">
       {submitError && <ErrorBox msg={submitError} onDismiss={() => submitMutation.reset()} />}
 
       <div className="flex flex-col lg:flex-row gap-5">
-        {/* ── Left: form categories ── */}
-        <div className="flex-1 space-y-4">
+
+        {/* ── Left: form categories — 70% ── */}
+        <div className="flex-1 min-w-0 space-y-4">
           <div className="card p-5">
             <SectionTitle>Household Address</SectionTitle>
             <input type="text" className="input" placeholder="e.g. 45 Le Loi Street, Ward 3"
               value={address} onChange={e => setAddress(e.target.value)} />
           </div>
 
-          {/* ── household size + chronic ill count ── */}
           <div className="card p-5">
             <SectionTitle sub="Used to calculate how many kits to deliver">Household Size</SectionTitle>
-              <div className="flex items-center gap-4">
-                <div>
-                  <label className="label">Total people in household</label>
-                  <div className="flex items-center gap-2">
-                    <button onClick={() => setHouseholdSize(Math.max(1, householdSize - 1))}
-                      className="w-8 h-8 rounded border border-bg-border text-text-secondary hover:text-text-primary font-mono text-lg flex items-center justify-center">-</button>
-                    <span className="font-mono text-xl font-bold text-text-primary w-8 text-center">{householdSize}</span>
-                    <button onClick={() => setHouseholdSize(Math.min(20, householdSize + 1))}
-                      className="w-8 h-8 rounded border border-bg-border text-text-secondary hover:text-text-primary font-mono text-lg flex items-center justify-center">+</button>
-                  </div>
-                  <p className="font-mono text-[9px] text-text-muted mt-1">
-                    EMK3 is determined by Category 1 — EMK2 by vulnerability flags
-                  </p>
+            <div className="flex items-center gap-4">
+              <div>
+                <label className="label">Total people in household</label>
+                <div className="flex items-center gap-2">
+                  <button onClick={() => setHouseholdSize(Math.max(1, householdSize - 1))}
+                    className="w-8 h-8 rounded border border-bg-border text-text-secondary hover:text-text-primary font-mono text-lg flex items-center justify-center">-</button>
+                  <span className="font-mono text-xl font-bold text-text-primary w-8 text-center">{householdSize}</span>
+                  <button onClick={() => setHouseholdSize(Math.min(20, householdSize + 1))}
+                    className="w-8 h-8 rounded border border-bg-border text-text-secondary hover:text-text-primary font-mono text-lg flex items-center justify-center">+</button>
                 </div>
+                <p className="font-mono text-[9px] text-text-muted mt-1">
+                  EMK3 determined by Category 1 — EMK2 by vulnerability flags
+                </p>
               </div>
-              {liveScore.emkQuantity && (
-                <div className="mt-4 pt-3 border-t border-bg-border">
-                  <EmkQuantityBadge
-                    emk3={liveScore.emkQuantity.emk3}
-                    emk2={liveScore.emkQuantity.emk2}
-                    emk1={liveScore.emkQuantity.emk1}
-                    total={liveScore.emkQuantity.total}
-                  />
-                </div>
-              )}
             </div>
+            {liveScore.emkQuantity && (
+              <div className="mt-4 pt-3 border-t border-bg-border">
+                <EmkQuantityBadge
+                  emk3={liveScore.emkQuantity.emk3}
+                  emk2={liveScore.emkQuantity.emk2}
+                  emk1={liveScore.emkQuantity.emk1}
+                  total={liveScore.emkQuantity.total}
+                />
+              </div>
+            )}
+          </div>
 
           <div className="card p-5">
             <div className="flex items-center justify-between mb-3">
@@ -409,36 +480,40 @@ function AssessTab({ districtId }: { districtId: string }) {
           </div>
         </div>
 
-        {/* ── Right: live score panel ── */}
-        <div className="w-full lg:w-72 flex-shrink-0">
+        {/* ── Right: live score + audit log — 30% ── */}
+        <div className="w-full lg:w-[30%] flex-shrink-0">
           <div className="lg:sticky lg:top-6 space-y-4">
+
+            {/* live score card */}
             <div className={`card p-5 border-2 transition-colors duration-300 ${bandCfg.border}`}>
               <p className="font-mono text-[10px] text-text-muted uppercase tracking-widest mb-4">Live Score</p>
-              <div className="flex items-center gap-4">
-                <div className="relative w-20 h-20 flex-shrink-0">
+
+              {/* score circle + band — larger */}
+              <div className="flex flex-col items-center gap-4 mb-4">
+                <div className="relative w-28 h-28">
                   <svg className="w-full h-full -rotate-90" viewBox="0 0 64 64">
-                    <circle cx="32" cy="32" r="26" fill="none" stroke="#21262d" strokeWidth="6" />
+                    <circle cx="32" cy="32" r="26" fill="none" stroke="#21262d" strokeWidth="5" />
                     <circle cx="32" cy="32" r="26" fill="none"
                       stroke={liveScore.priorityBand === 'CRITICAL' ? '#f85149' : liveScore.priorityBand === 'HIGH' ? '#f0883e' : liveScore.priorityBand === 'MEDIUM' ? '#d29922' : '#3fb950'}
-                      strokeWidth="6" strokeDasharray={`${(scorePct / 100) * 163.4} 163.4`}
+                      strokeWidth="5" strokeDasharray={`${(scorePct / 100) * 163.4} 163.4`}
                       strokeLinecap="round" className="transition-all duration-500" />
                   </svg>
                   <div className="absolute inset-0 flex flex-col items-center justify-center">
-                    <span className={`font-mono text-2xl font-bold leading-none ${bandCfg.color}`}>{liveScore.totalScore}</span>
-                    <span className="font-mono text-[8px] text-text-muted">/20</span>
+                    <span className={`font-mono text-3xl font-bold leading-none ${bandCfg.color}`}>{liveScore.totalScore}</span>
+                    <span className="font-mono text-[9px] text-text-muted">/20</span>
                   </div>
                 </div>
-                <div>
-                  <div className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded border font-mono text-xs font-bold mb-1.5 ${bandCfg.bg} ${bandCfg.border} ${bandCfg.color}`}>
-                    <span className={`w-1.5 h-1.5 rounded-full ${bandCfg.dot}`} />{bandCfg.label}
+                <div className="text-center">
+                  <div className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded border font-mono text-sm font-bold mb-2 ${bandCfg.bg} ${bandCfg.border} ${bandCfg.color}`}>
+                    <span className={`w-2 h-2 rounded-full ${bandCfg.dot}`} />{bandCfg.label}
                   </div>
-                  <p className={`font-mono text-xs font-bold ${EMK_COLORS[liveScore.recommendedEmk]}`}>→ {liveScore.recommendedEmk}</p>
+                  <p className={`font-mono text-sm font-bold ${EMK_COLORS[liveScore.recommendedEmk]}`}>→ {liveScore.recommendedEmk}</p>
                 </div>
               </div>
 
-              {/* kit quantity preview in score panel */}
+              {/* kit quantity */}
               {liveScore.emkQuantity && (
-                <div className="mt-3 pt-3 border-t border-bg-border">
+                <div className="pt-3 border-t border-bg-border mb-4">
                   <EmkQuantityBadge
                     emk3={liveScore.emkQuantity.emk3}
                     emk2={liveScore.emkQuantity.emk2}
@@ -448,13 +523,14 @@ function AssessTab({ districtId }: { districtId: string }) {
                 </div>
               )}
 
-              <div className="mt-4 space-y-2">
+              {/* category bars */}
+              <div className="space-y-2">
                 {[
-                  { label: 'Medical',      val: cat1, max: 8, color: 'bg-accent-red'    },
-                  { label: 'Vulnerability',val: cat2, max: 5, color: 'bg-accent-orange' },
-                  { label: 'Flood Exp.',   val: cat3, max: 4, color: 'bg-accent-yellow' },
-                  { label: 'Self-Suff.',   val: cat4, max: 2, color: 'bg-accent-blue'   },
-                  { label: 'Isolation',    val: cat5, max: 1, color: 'bg-accent-green'  },
+                  { label: 'Medical',       val: cat1, max: 8, color: 'bg-accent-red'    },
+                  { label: 'Vulnerability', val: cat2, max: 5, color: 'bg-accent-orange' },
+                  { label: 'Flood Exp.',    val: cat3, max: 4, color: 'bg-accent-yellow' },
+                  { label: 'Self-Suff.',    val: cat4, max: 2, color: 'bg-accent-blue'   },
+                  { label: 'Isolation',     val: cat5, max: 1, color: 'bg-accent-green'  },
                 ].map(bar => (
                   <div key={bar.label} className="flex items-center gap-2">
                     <span className="font-mono text-[9px] text-text-muted w-20 flex-shrink-0">{bar.label}</span>
@@ -468,6 +544,7 @@ function AssessTab({ districtId }: { districtId: string }) {
               </div>
             </div>
 
+            {/* delivery guidance */}
             <div className={`rounded border px-4 py-3 ${bandCfg.bg} ${bandCfg.border}`}>
               <p className={`font-mono text-[10px] font-bold mb-0.5 ${bandCfg.color}`}>Delivery Guidance</p>
               <p className="font-mono text-[10px] text-text-secondary">
@@ -478,6 +555,7 @@ function AssessTab({ districtId }: { districtId: string }) {
               </p>
             </div>
 
+            {/* submit button */}
             <button
               onClick={() => address.trim() && submitMutation.mutate({
                 address: address.trim(), districtId,
@@ -490,6 +568,10 @@ function AssessTab({ districtId }: { districtId: string }) {
               {submitMutation.isPending ? 'Submitting...' : `Submit Assessment · ${liveScore.totalScore}/20`}
             </button>
             <p className="font-mono text-[10px] text-text-muted text-center">5 categories, 20-point scale</p>
+
+            {/* audit log — below submit */}
+            <AssessAuditLog districtId={districtId} />
+
           </div>
         </div>
       </div>
@@ -529,7 +611,6 @@ function DeliverTab({ districtId }: { districtId: string }) {
         deliveryRunId: activeRun!.id,
         householdId: household.id,
         emkType: household.recommendedEmk,
-        // use totalEmkQuantity from household record if available, else 1
         quantity: household.totalEmkQuantity ?? 1,
         deliveredAt: new Date().toISOString(),
       }),
@@ -599,7 +680,6 @@ function DeliverTab({ districtId }: { districtId: string }) {
                         )}
                       </div>
                       <p className="font-sans text-sm text-text-primary">{h.address}</p>
-                      {/* show kit breakdown if more than 1 kit */}
                       {qty > 1 && (h.emk3Quantity || h.emk2Quantity || h.emk1Quantity) && (
                         <div className="mt-1">
                           <EmkQuantityBadge
@@ -644,7 +724,7 @@ function DeliverTab({ districtId }: { districtId: string }) {
   );
 }
 
-// ─── TAB: REPORT (unchanged) ──────────────────────────────────────────────────
+// ─── TAB: REPORT ──────────────────────────────────────────────────────────────
 
 function ReportTab({ districtId }: { districtId: string }) {
   const queryClient = useQueryClient();
@@ -763,7 +843,7 @@ function ReportTab({ districtId }: { districtId: string }) {
   );
 }
 
-// ─── MAIN VOLUNTEER PAGE (unchanged) ─────────────────────────────────────────
+// ─── MAIN VOLUNTEER PAGE ──────────────────────────────────────────────────────
 
 export function VolunteerPage() {
   usePageTitle('Volunteer');
