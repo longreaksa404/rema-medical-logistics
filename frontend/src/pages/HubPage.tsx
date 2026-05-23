@@ -704,21 +704,18 @@ function VolunteersTab({ districtId, subWarehouseId }: { districtId: string; sub
   const queryClient = useQueryClient();
   const [success, setSuccess] = useState('');
 
-  // dynamic team slots — starts at 3, hub manager can add more
-  const [teamSlots, setTeamSlots] = useState<number[]>([1, 2, 3]);
+  const [selectedTeamNum, setSelectedTeamNum] = useState<number | 'new'>(1);
+  const [selectedZone, setSelectedZone] = useState('Zone A');
+  const [selectedLeaderId, setSelectedLeaderId] = useState('');
+  const [selectedMemberIds, setSelectedMemberIds] = useState<string[]>([]);
 
   const [communityName, setCommunityName] = useState('');
   const [communityPhone, setCommunityPhone] = useState('');
-
-  const [teamZones, setTeamZones] = useState<Record<number, string>>({ 1: 'Zone A', 2: 'Zone B', 3: 'Zone C' });
-  const [teamLeaderIds, setTeamLeaderIds] = useState<Record<number, string>>({ 1: '', 2: '', 3: '' });
-  const [teamMemberIds, setTeamMemberIds] = useState<Record<number, string[]>>({ 1: [], 2: [], 3: [] });
 
   const { data: alertData } = useQuery({
     queryKey: queryKeys.alert.status(),
     queryFn: () => api.get('/api/alert/status').then(r => r.data),
   });
-
   const alertId = alertData?.id ?? '';
 
   const { data: roster, isLoading: rosterLoading } = useQuery({
@@ -727,7 +724,6 @@ function VolunteersTab({ districtId, subWarehouseId }: { districtId: string; sub
     enabled: !!districtId,
   });
 
-  // source of truth for team lock state — a team is locked only when it has an IN_PROGRESS run
   const { data: runs = [], isLoading: runsLoading } = useQuery({
     queryKey: queryKeys.hub.deliveries(districtId),
     queryFn: () => hubApi.getDeliveryRuns(districtId),
@@ -735,40 +731,82 @@ function VolunteersTab({ districtId, subWarehouseId }: { districtId: string; sub
     refetchInterval: 30_000,
   });
 
-  
-
-  
-  
-  
-
-  // keyed by teamNumber — only IN_PROGRESS runs lock the card
-  const activeRunByTeam = useMemo(() => {
-    const map: Record<number, DeliveryRun> = {};
-    runs
-      .filter((r: DeliveryRun) => r.status === 'IN_PROGRESS')
-      .forEach((r: DeliveryRun) => { map[r.teamNumber] = r; });
-    return map;
-  }, [runs]);
-
   const invalidateRoster = useCallback(() => {
-    queryClient.invalidateQueries({ queryKey: queryKeys.hub.volunteers(districtId) });
+    queryClient.invalidateQueries({ queryKey: [...queryKeys.hub.volunteers(districtId), alertId] });
     queryClient.invalidateQueries({ queryKey: queryKeys.hub.deliveries(districtId) });
-  }, [queryClient, districtId]);
+  }, [queryClient, districtId, alertId]);
+
+  // derive existing team numbers from current alert assignments
+  const existingTeamNumbers = useMemo(() => {
+    const nums = new Set<number>();
+    (roster?.volunteers ?? []).forEach((v: Volunteer) => {
+      if (v.assignments?.[0]) nums.add(v.assignments[0].teamNumber);
+    });
+    return Array.from(nums).sort((a, b) => a - b);
+  }, [roster]);
+
+  const nextTeamNumber = useMemo(() => {
+    const allNums = [1, 2, 3, ...existingTeamNumbers];
+    return Math.max(...allNums) + 1;
+  }, [existingTeamNumbers]);
+
+  const resolvedTeamNum = selectedTeamNum === 'new' ? nextTeamNumber : selectedTeamNum;
+
+  // active run for selected team
+  const activeRunForTeam = useMemo(
+    () => runs.find((r: DeliveryRun) => r.status === 'IN_PROGRESS' && r.teamNumber === resolvedTeamNum) ?? null,
+    [runs, resolvedTeamNum]
+  );
+  const isTeamLocked = !!activeRunForTeam;
+
+  // members of selected team from current alert assignments
+  const existingTeamMembers = useMemo(() => {
+    if (selectedTeamNum === 'new') return [];
+    return (roster?.volunteers ?? []).filter(
+      (v: Volunteer) => v.assignments?.[0]?.teamNumber === resolvedTeamNum
+    );
+  }, [roster, selectedTeamNum, resolvedTeamNum]);
+
+  // team is "active" only if members are currently DEPLOYED
+  // after run completes volunteers return to AVAILABLE so this becomes false
+  const isTeamCurrentlyDeployed = existingTeamMembers.some(
+    (v: Volunteer) => v.status === 'DEPLOYED'
+  );
+
+  const existingTeamTL = existingTeamMembers.find((v: Volunteer) => v.role === 'TEAM_LEADER');
+  const existingTeamVols = existingTeamMembers.filter((v: Volunteer) => v.role === 'VOLUNTEER');
+  const existingZone = existingTeamMembers[0]?.assignments?.[0]?.zone ?? '';
+
+  const allVolunteers = roster?.volunteers ?? [];
+  const availableVols = allVolunteers.filter((v: Volunteer) => v.status === 'AVAILABLE');
+  const availableTLs = availableVols.filter((v: Volunteer) => v.role === 'TEAM_LEADER');
+  const availableMembers = availableVols.filter((v: Volunteer) => v.role === 'VOLUNTEER');
+  const deployedCount = allVolunteers.filter((v: Volunteer) => v.status === 'DEPLOYED').length;
+
+  // reset form when team selection changes
+  useEffect(() => {
+    setSelectedLeaderId('');
+    setSelectedMemberIds([]);
+    if (selectedTeamNum !== 'new' && existingZone) {
+      setSelectedZone(existingZone);
+    } else if (selectedTeamNum === 'new') {
+      setSelectedZone('Zone A');
+    }
+  }, [selectedTeamNum]);
 
   const deployTeamMutation = useMutation({
-    mutationFn: (vars: { teamNumber: number; leaderId: string; memberIds: string[]; zone: string }) =>
-      hubApi.assignTeam({
-        subWarehouseId: subWarehouseId!,
-        alertId,
-        zone: vars.zone,
-        teamNumber: vars.teamNumber,
-        leaderId: vars.leaderId,
-        memberIds: vars.memberIds,
-      }),
-    onSuccess: (_, vars) => {
-      setSuccess(`Team ${vars.teamNumber} deployed to ${vars.zone}.`);
-      setTeamLeaderIds(p => ({ ...p, [vars.teamNumber]: '' }));
-      setTeamMemberIds(p => ({ ...p, [vars.teamNumber]: [] }));
+    mutationFn: () => hubApi.assignTeam({
+      subWarehouseId: subWarehouseId!,
+      alertId,
+      zone: selectedZone,
+      teamNumber: resolvedTeamNum,
+      leaderId: selectedLeaderId,
+      memberIds: selectedMemberIds,
+    }),
+    onSuccess: () => {
+      setSuccess(`Team ${resolvedTeamNum} deployed to ${selectedZone}.`);
+      setSelectedLeaderId('');
+      setSelectedMemberIds([]);
       invalidateRoster();
     },
   });
@@ -805,27 +843,11 @@ function VolunteersTab({ districtId, subWarehouseId }: { districtId: string; sub
     },
   });
 
-  const removeTeamSlot = useCallback((teamNum: number) => {
-    setTeamSlots(p => p.filter(n => n !== teamNum));
-    setTeamZones(p => { const n = { ...p }; delete n[teamNum]; return n; });
-    setTeamLeaderIds(p => { const n = { ...p }; delete n[teamNum]; return n; });
-    setTeamMemberIds(p => { const n = { ...p }; delete n[teamNum]; return n; });
-  }, []);
-
   const STATUS_COLORS: Record<string, string> = {
     AVAILABLE: 'text-accent-green border-accent-green/30 bg-accent-green/5',
     DEPLOYED:  'text-accent-blue border-accent-blue/30 bg-accent-blue/5',
     INACTIVE:  'text-text-muted border-bg-border bg-bg-elevated',
   };
-
-  const allVolunteers    = roster?.volunteers ?? [];
-  const availableVols    = allVolunteers.filter((v: Volunteer) => v.status === 'AVAILABLE');
-  const availableTLs     = availableVols.filter((v: Volunteer) => v.role === 'TEAM_LEADER');
-  const availableMembers = availableVols.filter((v: Volunteer) => v.role === 'VOLUNTEER');
-  const deployedCount    = allVolunteers.filter((v: Volunteer) => v.status === 'DEPLOYED').length;
-
-  const allPickedMemberIds = new Set([1, 2, 3].flatMap(n => teamMemberIds[n]));
-  const allPickedLeaderIds = new Set([1, 2, 3].map(n => teamLeaderIds[n]).filter(Boolean));
 
   const mutationError =
     (deployTeamMutation.error as any)?.response?.data?.error ||
@@ -833,14 +855,29 @@ function VolunteersTab({ districtId, subWarehouseId }: { districtId: string; sub
     (statusMutation.error as any)?.response?.data?.error ||
     (communityMutation.error as any)?.response?.data?.error || '';
 
+  const canDeploy =
+    !!alertId &&
+    !!subWarehouseId &&
+    !!selectedLeaderId &&
+    !isTeamLocked &&
+    !isTeamCurrentlyDeployed;
+
+  // build team dropdown options
+  const baseTeams = [1, 2, 3];
+  const allTeamNums = Array.from(new Set([...baseTeams, ...existingTeamNumbers])).sort((a, b) => a - b);
+  const teamOptions: Array<{ label: string; value: number | 'new' }> = [
+    ...allTeamNums.map(n => ({ label: `Team ${n}`, value: n as number })),
+    { label: `+ New Team (Team ${nextTeamNumber})`, value: 'new' as const },
+  ];
+
   if (rosterLoading || runsLoading) {
     return (
       <div className="space-y-4">
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
           {[...Array(4)].map((_, i) => <Skeleton key={i} className="h-20" />)}
         </div>
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
-          {[...Array(3)].map((_, i) => <Skeleton key={i} className="h-56" />)}
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
+          <Skeleton className="h-72" /><Skeleton className="h-48" />
         </div>
         <Skeleton className="h-64" />
       </div>
@@ -893,242 +930,231 @@ function VolunteersTab({ districtId, subWarehouseId }: { districtId: string; sub
         </div>
       )}
 
-      {/* ── TEAM SETUP ────────────────────────────────────────────────────── */}
-      <div>
-        <div className="flex items-center justify-between mb-3">
-          <div className="flex items-center gap-2">
-            <h3 className="font-sans font-bold text-text-primary">Team Setup</h3>
+      {/* ── TEAM SETUP + COMMUNITY VOLUNTEER 50/50 ────────────────────────── */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
+
+        {/* team setup */}
+        <div className="card p-5">
+          <div className="flex items-center justify-between mb-4">
+            <div>
+              <h3 className="font-sans font-bold text-text-primary">Team Setup</h3>
+              <p className="font-mono text-[10px] text-text-muted mt-0.5">
+                Assign a team leader and members before starting a delivery run
+              </p>
+            </div>
             {!alertId && (
-              <span className="font-mono text-[9px] text-accent-orange bg-accent-orange/10 px-2 py-0.5 rounded border border-accent-orange/30">
-                Activate REMA to deploy
+              <span className="font-mono text-[9px] text-accent-orange bg-accent-orange/10 px-2 py-0.5 rounded border border-accent-orange/30 flex-shrink-0">
+                Activate REMA first
               </span>
             )}
           </div>
-          <button
-            onClick={() => {
-              const next = teamSlots[teamSlots.length - 1] + 1;
-              setTeamSlots(p => [...p, next]);
-              setTeamZones(p => ({ ...p, [next]: 'Zone A' }));
-              setTeamLeaderIds(p => ({ ...p, [next]: '' }));
-              setTeamMemberIds(p => ({ ...p, [next]: [] }));
-            }}
-            className="font-mono text-[10px] px-3 py-1 rounded border border-bg-border text-text-muted hover:text-text-primary hover:border-accent-blue/30 transition-colors">
-            + Add Team
-          </button>
-        </div>
 
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
-          {teamSlots.map(teamNum => {
-            // locked = there is an IN_PROGRESS delivery run for this team number
-            const activeRun = activeRunByTeam[teamNum] ?? null;
-            const isLocked = !!activeRun;
+          <div className="space-y-4">
+            {/* team + zone row */}
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label className="label">Team</label>
+                <select
+                  value={String(selectedTeamNum)}
+                  onChange={e => {
+                    const v = e.target.value;
+                    setSelectedTeamNum(v === 'new' ? 'new' : Number(v));
+                  }}
+                  className="input">
+                  {teamOptions.map(o => (
+                    <option key={String(o.value)} value={String(o.value)}>
+                      {o.label}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              <div>
+                <label className="label">Zone</label>
+                <select
+                  value={selectedZone}
+                  onChange={e => setSelectedZone(e.target.value)}
+                  disabled={isTeamCurrentlyDeployed}
+                  className="input">
+                  {['Zone A', 'Zone B', 'Zone C'].map(z => <option key={z}>{z}</option>)}
+                </select>
+              </div>
+            </div>
 
-            // members for this team = available + not picked by another team setup card
-            const membersForThisTeam = availableMembers.filter(
-              (v: Volunteer) =>
-                !allPickedMemberIds.has(v.id) ||
-                teamMemberIds[teamNum].includes(v.id)
-            );
-            const leadersForThisTeam = availableTLs.filter(
-              (v: Volunteer) =>
-                !allPickedLeaderIds.has(v.id) ||
-                teamLeaderIds[teamNum] === v.id
-            );
-
-            const selectedLeaderId  = teamLeaderIds[teamNum];
-            const selectedMemberIds = teamMemberIds[teamNum];
-            const canDeploy = !!alertId && !!subWarehouseId && !!selectedLeaderId && !isLocked;
-
-            return (
-              <div key={teamNum} className={`card p-4 ${isLocked ? 'border-accent-green/30 bg-accent-green/5' : 'border-bg-border'}`}>
-                <div className="flex items-center justify-between mb-3">
-                  <div className="flex items-center gap-2">
-                    <span className="font-mono text-sm font-bold text-text-primary">Team {teamNum}</span>
-                    {isLocked && (
+            {/* show existing team info OR setup form */}
+            {selectedTeamNum !== 'new' && isTeamCurrentlyDeployed ? (
+              // currently deployed — read-only view
+              <div className="space-y-3">
+                <div className={`rounded-lg border p-3 space-y-2 ${
+                  isTeamLocked
+                    ? 'border-accent-green/30 bg-accent-green/5'
+                    : 'border-accent-blue/20 bg-accent-blue/5'
+                }`}>
+                  <div className="flex items-center justify-between mb-1">
+                    <p className="font-mono text-[10px] text-text-muted uppercase tracking-widest">
+                      Current Team {resolvedTeamNum}
+                    </p>
+                    {isTeamLocked && (
                       <span className="font-mono text-[9px] px-1.5 py-0.5 rounded border text-accent-green border-accent-green/30 bg-accent-green/5">
                         IN FIELD
                       </span>
                     )}
                   </div>
-                  <div className="flex items-center gap-2">
-                    <select
-                      value={teamZones[teamNum]}
-                      onChange={e => setTeamZones(p => ({ ...p, [teamNum]: e.target.value }))}
-                      disabled={isLocked}
-                      className="input py-1 text-xs w-28">
-                      {['Zone A', 'Zone B', 'Zone C'].map(z => <option key={z}>{z}</option>)}
-                    </select>
-                    {/* only extra teams (4+) can be removed, and only when not locked */}
-                    {teamNum > 3 && !isLocked && (
-                      <button
-                        onClick={() => removeTeamSlot(teamNum)}
-                        className="font-mono text-[10px] px-2 py-1 rounded border border-bg-border text-text-muted hover:border-accent-red/30 hover:text-accent-red transition-colors flex-shrink-0">
-                        ✕
-                      </button>
-                    )}
-                  </div>
-                </div>
-
-                {isLocked ? (
-                  // locked — show active run info, no setup form
-                  <div className="space-y-2">
+                  {existingTeamTL && (
                     <div className="flex items-center gap-2">
                       <span className="font-mono text-[9px] px-1.5 py-0.5 rounded border text-accent-blue border-accent-blue/30 bg-accent-blue/5 flex-shrink-0">
                         TL
                       </span>
-                      <span className="font-sans text-sm text-text-primary">
-                        {activeRun.leadVolunteer?.name ?? '—'}
+                      <span className="font-sans text-sm text-text-primary">{existingTeamTL.name}</span>
+                    </div>
+                  )}
+                  {existingTeamVols.map((v: Volunteer) => (
+                    <div key={v.id} className="flex items-center gap-2">
+                      <span className="font-mono text-[9px] px-1.5 py-0.5 rounded border text-text-muted border-bg-border flex-shrink-0">
+                        V
                       </span>
+                      <span className="font-sans text-sm text-text-secondary">{v.name}</span>
                     </div>
-                    {/* members deployed under this team from roster */}
-                    {allVolunteers
-                      .filter(
-                        (v: Volunteer) =>
-                          v.status === 'DEPLOYED' &&
-                          v.role === 'VOLUNTEER' &&
-                          v.assignments?.[0]?.teamNumber === teamNum
-                      )
-                      .map((v: Volunteer) => (
-                        <div key={v.id} className="flex items-center gap-2">
-                          <span className="font-mono text-[9px] px-1.5 py-0.5 rounded border text-text-muted border-bg-border flex-shrink-0">
-                            V
-                          </span>
-                          <span className="font-sans text-sm text-text-secondary">{v.name}</span>
-                        </div>
-                      ))}
-                    <div className="pt-2 border-t border-bg-border mt-2">
-                      <p className="font-mono text-[9px] text-text-muted">
-                        {activeRun.zone} · departed {fmtTime(activeRun.departedAt)}
-                      </p>
-                      <p className="font-mono text-[9px] text-text-muted mt-0.5">
-                        {activeRun.receipts?.length ?? 0} deliveries recorded
-                      </p>
-                      <p className="font-mono text-[9px] text-accent-orange mt-1.5">
-                        Complete or abort this run in the Deliveries tab to unlock.
-                      </p>
-                    </div>
+                  ))}
+                  <div className="pt-2 border-t border-bg-border">
+                    <p className="font-mono text-[9px] text-text-muted">
+                      {existingZone}
+                      {activeRunForTeam && (
+                        ` · departed ${fmtTime(activeRunForTeam.departedAt)} · ${activeRunForTeam.receipts?.length ?? 0} delivered`
+                      )}
+                    </p>
                   </div>
-                ) : (
-                  // unlocked — show setup form
-                  <div className="space-y-3">
-                    <div>
-                      <label className="label">Team Leader</label>
-                      {leadersForThisTeam.length === 0 ? (
-                        <p className="font-mono text-[10px] text-accent-orange">
-                          No available team leaders. Promote one in the roster below.
-                        </p>
-                      ) : (
-                        <select
-                          value={selectedLeaderId}
-                          onChange={e => setTeamLeaderIds(p => ({ ...p, [teamNum]: e.target.value }))}
-                          className="input">
-                          <option value="">Select team leader...</option>
-                          {leadersForThisTeam.map((v: Volunteer) => (
-                            <option key={v.id} value={v.id}>{v.name}</option>
-                          ))}
-                        </select>
-                      )}
-                    </div>
-                    <div>
-                      <label className="label">
-                        Members
-                        <span className="font-mono text-[9px] text-text-muted normal-case ml-2">
-                          {selectedMemberIds.length} selected
-                        </span>
-                      </label>
-                      {membersForThisTeam.length === 0 ? (
-                        <p className="font-mono text-[10px] text-text-muted">
-                          No available volunteers.
-                        </p>
-                      ) : (
-                        <div className="space-y-1 max-h-40 overflow-y-auto">
-                          {membersForThisTeam.map((v: Volunteer) => {
-                            const checked = selectedMemberIds.includes(v.id);
-                            return (
-                              <label key={v.id}
-                                className={`flex items-center gap-2 px-2 py-1.5 rounded border cursor-pointer transition-colors ${
-                                  checked
-                                    ? 'border-accent-blue/30 bg-accent-blue/5'
-                                    : 'border-bg-border hover:bg-bg-elevated/60'
-                                }`}>
-                                <input
-                                  type="checkbox"
-                                  checked={checked}
-                                  onChange={e => {
-                                    setTeamMemberIds(p => ({
-                                      ...p,
-                                      [teamNum]: e.target.checked
-                                        ? [...p[teamNum], v.id]
-                                        : p[teamNum].filter(id => id !== v.id),
-                                    }));
-                                  }}
-                                  className="accent-accent-blue"
-                                />
-                                <span className="font-sans text-xs text-text-primary">{v.name}</span>
-                              </label>
-                            );
-                          })}
-                        </div>
-                      )}
-                    </div>
-                    <button
-                      onClick={() => deployTeamMutation.mutate({
-                        teamNumber: teamNum,
-                        leaderId: selectedLeaderId,
-                        memberIds: selectedMemberIds,
-                        zone: teamZones[teamNum],
-                      })}
-                      disabled={!canDeploy || deployTeamMutation.isPending}
-                      className="btn-primary w-full text-xs py-2">
-                      {deployTeamMutation.isPending ? 'Deploying...' : `Deploy Team ${teamNum}`}
-                    </button>
-                    {!alertId && (
-                      <p className="font-mono text-[9px] text-text-muted text-center">
-                        REMA must be activated first
-                      </p>
-                    )}
+                </div>
+                {isTeamLocked && (
+                  <div className="bg-accent-orange/10 border border-accent-orange/20 rounded px-3 py-2">
+                    <p className="font-mono text-[10px] text-accent-orange">
+                      Team {resolvedTeamNum} is in the field. Complete or abort their run in the Deliveries tab to redeploy.
+                    </p>
                   </div>
                 )}
               </div>
-            );
-          })}
-        </div>
-      </div>
+            ) : (
+              // setup form — new team or team returned from field
+              <div className="space-y-3">
+                <div>
+                  <label className="label">Team Leader</label>
+                  {availableTLs.length === 0 ? (
+                    <p className="font-mono text-[10px] text-accent-orange">
+                      No available team leaders. Promote one in the roster below.
+                    </p>
+                  ) : (
+                    <select
+                      value={selectedLeaderId}
+                      onChange={e => setSelectedLeaderId(e.target.value)}
+                      className="input">
+                      <option value="">Select team leader...</option>
+                      {availableTLs.map((v: Volunteer) => (
+                        <option key={v.id} value={v.id}>{v.name}</option>
+                      ))}
+                    </select>
+                  )}
+                </div>
 
-      {/* ── ADD COMMUNITY VOLUNTEER ───────────────────────────────────────── */}
-      <div className="card p-5 max-w-md">
-        <SectionTitle sub="Field helper with no login account">Add Community Volunteer</SectionTitle>
-        <div className="space-y-3">
-          <div>
-            <label className="label">Full Name</label>
-            <input
-              type="text"
-              className="input"
-              placeholder="Nguyen Van A"
-              value={communityName}
-              onChange={e => setCommunityName(e.target.value)}
-            />
+                <div>
+                  <label className="label">
+                    Members
+                    <span className="font-mono text-[9px] text-text-muted normal-case ml-2">
+                      {selectedMemberIds.length} selected
+                    </span>
+                  </label>
+                  {availableMembers.length === 0 ? (
+                    <p className="font-mono text-[10px] text-text-muted">
+                      No available volunteers.
+                    </p>
+                  ) : (
+                    <div className="space-y-1 max-h-44 overflow-y-auto">
+                      {availableMembers.map((v: Volunteer) => {
+                        const checked = selectedMemberIds.includes(v.id);
+                        return (
+                          <label key={v.id}
+                            className={`flex items-center gap-2 px-2 py-1.5 rounded border cursor-pointer transition-colors ${
+                              checked
+                                ? 'border-accent-blue/30 bg-accent-blue/5'
+                                : 'border-bg-border hover:bg-bg-elevated/60'
+                            }`}>
+                            <input
+                              type="checkbox"
+                              checked={checked}
+                              onChange={e => {
+                                setSelectedMemberIds(p =>
+                                  e.target.checked
+                                    ? [...p, v.id]
+                                    : p.filter(id => id !== v.id)
+                                );
+                              }}
+                              className="accent-accent-blue"
+                            />
+                            <span className="font-sans text-xs text-text-primary">{v.name}</span>
+                          </label>
+                        );
+                      })}
+                    </div>
+                  )}
+                </div>
+
+                <button
+                  onClick={() => deployTeamMutation.mutate()}
+                  disabled={!canDeploy || deployTeamMutation.isPending}
+                  className="btn-primary w-full">
+                  {deployTeamMutation.isPending
+                    ? 'Deploying...'
+                    : `Deploy Team ${resolvedTeamNum} → ${selectedZone}`}
+                </button>
+
+                {!alertId && (
+                  <p className="font-mono text-[9px] text-text-muted text-center">
+                    REMA must be activated before deploying teams
+                  </p>
+                )}
+              </div>
+            )}
           </div>
-          <div>
-            <label className="label">Phone</label>
-            <input
-              type="tel"
-              className="input"
-              placeholder="+84 901 234 567"
-              value={communityPhone}
-              onChange={e => setCommunityPhone(e.target.value)}
-            />
+        </div>
+
+        {/* add community volunteer */}
+        <div className="card p-5">
+          <div className="mb-4">
+            <h3 className="font-sans font-bold text-text-primary">Add Community Volunteer</h3>
+            <p className="font-mono text-[10px] text-text-muted mt-0.5">
+              Field helper with no login account
+            </p>
           </div>
-          <button
-            onClick={() => communityMutation.mutate()}
-            disabled={communityMutation.isPending || !communityName.trim() || !communityPhone.trim()}
-            className="btn-primary w-full">
-            {communityMutation.isPending ? 'Adding...' : 'Add to Roster'}
-          </button>
-          <p className="font-mono text-[10px] text-text-muted">
-            Community volunteers appear in the roster but cannot log in to REMA.
-            For full access, ask SUPER_ADMIN to create a VOLUNTEER account instead.
-          </p>
+          <div className="space-y-3">
+            <div>
+              <label className="label">Full Name</label>
+              <input
+                type="text"
+                className="input"
+                placeholder="Nguyen Van A"
+                value={communityName}
+                onChange={e => setCommunityName(e.target.value)}
+              />
+            </div>
+            <div>
+              <label className="label">Phone</label>
+              <input
+                type="tel"
+                className="input"
+                placeholder="+84 901 234 567"
+                value={communityPhone}
+                onChange={e => setCommunityPhone(e.target.value)}
+              />
+            </div>
+            <button
+              onClick={() => communityMutation.mutate()}
+              disabled={communityMutation.isPending || !communityName.trim() || !communityPhone.trim()}
+              className="btn-primary w-full">
+              {communityMutation.isPending ? 'Adding...' : 'Add to Roster'}
+            </button>
+            <p className="font-mono text-[10px] text-text-muted">
+              Community volunteers appear in the roster but cannot log in to REMA.
+              For full access, ask SUPER_ADMIN to create a VOLUNTEER account instead.
+            </p>
+          </div>
         </div>
       </div>
 

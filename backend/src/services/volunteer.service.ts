@@ -190,6 +190,15 @@ export async function assignTeam(data: {
   if (teamNumber < 1) {
     throw new Error('teamNumber must be 1 or greater');
   }
+  const existingAssignment = await prisma.volunteerAssignment.findFirst({
+    where: { alertId, teamNumber },
+  });
+  if (existingAssignment) {
+    throw new Error(
+      `Team ${teamNumber} is already deployed this activation. ` +
+      `Complete or abort their run before redeploying.`
+    );
+  }
 
   const allIds = [leaderId, ...memberIds];
 
@@ -208,7 +217,8 @@ export async function assignTeam(data: {
     );
   }
 
-  const assignments = await prisma.$transaction(async (tx) => {
+  const assignments = await prisma.$transaction(
+  async (tx) => {
     await tx.volunteer.updateMany({
       where: { id: { in: allIds } },
       data: { status: VolunteerStatus.DEPLOYED },
@@ -226,7 +236,11 @@ export async function assignTeam(data: {
     );
 
     return created;
-  });
+  },
+  {
+    timeout: 15000,  // increase to 15s — default 5s too short for large teams
+  }
+);
 
   invalidateVolunteerCache(volunteers[0].districtId);
   return assignments;
