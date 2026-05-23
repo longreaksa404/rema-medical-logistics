@@ -11,13 +11,10 @@ export interface ScoreInput {
   cat3: number; // Flood exposure: 0, 1, 3, or 4
   cat4: number; // Self-sufficiency: 0, 1, or 2
   cat5: number; // Isolation: 0 or 1
-  // optional — defaults applied in scoreHousehold if omitted
-  householdSize?: number;        // total people in household (min 1), default 4
-  chronicIllCount?: number;      // members who lost medication access, default 0
-  hasVulnerableMember?: boolean; // true if any cat2 flag checked, default false
+  householdSize?: number;        // default 4
+  hasVulnerableMember?: boolean; // default false
 }
 
-// breakdown of how many of each EMK type to deliver
 export interface EmkQuantity {
   emk3: number;
   emk2: number;
@@ -43,18 +40,18 @@ export const VALID_CAT3 = [0, 1, 3, 4] as const;
 
 // ─── CAT1 LABELS ─────────────────────────────────────────────────────────────
 export const CAT1_OPTIONS = [
-  { value: 8, label: 'Medication run out or <24h remaining',  sublabel: 'Life-sustaining medication critically low' },
-  { value: 5, label: 'Medication low (1-2 days remaining)',   sublabel: 'Chronic illness, running low'              },
-  { value: 2, label: 'Medication currently adequate',         sublabel: 'Chronic illness, supply OK'               },
-  { value: 0, label: 'No chronic illness reported',           sublabel: 'No medication dependency'                 },
+  { value: 8, label: 'Medication run out or <24h remaining', sublabel: 'Life-sustaining medication critically low' },
+  { value: 5, label: 'Medication low (1-2 days remaining)',  sublabel: 'Chronic illness, running low'             },
+  { value: 2, label: 'Medication currently adequate',        sublabel: 'Chronic illness, supply OK'              },
+  { value: 0, label: 'No chronic illness reported',          sublabel: 'No medication dependency'                },
 ] as const;
 
 // ─── CAT3 LABELS ─────────────────────────────────────────────────────────────
 export const CAT3_OPTIONS = [
-  { value: 4, label: 'Water inside household / structurally unsafe', sublabel: 'Immediate danger'      },
-  { value: 3, label: 'Water at doorstep (within 10cm)',              sublabel: 'Doorstep flooding'     },
-  { value: 1, label: 'Water in street but not reaching household',   sublabel: 'Street flooding only'  },
-  { value: 0, label: 'Household is dry and elevated',                sublabel: 'No flood exposure'     },
+  { value: 4, label: 'Water inside household / structurally unsafe', sublabel: 'Immediate danger'     },
+  { value: 3, label: 'Water at doorstep (within 10cm)',              sublabel: 'Doorstep flooding'    },
+  { value: 1, label: 'Water in street but not reaching household',   sublabel: 'Street flooding only' },
+  { value: 0, label: 'Household is dry and elevated',                sublabel: 'No flood exposure'    },
 ] as const;
 
 // ─── CAT4 LABELS ─────────────────────────────────────────────────────────────
@@ -66,15 +63,14 @@ export const CAT4_OPTIONS = [
 
 // ─── CAT2 FLAGS (sum, capped at 5) ───────────────────────────────────────────
 export const CAT2_FLAGS = [
-  { id: 'infant',   label: 'Infant under 2 years present',                    points: 2 },
-  { id: 'pregnant', label: 'Pregnant woman present',                          points: 2 },
-  { id: 'elderly',  label: 'Elderly person (65+) living alone',               points: 2 },
-  { id: 'disabled', label: 'Person with physical or cognitive disability',    points: 2 },
+  { id: 'infant',   label: 'Infant under 2 years present',                 points: 2 },
+  { id: 'pregnant', label: 'Pregnant woman present',                       points: 2 },
+  { id: 'elderly',  label: 'Elderly person (65+) living alone',            points: 2 },
+  { id: 'disabled', label: 'Person with physical or cognitive disability', points: 2 },
 ] as const;
 
 export type Cat2FlagId = typeof CAT2_FLAGS[number]['id'];
 
-// compute cat2 from flags (sum, capped at 5)
 export function computeCat2(flags: Set<Cat2FlagId>): number {
   const sum = CAT2_FLAGS
     .filter(f => flags.has(f.id))
@@ -98,8 +94,9 @@ export function recommendEmk(input: ScoreInput): EmkRecommendation {
 }
 
 // ─── EMK QUANTITY CALCULATION ─────────────────────────────────────────────────
-// Each EMK covers 4 people. Fill from highest priority type down to EMK1.
-// Mirrors backend calculateEmkQuantity exactly.
+// EMK3 = 1 if cat1 >= 5, else 0 (always 0 or 1 — household bridge kit)
+// EMK2 = 1 if hasVulnerableMember, else 0
+// EMK1 = ceil(remaining people / 4)
 
 export function calculateEmkQuantity(
   householdSize: number,
@@ -107,7 +104,8 @@ export function calculateEmkQuantity(
   hasVulnerableMember: boolean,
 ): EmkQuantity {
   const emk3 = cat1 >= 5 ? 1 : 0;
-  const emk2 = hasVulnerableMember ? 1 : 0;
+  // skip EMK2 if EMK3 already covers the household's highest need
+  const emk2 = hasVulnerableMember && emk3 === 0 ? 1 : 0;
 
   const coveredByHigherKits = (emk3 + emk2) * 4;
   const remaining = Math.max(0, householdSize - coveredByHigherKits);
@@ -117,7 +115,6 @@ export function calculateEmkQuantity(
 }
 
 // ─── MAIN SCORING FUNCTION ────────────────────────────────────────────────────
-
 export function scoreHousehold(input: ScoreInput): ScoreResult {
   const householdSize       = input.householdSize       ?? 4;
   const hasVulnerableMember = input.hasVulnerableMember ?? false;

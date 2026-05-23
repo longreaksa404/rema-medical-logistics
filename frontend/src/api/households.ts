@@ -41,9 +41,7 @@ export interface CreateHouseholdPayload {
   cat3: number;
   cat4: number;
   cat5: number;
-  // optional — defaults applied server-side if omitted
   householdSize?: number;
-  chronicIllCount?: number;
   hasVulnerableMember?: boolean;
   notes?: string;
 }

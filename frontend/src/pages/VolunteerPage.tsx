@@ -156,7 +156,6 @@ function AssessTab({ districtId }: { districtId: string }) {
   const [cat4, setCat4] = useState<number>(0);
   const [cat5, setCat5] = useState<number>(0);
   const [householdSize, setHouseholdSize] = useState<number>(4);
-  const [chronicIllCount, setChronicIllCount] = useState<number>(0);
   const [address, setAddress] = useState('');
   const [notes, setNotes] = useState('');
   const [submittedResult, setSubmittedResult] = useState<Household | null>(null);
@@ -166,8 +165,8 @@ function AssessTab({ districtId }: { districtId: string }) {
   const hasVulnerableMember = cat2Flags.size > 0;
 
   const liveScore = useMemo(
-    () => scoreHousehold({ cat1, cat2, cat3, cat4, cat5, householdSize, chronicIllCount, hasVulnerableMember } as ScoreInput),
-    [cat1, cat2, cat3, cat4, cat5, householdSize, chronicIllCount, hasVulnerableMember]
+    () => scoreHousehold({ cat1, cat2, cat3, cat4, cat5, householdSize, hasVulnerableMember } as ScoreInput),
+    [cat1, cat2, cat3, cat4, cat5, householdSize, hasVulnerableMember]
   );
   const bandCfg = BAND_CONFIG[liveScore.priorityBand];
   const scorePct = (liveScore.totalScore / 20) * 100;
@@ -182,7 +181,7 @@ function AssessTab({ districtId }: { districtId: string }) {
 
   const reset = useCallback(() => {
     setCat1(0); setCat2Flags(new Set()); setCat3(0); setCat4(0); setCat5(0);
-    setHouseholdSize(4); setChronicIllCount(0);
+    setHouseholdSize(4);
     setAddress(''); setNotes(''); setSubmittedResult(null);
   }, []);
 
@@ -285,41 +284,32 @@ function AssessTab({ districtId }: { districtId: string }) {
           {/* ── household size + chronic ill count ── */}
           <div className="card p-5">
             <SectionTitle sub="Used to calculate how many kits to deliver">Household Size</SectionTitle>
-            <div className="grid grid-cols-2 gap-4">
-              <div>
-                <label className="label">Total people in household</label>
-                <div className="flex items-center gap-2">
-                  <button onClick={() => setHouseholdSize(Math.max(1, householdSize - 1))}
-                    className="w-8 h-8 rounded border border-bg-border text-text-secondary hover:text-text-primary font-mono text-lg flex items-center justify-center">-</button>
-                  <span className="font-mono text-xl font-bold text-text-primary w-8 text-center">{householdSize}</span>
-                  <button onClick={() => setHouseholdSize(Math.min(20, householdSize + 1))}
-                    className="w-8 h-8 rounded border border-bg-border text-text-secondary hover:text-text-primary font-mono text-lg flex items-center justify-center">+</button>
+              <div className="flex items-center gap-4">
+                <div>
+                  <label className="label">Total people in household</label>
+                  <div className="flex items-center gap-2">
+                    <button onClick={() => setHouseholdSize(Math.max(1, householdSize - 1))}
+                      className="w-8 h-8 rounded border border-bg-border text-text-secondary hover:text-text-primary font-mono text-lg flex items-center justify-center">-</button>
+                    <span className="font-mono text-xl font-bold text-text-primary w-8 text-center">{householdSize}</span>
+                    <button onClick={() => setHouseholdSize(Math.min(20, householdSize + 1))}
+                      className="w-8 h-8 rounded border border-bg-border text-text-secondary hover:text-text-primary font-mono text-lg flex items-center justify-center">+</button>
+                  </div>
+                  <p className="font-mono text-[9px] text-text-muted mt-1">
+                    EMK3 is determined by Category 1 — EMK2 by vulnerability flags
+                  </p>
                 </div>
               </div>
-              <div>
-                <label className="label">Members who lost medication access</label>
-                <div className="flex items-center gap-2">
-                  <button onClick={() => setChronicIllCount(Math.max(0, chronicIllCount - 1))}
-                    className="w-8 h-8 rounded border border-bg-border text-text-secondary hover:text-text-primary font-mono text-lg flex items-center justify-center">-</button>
-                  <span className="font-mono text-xl font-bold text-accent-red w-8 text-center">{chronicIllCount}</span>
-                  <button onClick={() => setChronicIllCount(Math.min(householdSize, chronicIllCount + 1))}
-                    className="w-8 h-8 rounded border border-bg-border text-text-secondary hover:text-text-primary font-mono text-lg flex items-center justify-center">+</button>
+              {liveScore.emkQuantity && (
+                <div className="mt-4 pt-3 border-t border-bg-border">
+                  <EmkQuantityBadge
+                    emk3={liveScore.emkQuantity.emk3}
+                    emk2={liveScore.emkQuantity.emk2}
+                    emk1={liveScore.emkQuantity.emk1}
+                    total={liveScore.emkQuantity.total}
+                  />
                 </div>
-                <p className="font-mono text-[9px] text-text-muted mt-1">drives EMK3 quantity</p>
-              </div>
+              )}
             </div>
-            {/* live kit preview */}
-            {liveScore.emkQuantity && (
-              <div className="mt-4 pt-3 border-t border-bg-border">
-                <EmkQuantityBadge
-                  emk3={liveScore.emkQuantity.emk3}
-                  emk2={liveScore.emkQuantity.emk2}
-                  emk1={liveScore.emkQuantity.emk1}
-                  total={liveScore.emkQuantity.total}
-                />
-              </div>
-            )}
-          </div>
 
           <div className="card p-5">
             <div className="flex items-center justify-between mb-3">
@@ -492,7 +482,7 @@ function AssessTab({ districtId }: { districtId: string }) {
               onClick={() => address.trim() && submitMutation.mutate({
                 address: address.trim(), districtId,
                 cat1, cat2, cat3, cat4, cat5,
-                householdSize, chronicIllCount, hasVulnerableMember,
+                householdSize, hasVulnerableMember,
                 notes: notes.trim() || undefined,
               })}
               disabled={submitMutation.isPending || !address.trim()}
