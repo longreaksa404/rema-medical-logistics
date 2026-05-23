@@ -14,6 +14,13 @@ export interface Household {
   totalScore: number;
   priorityBand: 'CRITICAL' | 'HIGH' | 'MEDIUM' | 'STANDARD';
   recommendedEmk: 'EMK1' | 'EMK2' | 'EMK3';
+  // household size and kit quantity fields
+  householdSize?: number;
+  chronicIllCount?: number;
+  emk1Quantity?: number;
+  emk2Quantity?: number;
+  emk3Quantity?: number;
+  totalEmkQuantity?: number;
   delivered: boolean;
   deliveredAt: string | null;
   createdAt: string;
@@ -34,6 +41,10 @@ export interface CreateHouseholdPayload {
   cat3: number;
   cat4: number;
   cat5: number;
+  // optional — defaults applied server-side if omitted
+  householdSize?: number;
+  chronicIllCount?: number;
+  hasVulnerableMember?: boolean;
   notes?: string;
 }
 
@@ -59,7 +70,7 @@ export const householdsApi = {
     return res.data;
   },
 
-  // Score only — no DB write
+  // score only — no DB write
   scoreOnly: async (input: ScoreInput) => {
     const res = await api.post('/api/score/household', input);
     return res.data;
