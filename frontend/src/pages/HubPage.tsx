@@ -1675,15 +1675,17 @@ function CentralTab({ subWarehouseId, allSubWarehouses }: {
     queryKey: queryKeys.hub.centralStock(),
     queryFn:  () => hubApi.getCentralStock(),
     staleTime: 15_000,
+    gcTime: 5 * 60 * 1000,   // keep cache 5 min after unmount
   });
 
   const { data: movements = [], isLoading: movLoading } = useQuery({
     queryKey: queryKeys.hub.centralMovements(),
     queryFn:  () => hubApi.getCentralMovements(),
     staleTime: 15_000,
+    gcTime: 5 * 60 * 1000,
   });
 
-  const isLoading = stockLoading || movLoading;
+  const isLoading = (stockLoading && !centralStock) || (movLoading && movements.length === 0);
 
   const invalidateCentral = useCallback(() => {
     queryClient.invalidateQueries({ queryKey: queryKeys.hub.centralStock() });
