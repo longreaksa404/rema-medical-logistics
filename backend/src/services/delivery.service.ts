@@ -128,7 +128,7 @@ async function fetchAllRuns() {
       subWarehouse: { include: { district: { select: { name: true } } } },
       leadVolunteer: { select: { name: true, phone: true } },
       receipts: {
-        select: { id: true, emkType: true, quantity: true, deliveredAt: true },
+        select: { id: true, emkType: true, quantity: true, deliveredAt: true, householdId: true },
       },
     },
   });
@@ -142,7 +142,7 @@ async function fetchRunsByWarehouse(subWarehouseId: string) {
       subWarehouse: { include: { district: { select: { name: true } } } },
       leadVolunteer: { select: { name: true, phone: true } },
       receipts: {
-        select: { id: true, emkType: true, quantity: true, deliveredAt: true },
+        select: { id: true, emkType: true, quantity: true, deliveredAt: true, householdId: true },
       },
     },
   });

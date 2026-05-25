@@ -26,8 +26,8 @@ interface DeliveryRun {
   zone: string;
   departedAt: string;
   status: 'IN_PROGRESS' | 'COMPLETE' | 'ABORTED';
-  receipts: { id: string }[];
-}
+  receipts: { id: string; householdId: string }[];
+} 
 
 // ─── CONSTANTS ────────────────────────────────────────────────────────────────
 
@@ -653,7 +653,9 @@ function DeliverTab({ districtId }: { districtId: string }) {
           <span className="w-2 h-2 rounded-full bg-accent-green animate-pulse-slow flex-shrink-0" />
           <div>
             <p className="font-sans text-sm font-semibold text-text-primary">Team {activeRun.teamNumber} · {activeRun.zone} — Active Run</p>
-            <p className="font-mono text-[10px] text-text-muted">{activeRun.receipts?.length ?? 0} deliveries recorded so far</p>
+            <p className="font-mono text-[10px] text-text-muted">
+              {new Set(activeRun.receipts?.map(r => r.householdId) ?? []).size} deliveries recorded so far
+            </p>
           </div>
         </div>
       ) : (

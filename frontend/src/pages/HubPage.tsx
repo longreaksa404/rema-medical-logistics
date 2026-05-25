@@ -2096,6 +2096,7 @@ export function HubPage() {
 
   const isManager = isRole('HUB_MANAGER');
   const canSelectDistrict = !isManager;
+  const canSeeCentral = isRole('SUPER_ADMIN') || isRole('EMERGENCY_COORDINATOR');
 
   const { data: summaryData, isLoading: summaryLoading } = useQuery({
     queryKey: queryKeys.dashboard.summary(),
@@ -2107,13 +2108,12 @@ export function HubPage() {
   });
 
   const districts: DistrictCard[] = (summaryData?.districts ?? []).filter(
-     d => d.name !== '__central__'
+    d => d.name !== '__central__'
   );
-
 
   const resolvedDistrictId: string = useMemo(() => {
     if (selectedDistrictId) return selectedDistrictId;
-    if (isManager && user?.districtId) return user.districtId!; // non-null assertion after guard
+    if (isManager && user?.districtId) return user.districtId!;
     return districts[0]?.districtId ?? '';
   }, [selectedDistrictId, isManager, user?.districtId, districts]);
 
@@ -2124,22 +2124,20 @@ export function HubPage() {
 
   const subWarehouseId = selectedDistrict?.subWarehouseId ?? null;
 
-  // Pass all sub-warehouses to StockTab for cross-district reallocation
   const allSubWarehouses = useMemo(
     () => districts
       .filter(d => d.subWarehouseId)
       .map(d => ({
         subWarehouseId: d.subWarehouseId!,
-        name: `Sub-Warehouse`,   // sub-warehouse name not in DistrictCard — use district name
+        name: `Sub-Warehouse`,
         districtName: d.name,
       })),
     [districts]
   );
 
-  const canSeeCentral = isRole('SUPER_ADMIN') || isRole('EMERGENCY_COORDINATOR');
+  const isCentralActive = activeTab === 'central';
 
-  const TABS: Array<{ id: TabId; label: string; icon: string; hidden?: boolean }> = [
-    { id: 'central',    label: 'Central',    icon: '🏛', hidden: !canSeeCentral },
+  const SUB_TABS: Array<{ id: TabId; label: string; icon: string }> = [
     { id: 'stock',      label: 'Stock',      icon: '⬡' },
     { id: 'volunteers', label: 'Volunteers', icon: '⊕' },
     { id: 'deliveries', label: 'Deliveries', icon: '⟁' },
@@ -2147,38 +2145,68 @@ export function HubPage() {
     { id: 'radio',      label: 'Radio',      icon: '◈' },
   ];
 
+  // clicking a district while Central is active switches to stock tab
+  const handleDistrictSelect = (districtId: string) => {
+    setSelectedDistrictId(districtId);
+    if (isCentralActive) setActiveTab('stock');
+  };
+
   if (summaryLoading && districts.length === 0) {
     return <DashboardLayout title="Hub Manager Portal"><HubSkeleton /></DashboardLayout>;
   }
 
   return (
     <DashboardLayout title="Hub Manager Portal">
-      <div className="space-y-5">
+      <div className="space-y-4">
 
-        <div className="flex items-start justify-between gap-4 flex-wrap">
-          <div className="flex items-center gap-3 flex-wrap">
+        {/* ── ROW 1: scope selector ── */}
+        <div className="flex items-center justify-between gap-4 flex-wrap">
+          <div className="flex items-center gap-1.5 flex-wrap">
+
+            {/* Central button — EC/SUPER_ADMIN only */}
+            {canSeeCentral && (
+              <button
+                onClick={() => setActiveTab('central')}
+                className={`flex items-center gap-2 px-3 py-1.5 rounded border font-mono text-xs font-medium transition-all ${
+                  isCentralActive
+                    ? 'bg-accent-blue/10 border-accent-blue/40 text-accent-blue'
+                    : 'bg-bg-elevated border-bg-border text-text-secondary hover:text-text-primary'
+                }`}>
+                🏛 Central
+                <span className="font-mono text-[8px] text-accent-blue bg-accent-blue/10 px-1 py-0.5 rounded border border-accent-blue/20">
+                  HQ
+                </span>
+              </button>
+            )}
+
+            {/* district buttons */}
             {canSelectDistrict ? (
               <>
-                <span className="font-mono text-[10px] text-text-muted uppercase tracking-widest">District</span>
-                <div className="flex gap-1.5">
-                  {districts.map(d => {
-                    const districtId = d.districtId ?? '';
-                    return (
-                      <button 
-                        key={districtId} 
-                        onClick={() => setSelectedDistrictId(districtId)}
-                        className={`font-mono text-xs px-3 py-1.5 rounded border transition-all ${
-                          resolvedDistrictId === districtId
-                            ? 'bg-accent-blue/10 border-accent-blue/40 text-accent-blue'
-                            : 'bg-bg-elevated border-bg-border text-text-secondary hover:text-text-primary'
-                        }`}>
-                        {d.name}
-                      </button>
-                    );
-                  })}
-                </div>
+                {canSeeCentral && (
+                  <span className="font-mono text-[10px] text-bg-border select-none px-1">/</span>
+                )}
+                <span className="font-mono text-[10px] text-text-muted uppercase tracking-widest mr-1">
+                  District
+                </span>
+                {districts.map(d => {
+                  const districtId = d.districtId ?? '';
+                  const isSelected = resolvedDistrictId === districtId && !isCentralActive;
+                  return (
+                    <button
+                      key={districtId}
+                      onClick={() => handleDistrictSelect(districtId)}
+                      className={`font-mono text-xs px-3 py-1.5 rounded border transition-all ${
+                        isSelected
+                          ? 'bg-accent-blue/10 border-accent-blue/40 text-accent-blue'
+                          : 'bg-bg-elevated border-bg-border text-text-secondary hover:text-text-primary'
+                      }`}>
+                      {d.name}
+                    </button>
+                  );
+                })}
               </>
             ) : (
+              // HUB_MANAGER — fixed district, no switcher
               <div className="flex items-center gap-2">
                 <span className="font-mono text-sm font-bold text-text-primary">
                   {selectedDistrict?.name ?? 'Your District'}
@@ -2202,63 +2230,67 @@ export function HubPage() {
           )}
         </div>
 
-        {!subWarehouseId && resolvedDistrictId && (
-          <div className="bg-accent-orange/10 border border-accent-orange/30 rounded px-4 py-2">
-            <p className="font-mono text-xs text-accent-orange">
-              No sub-warehouse found for this district. Stock and delivery operations require a sub-warehouse record.
-            </p>
-          </div>
+        {/* ── ROW 2: district sub-tabs — only when NOT in Central mode ── */}
+        {!isCentralActive && (
+          <>
+            {!subWarehouseId && resolvedDistrictId && (
+              <div className="bg-accent-orange/10 border border-accent-orange/30 rounded px-4 py-2">
+                <p className="font-mono text-xs text-accent-orange">
+                  No sub-warehouse found for this district. Stock and delivery operations require a sub-warehouse record.
+                </p>
+              </div>
+            )}
+            <div className="flex gap-0.5 bg-bg-elevated rounded-lg p-1 border border-bg-border w-fit overflow-x-auto">
+              {SUB_TABS.map(tab => (
+                <button key={tab.id} onClick={() => setActiveTab(tab.id)}
+                  className={`flex items-center gap-1.5 px-4 py-2 rounded font-sans text-sm font-medium transition-all duration-100 whitespace-nowrap ${
+                    activeTab === tab.id
+                      ? 'bg-bg-primary text-text-primary border border-bg-border shadow-sm'
+                      : 'text-text-muted hover:text-text-secondary'
+                  }`}>
+                  <span className="text-xs">{tab.icon}</span>
+                  {tab.label}
+                </button>
+              ))}
+            </div>
+          </>
         )}
 
-        <div className="flex gap-0.5 bg-bg-elevated rounded-lg p-1 border border-bg-border w-fit overflow-x-auto">
-          {TABS.filter(t => !t.hidden).map(tab => (
-            <button key={tab.id} onClick={() => setActiveTab(tab.id)}
-              className={`flex items-center gap-1.5 px-4 py-2 rounded font-sans text-sm font-medium transition-all duration-100 whitespace-nowrap ${
-                activeTab === tab.id
-                  ? 'bg-bg-primary text-text-primary border border-bg-border shadow-sm'
-                  : 'text-text-muted hover:text-text-secondary'
-              }`}>
-              <span className="text-xs">{tab.icon}</span>
-              {tab.label}
-              {tab.id === 'central' && (
-                <span className="font-mono text-[8px] text-accent-blue ml-0.5">HQ</span>
+        {/* ── CONTENT ── */}
+        <div className="animate-fade-in">
+          {isCentralActive && canSeeCentral && (
+            <CentralTab
+              subWarehouseId={subWarehouseId}
+              allSubWarehouses={allSubWarehouses}
+            />
+          )}
+
+          {!isCentralActive && resolvedDistrictId && (
+            <>
+              {activeTab === 'stock' && (
+                <StockTab districtId={resolvedDistrictId} subWarehouseId={subWarehouseId} />
               )}
-            </button>
-          ))}
-        </div>
+              {activeTab === 'volunteers' && (
+                <VolunteersTab districtId={resolvedDistrictId} subWarehouseId={subWarehouseId} />
+              )}
+              {activeTab === 'deliveries' && (
+                <DeliveriesTab districtId={resolvedDistrictId} subWarehouseId={subWarehouseId} />
+              )}
+              {activeTab === 'incidents' && (
+                <IncidentsTab districtId={resolvedDistrictId} />
+              )}
+              {activeTab === 'radio' && (
+                <RadioTab districtId={resolvedDistrictId} />
+              )}
+            </>
+          )}
 
-        {resolvedDistrictId ? (
-          <div className="animate-fade-in">
-            {activeTab === 'central' && canSeeCentral && (
-              <CentralTab
-                subWarehouseId={subWarehouseId}
-                allSubWarehouses={allSubWarehouses}
-              />
-            )}
-            {activeTab === 'stock' && (
-              <StockTab
-                districtId={resolvedDistrictId}
-                subWarehouseId={subWarehouseId}
-              />
-            )}
-            {activeTab === 'volunteers' && (
-              <VolunteersTab districtId={resolvedDistrictId} subWarehouseId={subWarehouseId} />
-            )}
-            {activeTab === 'deliveries' && (
-              <DeliveriesTab districtId={resolvedDistrictId} subWarehouseId={subWarehouseId} />
-            )}
-            {activeTab === 'incidents' && (
-              <IncidentsTab districtId={resolvedDistrictId} />
-            )}
-            {activeTab === 'radio' && (
-              <RadioTab districtId={resolvedDistrictId} />
-            )}
-          </div>
-        ) : (
-          <div className="py-20 text-center">
-            <p className="font-mono text-sm text-text-muted">Select a district to begin.</p>
-          </div>
-        )}
+          {!isCentralActive && !resolvedDistrictId && (
+            <div className="py-20 text-center">
+              <p className="font-mono text-sm text-text-muted">Select a district to begin.</p>
+            </div>
+          )}
+        </div>
 
       </div>
     </DashboardLayout>

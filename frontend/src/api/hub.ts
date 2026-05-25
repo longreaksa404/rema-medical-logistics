@@ -84,7 +84,7 @@ export interface DeliveryRun {
   status: 'IN_PROGRESS' | 'COMPLETE' | 'ABORTED';
   leadVolunteer: { name: string; phone: string };
   subWarehouse: { district: { name: string } };
-  receipts: { id: string; emkType: string; quantity: number; deliveredAt: string }[];
+  receipts: { id: string; emkType: string; quantity: number; deliveredAt: string; householdId: string }[];
 }
 
 // ─── INCIDENTS ────────────────────────────────────────────────────────────────
