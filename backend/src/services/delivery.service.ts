@@ -180,13 +180,12 @@ export async function getDeliveryRun(id: string) {
 export async function createDeliveryReceipt(data: {
   deliveryRunId: string;
   householdId: string;
-  emkType: EmkType;
-  quantity: number;
+  kits: Array<{ emkType: EmkType; quantity: number }>;
   deliveredAt: Date;
   notes?: string;
   performedById: string;
 }) {
-  const { deliveryRunId, householdId, emkType, quantity, deliveredAt, notes, performedById } = data;
+  const { deliveryRunId, householdId, kits, deliveredAt, notes, performedById } = data;
 
   const run = await prisma.deliveryRun.findUnique({ where: { id: deliveryRunId } });
   if (!run) throw new Error('Delivery run not found');
@@ -200,41 +199,47 @@ export async function createDeliveryReceipt(data: {
     throw new Error(`Household ${householdId} has already been marked as delivered`);
   }
 
-  await recordDelivery({
-    subWarehouseId: run.subWarehouseId,
-    emkType,
-    quantity,
-    reason: `Delivery to household ${householdId} — run ${deliveryRunId}`,
-    performedById,
-  });
+  // deduct each EMK type from stock separately — this is the core fix
+  for (const kit of kits) {
+    await recordDelivery({
+      subWarehouseId: run.subWarehouseId,
+      emkType: kit.emkType,
+      quantity: kit.quantity,
+      reason: `Delivery to household ${householdId} — run ${deliveryRunId}`,
+      performedById,
+    });
+  }
 
-  const [receipt] = await prisma.$transaction([
-    prisma.deliveryReceipt.create({
-      data: {
-        deliveryRunId,
-        householdId,
-        emkType,
-        quantity,
-        deliveredAt,
-        notes: notes ?? null,
-      },
-      include: {
-        household: {
-          select: { address: true, totalScore: true, priorityBand: true },
+  // create one receipt row per kit type, mark household delivered once
+  const receipts = await prisma.$transaction([
+    ...kits.map(kit =>
+      prisma.deliveryReceipt.create({
+        data: {
+          deliveryRunId,
+          householdId,
+          emkType: kit.emkType,
+          quantity: kit.quantity,
+          deliveredAt,
+          notes: notes ?? null,
         },
-      },
-    }),
+      })
+    ),
     prisma.household.update({
       where: { id: householdId },
       data: { delivered: true, deliveredAt },
     }),
   ]);
 
+  // last item in transaction is the household update — receipts are everything before it
+  const createdReceipts = receipts.slice(0, kits.length);
+
   invalidateQueueCache(household.districtId);
   const sw = await prisma.subWarehouse.findUnique({ where: { id: run.subWarehouseId } });
   if (sw) invalidateRunsCache(sw.districtId);
-  return receipt;
+
+  return createdReceipts;
 }
+
 
 // ─── COMPLETE A DELIVERY RUN ──────────────────────────────────────────────────
 

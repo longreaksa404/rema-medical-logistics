@@ -94,9 +94,16 @@ export function recommendEmk(input: ScoreInput): EmkRecommendation {
 }
 
 // ─── EMK QUANTITY CALCULATION ─────────────────────────────────────────────────
-// EMK3 = 1 if cat1 >= 5, else 0 (always 0 or 1 — household bridge kit)
-// EMK2 = 1 if hasVulnerableMember, else 0
+// EMK3 = 1 if cat1 >= 5 (medication lost or low), else 0
+// EMK2 = 1 if hasVulnerableMember, else 0  — independent of EMK3
 // EMK1 = ceil(remaining people / 4)
+//
+// EMK3 and EMK2 are independent needs — a household with both a chronic illness
+// patient and a vulnerable member (infant, elderly, pregnant, disabled) gets both.
+//
+// Example: household of 9, medication lost, elderly present
+//   emk3 = 1 (covers 4), emk2 = 1 (covers 4), remaining = 9-8 = 1
+//   emk1 = ceil(1/4) = 1 → total = 3
 
 export function calculateEmkQuantity(
   householdSize: number,
@@ -104,8 +111,9 @@ export function calculateEmkQuantity(
   hasVulnerableMember: boolean,
 ): EmkQuantity {
   const emk3 = cat1 >= 5 ? 1 : 0;
-  // skip EMK2 if EMK3 already covers the household's highest need
-  const emk2 = hasVulnerableMember && emk3 === 0 ? 1 : 0;
+  // EMK2 is independent of EMK3 — a household can need both.
+  // EMK3 covers chronic illness, EMK2 covers vulnerable members (infant/elderly/pregnant/disabled).
+  const emk2 = hasVulnerableMember ? 1 : 0;
 
   const coveredByHigherKits = (emk3 + emk2) * 4;
   const remaining = Math.max(0, householdSize - coveredByHigherKits);

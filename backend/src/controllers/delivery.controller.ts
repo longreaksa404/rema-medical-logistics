@@ -79,38 +79,60 @@ export async function getRun(req: Request, res: Response): Promise<void> {
 // ─── POST /api/delivery/receipts ─────────────────────────────────────────────
 
 export async function addReceipt(req: Request, res: Response): Promise<void> {
-  const { deliveryRunId, householdId, emkType, quantity, deliveredAt, notes } = req.body;
+  const { deliveryRunId, householdId, emkType, quantity, kits, deliveredAt, notes } = req.body;
 
-  if (!deliveryRunId || !householdId || !emkType || !deliveredAt) {
+  if (!deliveryRunId || !householdId || !deliveredAt) {
     res.status(400).json({
-      error: 'deliveryRunId, householdId, emkType, and deliveredAt are required',
+      error: 'deliveryRunId, householdId, and deliveredAt are required',
     });
     return;
   }
 
   const validEmkTypes: EmkType[] = ['EMK1', 'EMK2', 'EMK3'];
-  if (!validEmkTypes.includes(emkType)) {
-    res.status(400).json({ error: 'emkType must be EMK1, EMK2, or EMK3' });
-    return;
-  }
 
-  const qty = quantity ?? 1;
-  if (typeof qty !== 'number' || qty < 1) {
-    res.status(400).json({ error: 'quantity must be a positive integer' });
+  // normalise to array — supports both call shapes
+  let resolvedKits: Array<{ emkType: EmkType; quantity: number }>;
+
+  if (Array.isArray(kits) && kits.length > 0) {
+    // multi-kit path
+    for (const k of kits) {
+      if (!validEmkTypes.includes(k.emkType)) {
+        res.status(400).json({ error: `Invalid emkType: ${k.emkType}` });
+        return;
+      }
+      if (typeof k.quantity !== 'number' || k.quantity < 1) {
+        res.status(400).json({ error: 'Each kit quantity must be a positive integer' });
+        return;
+      }
+    }
+    resolvedKits = kits;
+  } else if (emkType) {
+    // single-kit legacy path
+    if (!validEmkTypes.includes(emkType)) {
+      res.status(400).json({ error: 'emkType must be EMK1, EMK2, or EMK3' });
+      return;
+    }
+    const qty = quantity ?? 1;
+    if (typeof qty !== 'number' || qty < 1) {
+      res.status(400).json({ error: 'quantity must be a positive integer' });
+      return;
+    }
+    resolvedKits = [{ emkType: emkType as EmkType, quantity: Number(qty) }];
+  } else {
+    res.status(400).json({ error: 'Either emkType or kits array is required' });
     return;
   }
 
   try {
-    const receipt = await createDeliveryReceipt({
+    const receipts = await createDeliveryReceipt({
       deliveryRunId,
       householdId,
-      emkType: emkType as EmkType,
-      quantity: Number(qty),
+      kits: resolvedKits,
       deliveredAt: new Date(deliveredAt),
       notes,
       performedById: req.user!.userId,
     });
-    res.status(201).json(receipt);
+    res.status(201).json(receipts);
   } catch (err) {
     const message = err instanceof Error ? err.message : 'Error recording receipt';
     res.status(400).json({ error: message });

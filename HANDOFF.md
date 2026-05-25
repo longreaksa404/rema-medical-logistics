@@ -1,20 +1,24 @@
-## Last Session - TypeScript compile errors in HubPage.tsx
+## Last Session Changes
 
-### What changed
-- `frontend/src/api/hub.ts` - fixed all 7 TypeScript errors:
-  - Added `user?: { id, email, name } | null` to Volunteer interface
-  - getRoster: added optional alertId second param (passed as query param)
-  - Added setVolunteerRole() - PATCH /api/volunteers/:id with role only
-  - Added createCommunityVolunteer() - POST /api/volunteers with isCommunity flag
-  - Added assignTeam() - fans out to POST /api/volunteers/assign for each member via Promise.all
-  - replenishCentral, adjustCentral, setAllocation already existed - were present in old hub.ts
+### Bug Fix 1 — Delivery stock deduction (mixed kit households)
+- `backend/src/services/delivery.service.ts` — `createDeliveryReceipt` now accepts
+  `kits: Array<{ emkType, quantity }>` instead of single emkType+quantity.
+  Loops `recordDelivery` once per kit type before transaction, so EMK3 and EMK1
+  deduct from separate stock buckets correctly.
+- `backend/src/controllers/delivery.controller.ts` — `addReceipt` normalises both
+  call shapes: new `kits[]` array or legacy `emkType + quantity` single.
+- `frontend/src/pages/VolunteerPage.tsx` — `deliverMutation` in DeliverTab now
+  builds `kits[]` from `emk3Quantity`, `emk2Quantity`, `emk1Quantity` fields.
+  Falls back to `recommendedEmk x1` for households assessed before quantity fields.
 
-### Current system state
-- Backend: live on Render, unchanged
-- Frontend: 0 TypeScript errors in hub.ts after this fix
-- DB: unchanged
+### Bug Fix 2 — EMK quantity calculation (EMK2 skipped when EMK3 present)
+- `backend/src/utils/scoring.ts` — `calculateEmkQuantity`: removed wrong condition
+  `emk3 === 0` from EMK2 assignment. EMK3 and EMK2 are independent needs.
+- `frontend/src/utils/scoring.ts` — same fix, files must stay identical.
+- Result: household with chronic illness patient + vulnerable member now correctly
+  gets both EMK3 and EMK2, not just EMK3 + extra EMK1s.
 
-### Live URLs
-- Frontend: https://rema-system.vercel.app
+## Current System State
 - Backend: https://rema-medical-logistics.onrender.com
-- Swagger: https://rema-medical-logistics.onrender.com/api/docs
+- Frontend: https://rema-system.vercel.app
+- All 125 unit tests passing (check scoring.test.ts case F emkQuantity assertion)

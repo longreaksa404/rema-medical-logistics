@@ -99,14 +99,11 @@ export function recommendEmk(input: ScoreInput): EmkRecommendation {
 
 // ─── EMK QUANTITY CALCULATION ─────────────────────────────────────────────────
 // EMK3 = 1 if cat1 >= 5 (medication lost or low), else 0
-// EMK2 = 1 if hasVulnerableMember, else 0
+// EMK2 = 1 if hasVulnerableMember, else 0  — independent of EMK3
 // EMK1 = ceil(remaining people / 4)
 //
-// One household never gets more than 1x EMK3 — it is a household bridge kit,
-// not a per-person kit. Quantity is always 0 or 1.
-//
-// Each kit covers 4 people. Fill highest priority type first, then EMK1 for
-// remaining people.
+// EMK3 and EMK2 are independent needs — a household with both a chronic illness
+// patient and a vulnerable member (infant, elderly, pregnant, disabled) gets both.
 //
 // Example: household of 9, medication lost, elderly present
 //   emk3 = 1 (covers 4), emk2 = 1 (covers 4), remaining = 9-8 = 1
@@ -118,8 +115,9 @@ export function calculateEmkQuantity(
   hasVulnerableMember: boolean,
 ): EmkQuantity {
   const emk3 = cat1 >= 5 ? 1 : 0;
-  // skip EMK2 if EMK3 already covers the household's highest need
-  const emk2 = hasVulnerableMember && emk3 === 0 ? 1 : 0;
+  // EMK2 is independent of EMK3 — a household can need both.
+  // EMK3 covers chronic illness, EMK2 covers vulnerable members (infant/elderly/pregnant/disabled).
+  const emk2 = hasVulnerableMember ? 1 : 0;
 
   const coveredByHigherKits = (emk3 + emk2) * 4;
   const remaining = Math.max(0, householdSize - coveredByHigherKits);
@@ -160,10 +158,10 @@ export function scoreHousehold(input: ScoreInput): ScoreResult {
 // ─── SECTION C WORKED EXAMPLE VERIFICATION ───────────────────────────────────
 
 export const WORKED_EXAMPLE_CASES = [
-  { label: 'A — elderly 72, alone, no meds',       input: { cat1: 0, cat2: 2, cat3: 3, cat4: 2, cat5: 1, householdSize: 1, hasVulnerableMember: true  }, expectedScore: 8,  expectedBand: 'MEDIUM',   expectedEmk: 'EMK1' },
-  { label: 'B — family, infant 8m, doorstep',      input: { cat1: 0, cat2: 2, cat3: 3, cat4: 1, cat5: 0, householdSize: 4, hasVulnerableMember: true  }, expectedScore: 6,  expectedBand: 'MEDIUM',   expectedEmk: 'EMK2' },
+  { label: 'A — elderly 72, alone, no meds',        input: { cat1: 0, cat2: 2, cat3: 3, cat4: 2, cat5: 1, householdSize: 1, hasVulnerableMember: true  }, expectedScore: 8,  expectedBand: 'MEDIUM',   expectedEmk: 'EMK1' },
+  { label: 'B — family, infant 8m, doorstep',       input: { cat1: 0, cat2: 2, cat3: 3, cat4: 1, cat5: 0, householdSize: 4, hasVulnerableMember: true  }, expectedScore: 6,  expectedBand: 'MEDIUM',   expectedEmk: 'EMK2' },
   { label: 'C — diabetic, insulin run out',         input: { cat1: 8, cat2: 0, cat3: 1, cat4: 0, cat5: 0, householdSize: 4, hasVulnerableMember: false }, expectedScore: 9,  expectedBand: 'MEDIUM',   expectedEmk: 'EMK3' },
   { label: 'D — pregnant, water inside household',  input: { cat1: 0, cat2: 2, cat3: 4, cat4: 2, cat5: 0, householdSize: 4, hasVulnerableMember: true  }, expectedScore: 8,  expectedBand: 'MEDIUM',   expectedEmk: 'EMK2' },
   { label: 'E — family 5, no illness, dry street',  input: { cat1: 0, cat2: 0, cat3: 0, cat4: 1, cat5: 0, householdSize: 5, hasVulnerableMember: false }, expectedScore: 1,  expectedBand: 'STANDARD', expectedEmk: 'EMK1' },
-  { label: 'F — elderly hypertension, med low',     input: { cat1: 5, cat2: 2, cat3: 1, cat4: 1, cat5: 1, householdSize: 4, hasVulnerableMember: true  }, expectedScore: 10, expectedBand: 'HIGH',     expectedEmk: 'EMK3' },
+  { label: 'F — elderly hypertension, med low',     input: { cat1: 5, cat2: 2, cat3: 1, cat4: 1, cat5: 1, householdSize: 4, hasVulnerableMember: true },  expectedScore: 10, expectedBand: 'HIGH', expectedEmk: 'EMK3' },
 ] as const;

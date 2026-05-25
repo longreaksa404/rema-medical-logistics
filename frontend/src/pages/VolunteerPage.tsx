@@ -606,21 +606,32 @@ function DeliverTab({ districtId }: { districtId: string }) {
   );
 
   const deliverMutation = useMutation({
-    mutationFn: (household: Household) =>
-      api.post('/api/delivery/receipts', {
-        deliveryRunId: activeRun!.id,
-        householdId: household.id,
-        emkType: household.recommendedEmk,
-        quantity: household.totalEmkQuantity ?? 1,
-        deliveredAt: new Date().toISOString(),
-      }),
-    onSuccess: () => {
-      setConfirming(null);
-      queryClient.invalidateQueries({ queryKey: queryKeys.households.queue(districtId) });
-      queryClient.invalidateQueries({ queryKey: queryKeys.dashboard.summary() });
-      queryClient.invalidateQueries({ queryKey: [...queryKeys.hub.deliveries(districtId), 'active'] });
-    },
-  });
+  mutationFn: (household: Household) => {
+    const now = new Date().toISOString();
+
+    // build kits array from per-type quantities if available
+    const kits: Array<{ emkType: string; quantity: number }> = [];
+    if ((household.emk3Quantity ?? 0) > 0) kits.push({ emkType: 'EMK3', quantity: household.emk3Quantity! });
+    if ((household.emk2Quantity ?? 0) > 0) kits.push({ emkType: 'EMK2', quantity: household.emk2Quantity! });
+    if ((household.emk1Quantity ?? 0) > 0) kits.push({ emkType: 'EMK1', quantity: household.emk1Quantity! });
+
+    // fallback for households assessed before quantity fields existed
+    if (kits.length === 0) kits.push({ emkType: household.recommendedEmk, quantity: household.totalEmkQuantity ?? 1 });
+
+    return api.post('/api/delivery/receipts', {
+      deliveryRunId: activeRun!.id,
+      householdId: household.id,
+      kits,
+      deliveredAt: now,
+    });
+  },
+  onSuccess: () => {
+    setConfirming(null);
+    queryClient.invalidateQueries({ queryKey: queryKeys.households.queue(districtId) });
+    queryClient.invalidateQueries({ queryKey: queryKeys.dashboard.summary() });
+    queryClient.invalidateQueries({ queryKey: [...queryKeys.hub.deliveries(districtId), 'active'] });
+  },
+});
 
   const deliverError = (deliverMutation.error as { response?: { data?: { error?: string } } })?.response?.data?.error ?? '';
   const isLoading = queueLoading || runsLoading;

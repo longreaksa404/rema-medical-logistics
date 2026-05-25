@@ -418,6 +418,17 @@
 
 ---
 
+## Delivery Bug Session
+
+### Fix 1 — Mixed kit stock deduction
+- [x] `delivery.service.ts` — multi-kit receipt: loops recordDelivery per EMK type
+- [x] `delivery.controller.ts` — normalises kits[] and legacy emkType shapes
+- [x] `VolunteerPage.tsx` — deliverMutation sends kits[] array
+
+### Fix 2 — EMK2 skipped when EMK3 present
+- [x] `backend/src/utils/scoring.ts` — removed emk3 === 0 guard on EMK2
+- [x] `frontend/src/utils/scoring.ts` — same fix
+
 ## Full FILE STRUCTURE
 
 ```
