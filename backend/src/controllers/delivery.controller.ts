@@ -21,8 +21,8 @@ export async function startRun(req: Request, res: Response): Promise<void> {
     return;
   }
 
-  if (typeof teamNumber !== 'number' || teamNumber < 1 || teamNumber > 3) {
-    res.status(400).json({ error: 'teamNumber must be 1, 2, or 3' });
+  if (typeof teamNumber !== 'number' || teamNumber < 1 || !Number.isInteger(teamNumber)) {
+    res.status(400).json({ error: 'teamNumber must be a positive integer' });
     return;
   }
 

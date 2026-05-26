@@ -407,6 +407,8 @@ function VolunteersTab({ districtId, subWarehouseId }: { districtId: string; sub
 
   const [communityName, setCommunityName] = useState('');
   const [communityPhone, setCommunityPhone] = useState('');
+  const [localExtraTeams, setLocalExtraTeams] = useState<number[]>([]);
+  const [teamDropdownOpen, setTeamDropdownOpen] = useState(false);
 
   const { data: alertData } = useQuery({
     queryKey: queryKeys.alert.status(),
@@ -560,7 +562,12 @@ function VolunteersTab({ districtId, subWarehouseId }: { districtId: string; sub
 
   // build team dropdown options
   const baseTeams = [1, 2, 3];
-  const allTeamNums = Array.from(new Set([...baseTeams, ...existingTeamNumbers])).sort((a, b) => a - b);
+  const allTeamNums = Array.from(
+    new Set([...baseTeams, ...existingTeamNumbers, ...localExtraTeams])
+  ).sort((a, b) => a - b);
+
+  const removableTeams = localExtraTeams.filter(n => !existingTeamNumbers.includes(n));
+
   const teamOptions: Array<{ label: string; value: number | 'new' }> = [
     ...allTeamNums.map(n => ({ label: `Team ${n}`, value: n as number })),
     { label: `+ New Team (Team ${nextTeamNumber})`, value: 'new' as const },
@@ -648,21 +655,67 @@ function VolunteersTab({ districtId, subWarehouseId }: { districtId: string; sub
           <div className="space-y-4">
             {/* team + zone row */}
             <div className="grid grid-cols-2 gap-3">
-              <div>
+              <div className="relative">
                 <label className="label">Team</label>
-                <select
-                  value={String(selectedTeamNum)}
-                  onChange={e => {
-                    const v = e.target.value;
-                    setSelectedTeamNum(v === 'new' ? 'new' : Number(v));
-                  }}
-                  className="input">
-                  {teamOptions.map(o => (
-                    <option key={String(o.value)} value={String(o.value)}>
-                      {o.label}
-                    </option>
-                  ))}
-                </select>
+                {/* custom dropdown — needed so each row can have a delete button */}
+                <div className="relative">
+                  <button
+                    type="button"
+                    onClick={() => setTeamDropdownOpen(p => !p)}
+                    className="input w-full text-left flex items-center justify-between">
+                    <span>
+                      {selectedTeamNum === 'new'
+                        ? `+ New Team (Team ${nextTeamNumber})`
+                        : `Team ${selectedTeamNum}`}
+                    </span>
+                    <span className="text-text-muted text-xs">▾</span>
+                  </button>
+
+                  {teamDropdownOpen && (
+                    <div className="absolute z-50 top-full left-0 right-0 mt-1 bg-bg-primary border border-bg-border rounded-lg shadow-lg overflow-hidden">
+                      {allTeamNums.map(n => {
+                        const isRemovable = !existingTeamNumbers.includes(n) && n > 3 && localExtraTeams.includes(n);
+                        const isSelected = selectedTeamNum === n;
+                        return (
+                          <div key={n}
+                            className={`flex items-center justify-between px-3 py-2 cursor-pointer transition-colors ${
+                              isSelected ? 'bg-accent-blue/10 text-accent-blue' : 'hover:bg-bg-elevated text-text-primary'
+                            }`}>
+                            <span
+                              className="flex-1 font-mono text-sm"
+                              onClick={() => { setSelectedTeamNum(n); setTeamDropdownOpen(false); }}>
+                              Team {n}
+                            </span>
+                            {isRemovable && (
+                              <button
+                                onClick={e => {
+                                  e.stopPropagation();
+                                  setLocalExtraTeams(p => p.filter(x => x !== n));
+                                  if (selectedTeamNum === n) setSelectedTeamNum(1);
+                                  setTeamDropdownOpen(false);
+                                }}
+                                className="ml-2 font-mono text-[10px] text-accent-red hover:text-accent-red/70 px-1 py-0.5 rounded hover:bg-accent-red/10 transition-colors"
+                                title="Remove team">
+                                ✕
+                              </button>
+                            )}
+                          </div>
+                        );
+                      })}
+
+                      {/* new team option */}
+                      <div
+                        onClick={() => {
+                          setLocalExtraTeams(p => p.includes(nextTeamNumber) ? p : [...p, nextTeamNumber]);
+                          setSelectedTeamNum(nextTeamNumber);
+                          setTeamDropdownOpen(false);
+                        }}
+                        className="flex items-center px-3 py-2 cursor-pointer hover:bg-bg-elevated text-accent-green border-t border-bg-border transition-colors">
+                        <span className="font-mono text-sm">+ New Team (Team {nextTeamNumber})</span>
+                      </div>
+                    </div>
+                  )}
+                </div>
               </div>
               <div>
                 <label className="label">Zone</label>
@@ -675,6 +728,30 @@ function VolunteersTab({ districtId, subWarehouseId }: { districtId: string; sub
                 </select>
               </div>
             </div>
+
+            {/* removable teams — added this session, not yet in DB */}
+            {removableTeams.length > 0 && (
+              <div className="flex flex-wrap gap-1.5 items-center">
+                {removableTeams.map(n => (
+                  <span key={n}
+                    className="flex items-center gap-1 font-mono text-[10px] px-2 py-0.5 rounded border border-bg-border text-text-muted bg-bg-elevated">
+                    Team {n}
+                    <button
+                      onClick={() => {
+                        setLocalExtraTeams(p => p.filter(x => x !== n));
+                        if (selectedTeamNum === n) setSelectedTeamNum(1);
+                      }}
+                      className="ml-0.5 text-accent-red hover:text-accent-red/80 transition-colors"
+                      title="Remove team">
+                      ✕
+                    </button>
+                  </span>
+                ))}
+                <p className="font-mono text-[9px] text-text-muted">
+                  Unsaved — disappears on reload if not deployed
+                </p>
+              </div>
+            )}
 
             {/* show existing team info OR setup form */}
             {selectedTeamNum !== 'new' && isTeamCurrentlyDeployed ? (
