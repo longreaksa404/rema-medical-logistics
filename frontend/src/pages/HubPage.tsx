@@ -7,7 +7,7 @@
 //   5. Radio tab subtitle clarified
 
 import { useState, useCallback, useMemo, useEffect  } from 'react';
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { useQuery, useMutation, useQueryClient, keepPreviousData } from '@tanstack/react-query';
 import { DashboardLayout } from '../components/DashboardLayout';
 import { useAuth } from '../context/AuthContext';
 import { api } from '../api/client';
@@ -128,20 +128,21 @@ function StockTab({ districtId, subWarehouseId }: {
     staleTime: 15_000,
   });
 
-  const { data: stock, isLoading: stockLoading } = useQuery({
+  const { data: stock, isPending: stockPending } = useQuery({
     queryKey: queryKeys.hub.stock(districtId),
     queryFn:  () => hubApi.getDistrictStock(districtId),
     enabled:  !!districtId,
   });
 
-  const { data: movements = [], isLoading: movLoading } = useQuery({
+  const { data: movements = [], isPending: movPending } = useQuery({
     queryKey: queryKeys.hub.movements(districtId),
     queryFn:  () => hubApi.getMovements(districtId),
     enabled:  !!districtId,
     select:   (data: StockMovement[]) => data.slice(0, 50),
   });
 
-  const isLoading = stockLoading || movLoading;
+  // only true when no cached data exists at all
+  const isLoading = (stockPending && !stock) || (movPending && movements.length === 0);
 
   const invalidateStock = useCallback(() => {
     queryClient.invalidateQueries({ queryKey: queryKeys.hub.centralStock() });
@@ -413,13 +414,13 @@ function VolunteersTab({ districtId, subWarehouseId }: { districtId: string; sub
   });
   const alertId = alertData?.id ?? '';
 
-  const { data: roster, isLoading: rosterLoading } = useQuery({
+  const { data: roster, isPending: rosterPending } = useQuery({
     queryKey: [...queryKeys.hub.volunteers(districtId), alertId],
     queryFn: () => hubApi.getRoster(districtId, alertId || undefined),
     enabled: !!districtId,
   });
 
-  const { data: runs = [], isLoading: runsLoading } = useQuery({
+  const { data: runs = [], isPending: runsPending } = useQuery({
     queryKey: queryKeys.hub.deliveries(districtId),
     queryFn: () => hubApi.getDeliveryRuns(districtId),
     enabled: !!districtId,
@@ -565,7 +566,7 @@ function VolunteersTab({ districtId, subWarehouseId }: { districtId: string; sub
     { label: `+ New Team (Team ${nextTeamNumber})`, value: 'new' as const },
   ];
 
-  if (rosterLoading || runsLoading) {
+  if ((rosterPending && !roster) || (runsPending && runs.length === 0)) {
     return (
       <div className="space-y-4">
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
@@ -969,7 +970,7 @@ function DeliveriesTab({ districtId, subWarehouseId }: { districtId: string; sub
   });
   const alertId = alertData?.id ?? '';
 
-  const { data: runs = [], isLoading: runsLoading } = useQuery({
+  const { data: runs = [], isPending: runsPending } = useQuery({
     queryKey: queryKeys.hub.deliveries(districtId),
     queryFn: () => hubApi.getDeliveryRuns(districtId),
     enabled: !!districtId,
@@ -1056,7 +1057,7 @@ function DeliveriesTab({ districtId, subWarehouseId }: { districtId: string; sub
     (completeMutation.error as { response?: { data?: { error?: string } } })?.response?.data?.error ??
     (abortMutation.error as { response?: { data?: { error?: string } } })?.response?.data?.error ?? '';
 
-  if (runsLoading) {
+  if (runsPending && runs.length === 0) {
     return (
       <div className="space-y-4">
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
@@ -1282,7 +1283,7 @@ function IncidentsTab({ districtId }: { districtId: string }) {
   const [incType, setIncType] = useState<Incident['type']>('ROUTE_BLOCKED');
   const [incDesc, setIncDesc] = useState('');
 
-  const { data: incidents = [], isLoading } = useQuery({
+  const { data: incidents = [], isPending } = useQuery({
     queryKey: queryKeys.hub.incidents(districtId),
     queryFn: () => hubApi.getIncidents(districtId),
     enabled: !!districtId,
@@ -1323,7 +1324,7 @@ function IncidentsTab({ districtId }: { districtId: string }) {
     (reportMutation.error as { response?: { data?: { error?: string } } })?.response?.data?.error ??
     (resolveMutation.error as { response?: { data?: { error?: string } } })?.response?.data?.error ?? '';
 
-  if (isLoading) {
+  if (isPending && incidents.length === 0) {
     return <div className="space-y-4"><Skeleton className="h-48" /><Skeleton className="h-64" /></div>;
   }
 
@@ -1455,7 +1456,7 @@ function RadioTab({ districtId }: { districtId: string }) {
     { value: 'T2000' as const, label: '20:00', desc: 'End-of-day stock count, next-day plan' },
   ];
 
-  const { data: checkins = [], isLoading } = useQuery({
+  const { data: checkins = [], isPending } = useQuery({
     queryKey: queryKeys.hub.radio(districtId),
     queryFn: () => hubApi.getCheckins(districtId),
     enabled: !!districtId,
@@ -1474,7 +1475,7 @@ function RadioTab({ districtId }: { districtId: string }) {
   const completedSlots = useMemo(() => checkins.map((c: RadioCheckin) => c.scheduledTime), [checkins]);
   const mutationError = (submitMutation.error as { response?: { data?: { error?: string } } })?.response?.data?.error ?? '';
 
-  if (isLoading) {
+  if (isPending && checkins.length === 0) {
     return (
       <div className="space-y-4">
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
@@ -1671,21 +1672,27 @@ function CentralTab({ subWarehouseId, allSubWarehouses }: {
   const [allocReason,   setAllocReason]   = useState('');
 
   // ── Queries ───────────────────────────────────────────────────────────────
-  const { data: centralStock, isLoading: stockLoading } = useQuery({
+  const { data: centralStock, isPending: stockPending } = useQuery({
     queryKey: queryKeys.hub.centralStock(),
     queryFn:  () => hubApi.getCentralStock(),
-    staleTime: 15_000,
-    gcTime: 5 * 60 * 1000,   // keep cache 5 min after unmount
+    staleTime: 2 * 60 * 1000,
+    gcTime:    10 * 60 * 1000,
+    refetchOnWindowFocus: false,
+    placeholderData: keepPreviousData,   // show old data while revalidating
   });
 
-  const { data: movements = [], isLoading: movLoading } = useQuery({
+  const { data: movements, isPending: movPending } = useQuery({
     queryKey: queryKeys.hub.centralMovements(),
     queryFn:  () => hubApi.getCentralMovements(),
-    staleTime: 15_000,
-    gcTime: 5 * 60 * 1000,
+    staleTime: 2 * 60 * 1000,
+    gcTime:    10 * 60 * 1000,
+    refetchOnWindowFocus: false,
+    placeholderData: keepPreviousData,
   });
 
-  const isLoading = (stockLoading && !centralStock) || (movLoading && movements.length === 0);
+  // isPending is only true when there is no cached data at all
+  // isLoading (old behavior) was true even during background refetches
+  const isLoading = !centralStock && stockPending;
 
   const invalidateCentral = useCallback(() => {
     queryClient.invalidateQueries({ queryKey: queryKeys.hub.centralStock() });
@@ -2042,10 +2049,10 @@ function CentralTab({ subWarehouseId, allSubWarehouses }: {
           Central Warehouse Audit Log
         </SectionTitle>
         <div className="card divide-y divide-bg-border">
-          {movements.length === 0 ? (
+          {(movements ?? []).length === 0 ? (
             <Empty message="No central warehouse movements yet." />
           ) : (
-            movements.map((m: CentralMovement) => {
+            (movements ?? []).map((m: CentralMovement) => {
               const isAlloc = m.movementType === 'ALLOCATION_CHANGE';
               return (
                 <div key={m.id} className="px-4 py-3 flex items-start justify-between gap-3">
@@ -2100,9 +2107,12 @@ export function HubPage() {
   const canSelectDistrict = !isManager;
   const canSeeCentral = isRole('SUPER_ADMIN') || isRole('EMERGENCY_COORDINATOR');
 
-  const { data: summaryData, isLoading: summaryLoading } = useQuery({
+  const { data: summaryData, isPending: summaryPending } = useQuery({
     queryKey: queryKeys.dashboard.summary(),
     queryFn: () => import('../api/dashboard').then(m => m.dashboardApi.getSummary()),
+    staleTime: 30 * 1000,
+    refetchOnWindowFocus: false,
+    placeholderData: keepPreviousData,
   });
   const { data: alertStatus } = useQuery({
     queryKey: queryKeys.alert.status(),
@@ -2153,7 +2163,7 @@ export function HubPage() {
     if (isCentralActive) setActiveTab('stock');
   };
 
-  if (summaryLoading && districts.length === 0) {
+  if (summaryPending && !summaryData) {
     return <DashboardLayout title="Hub Manager Portal"><HubSkeleton /></DashboardLayout>;
   }
 
@@ -2260,34 +2270,37 @@ export function HubPage() {
 
         {/* ── CONTENT ── */}
         <div className="animate-fade-in">
-          {isCentralActive && canSeeCentral && (
-            <CentralTab
-              subWarehouseId={subWarehouseId}
-              allSubWarehouses={allSubWarehouses}
-            />
+          {/* always mounted when accessible — hidden with CSS to preserve cache */}
+          {canSeeCentral && (
+            <div className={isCentralActive ? '' : 'hidden'}>
+              <CentralTab
+                subWarehouseId={subWarehouseId}
+                allSubWarehouses={allSubWarehouses}
+              />
+            </div>
           )}
 
-          {!isCentralActive && resolvedDistrictId && (
-            <>
-              {activeTab === 'stock' && (
+          {resolvedDistrictId && (
+            <div className={!isCentralActive ? '' : 'hidden'}>
+              <div className={activeTab === 'stock' ? '' : 'hidden'}>
                 <StockTab districtId={resolvedDistrictId} subWarehouseId={subWarehouseId} />
-              )}
-              {activeTab === 'volunteers' && (
+              </div>
+              <div className={activeTab === 'volunteers' ? '' : 'hidden'}>
                 <VolunteersTab districtId={resolvedDistrictId} subWarehouseId={subWarehouseId} />
-              )}
-              {activeTab === 'deliveries' && (
+              </div>
+              <div className={activeTab === 'deliveries' ? '' : 'hidden'}>
                 <DeliveriesTab districtId={resolvedDistrictId} subWarehouseId={subWarehouseId} />
-              )}
-              {activeTab === 'incidents' && (
+              </div>
+              <div className={activeTab === 'incidents' ? '' : 'hidden'}>
                 <IncidentsTab districtId={resolvedDistrictId} />
-              )}
-              {activeTab === 'radio' && (
+              </div>
+              <div className={activeTab === 'radio' ? '' : 'hidden'}>
                 <RadioTab districtId={resolvedDistrictId} />
-              )}
-            </>
+              </div>
+            </div>
           )}
 
-          {!isCentralActive && !resolvedDistrictId && (
+          {!resolvedDistrictId && !isCentralActive && (
             <div className="py-20 text-center">
               <p className="font-mono text-sm text-text-muted">Select a district to begin.</p>
             </div>
