@@ -313,7 +313,7 @@
 - [x] 18 stock utils tests — scarcity threshold (30% boundary)
 - [x] 13 alert tests — all 8 activation trigger combinations
 - [x] 23 route tests — all 4 delivery tiers and depth boundaries
-- [x] 113 tests total passing, no Prisma or HTTP calls
+- [x] 125 tests total passing, no Prisma or HTTP calls
 
 ---
 

@@ -69,7 +69,7 @@ REMA is a pre-positioned, vulnerability-scored medical logistics system designed
 | Frontend views | 10 |
 | User roles | 5 |
 | Documented assumptions | 64 |
-| Unit tests | 113 |
+| Unit tests | 125 |
 | Annual system cost | ~$69,500 USD |
 | Cost per beneficiary | ~$0.95/person/year |
 
@@ -86,7 +86,7 @@ Hosting:    Render (backend) + Supabase (PostgreSQL) + Vercel (frontend)
 API Docs:   Swagger (swagger-ui-express)
 Diagrams:   draw.io (V3 Warehouse Layout, V5 Stakeholder Flowchart)
 Protocol:   ReportLab PDF (V6 Operating Protocol - 8 pages, print-ready A4)
-Testing:    Jest + ts-jest (113 unit tests - backend utility functions)
+Testing:    Jest + ts-jest (125 unit tests - backend utility functions)
 CI/CD:      GitHub Actions (tests gate every deployment)
 AI:         Anthropic Claude API - server-side AI Brief for Emergency Coordinator
 ```
@@ -130,12 +130,12 @@ cd backend
 npm test
 ```
 
-Expected output: **113 tests passing** across 4 test files:
+Expected output: **125 tests passing** across 4 test files:
 
 | File | Tests | What it verifies |
 |---|---|---|
 | `scoring.test.ts` | 59 | All 20-point scoring rules + Section C worked examples |
-| `stock.utils.test.ts` | 18 | Scarcity threshold logic (30% boundary) |
+| `stock.utils.test.ts` | 30 | Scarcity threshold logic (30% boundary) |
 | `alert.test.ts` | 13 | All 8 activation trigger combinations |
 | `route.test.ts` | 23 | All 4 delivery mode tiers and depth boundaries |
 
@@ -153,7 +153,7 @@ Pull request:
 
 Push to main (after PR merge):
   1. Install dependencies
-  2. Run 113 unit tests
+  2. Run 125 unit tests
   3. Trigger Render deploy hook
   → Render rebuilds backend. Vercel autodeploys frontend.
 ```
