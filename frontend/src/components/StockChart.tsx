@@ -34,7 +34,6 @@ function CustomTooltip({ active, payload, label }: {
 }
 
 // amber palette for central — warm, distinct, fits the dashboard
-const CENTRAL_COLORS  = ['#f59e0b', '#fbbf24', '#fcd34d'] as const;
 const DISTRICT_COLORS = ['#58a6ff', '#3fb950', '#d29922'] as const;
 const SCARCE_COLOR    = '#f85149';
 const SCARCITY_THRESHOLD = 30;
@@ -177,7 +176,7 @@ export const StockChart = memo(function StockChart({ districts, centralWarehouse
               {chartData.map((entry, i) => (
                 <Cell
                   key={i}
-                  fill={entry.emk1Scarce ? SCARCE_COLOR : (entry.isCentral ? CENTRAL_COLORS[0] : DISTRICT_COLORS[0])}
+                  fill={entry.emk1Scarce ? SCARCE_COLOR : DISTRICT_COLORS[0]}
                   opacity={entry.emk1Scarce ? 1 : 0.85}
                 />
               ))}
@@ -186,7 +185,7 @@ export const StockChart = memo(function StockChart({ districts, centralWarehouse
               {chartData.map((entry, i) => (
                 <Cell
                   key={i}
-                  fill={entry.emk2Scarce ? SCARCE_COLOR : (entry.isCentral ? CENTRAL_COLORS[1] : DISTRICT_COLORS[1])}
+                  fill={entry.emk2Scarce ? SCARCE_COLOR : DISTRICT_COLORS[1]}
                   opacity={entry.emk2Scarce ? 1 : 0.85}
                 />
               ))}
@@ -195,7 +194,7 @@ export const StockChart = memo(function StockChart({ districts, centralWarehouse
               {chartData.map((entry, i) => (
                 <Cell
                   key={i}
-                  fill={entry.emk3Scarce ? SCARCE_COLOR : (entry.isCentral ? CENTRAL_COLORS[2] : DISTRICT_COLORS[2])}
+                  fill={entry.emk3Scarce ? SCARCE_COLOR : DISTRICT_COLORS[2]}
                   opacity={entry.emk3Scarce ? 1 : 0.85}
                 />
               ))}
