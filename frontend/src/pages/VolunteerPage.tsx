@@ -202,7 +202,15 @@ function AssessAuditLog({ districtId }: { districtId: string }) {
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-1.5 flex-wrap mb-0.5">
                     <span className={`font-mono text-[9px] font-bold ${cfg.color}`}>{cfg.label}</span>
-                    <span className={`font-mono text-[9px] font-bold ${EMK_COLORS[h.recommendedEmk]}`}>{h.recommendedEmk}</span>
+                    {(h.totalEmkQuantity ?? 1) > 1 ? (
+                      <>
+                        <span className="font-mono text-[9px] font-bold text-accent-red">{h.emk3Quantity ? `${h.emk3Quantity}×EMK3` : ''}</span>
+                        <span className="font-mono text-[9px] font-bold text-accent-green">{h.emk2Quantity ? `${h.emk2Quantity}×EMK2` : ''}</span>
+                        <span className="font-mono text-[9px] font-bold text-accent-blue">{h.emk1Quantity ? `${h.emk1Quantity}×EMK1` : ''}</span>
+                      </>
+                    ) : (
+                      <span className={`font-mono text-[9px] font-bold ${EMK_COLORS[h.recommendedEmk]}`}>{h.recommendedEmk}</span>
+                    )}
                     <span className="font-mono text-[9px] text-text-muted">{h.totalScore}/20</span>
                   </div>
                   <p className="font-mono text-[9px] text-text-secondary truncate">{h.address}</p>

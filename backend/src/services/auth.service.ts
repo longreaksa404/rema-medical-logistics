@@ -43,20 +43,19 @@ export async function loginUser(email: string, password: string) {
   const refreshToken = makeRefreshToken();
 
   // stamp lastLoginAt + store refresh token hash in one transaction
-  const [updatedUser] = await prisma.$transaction([
-    prisma.user.update({
-      where: { id: user.id },
-      data:  { lastLoginAt: new Date() },
-      select: { lastLoginAt: true, createdAt: true, phone: true },
-    }),
-    prisma.refreshToken.create({
-      data: {
-        tokenHash: hashToken(refreshToken),
-        userId:    user.id,
-        expiresAt: new Date(Date.now() + REFRESH_EXPIRES_DAYS * 86_400_000),
-      },
-    }),
-  ]);
+  await prisma.$transaction([
+  prisma.user.update({
+    where: { id: user.id },
+    data:  { lastLoginAt: new Date() },
+  }),
+  prisma.refreshToken.create({
+    data: {
+      tokenHash: hashToken(refreshToken),
+      userId:    user.id,
+      expiresAt: new Date(Date.now() + REFRESH_EXPIRES_DAYS * 86_400_000),
+    },
+  }),
+]);
 
   return {
     accessToken,
@@ -71,7 +70,7 @@ export async function loginUser(email: string, password: string) {
       mustChangePassword: user.mustChangePassword,
       avatarBase64:       user.avatarBase64,
       createdAt:          user.createdAt.toISOString(),
-      lastLoginAt:        updatedUser.lastLoginAt?.toISOString() ?? null,
+      lastLoginAt: new Date().toISOString(),
     },
   };
 }

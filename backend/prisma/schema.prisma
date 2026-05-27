@@ -17,6 +17,10 @@ model User {
   name                  String
   role                  Role
   active                Boolean                @default(true)
+  phone                 String?
+  mustChangePassword    Boolean                @default(false)
+  avatarBase64          String?
+  lastLoginAt           DateTime?
   districtId            String?
   deliveryRuns          DeliveryRun[]
   assessmentsFiled      HouseholdAssessment[]
@@ -29,6 +33,8 @@ model User {
   stockMovements        StockMovement[]
   centralMovements      CentralStockMovement[]
   district              District?              @relation(fields: [districtId], references: [id])
+  volunteer             Volunteer?
+  refreshTokens         RefreshToken[]
 
   @@map("users")
 }
@@ -64,16 +70,12 @@ model CentralWarehouse {
   @@map("central_warehouse")
 }
 
-// Audit log for all central warehouse operations.
-// Separate from StockMovement because central has no subWarehouseId FK.
 model CentralStockMovement {
   id                 String           @id @default(cuid())
   createdAt          DateTime         @default(now())
   centralWarehouseId String
   emkType            EmkType
-  // DISPATCH | REPLENISH | ADJUSTMENT | ALLOCATION_CHANGE | MOH_TRANSFER
   movementType       String
-  // Signed: positive = in, negative = out, newTotal value for ALLOCATION_CHANGE
   quantity           Int
   reason             String?
   performedById      String
@@ -169,6 +171,12 @@ model Household {
   assessedById         String?
   priorityBand         PriorityBand          @default(STANDARD)
   recommendedEmk       EmkType               @default(EMK1)
+  householdSize        Int                   @default(4)
+  chronicIllCount      Int                   @default(0)
+  emk1Quantity         Int                   @default(1)
+  emk2Quantity         Int                   @default(0)
+  emk3Quantity         Int                   @default(0)
+  totalEmkQuantity     Int                   @default(1)
   deliveryReceipts     DeliveryReceipt[]
   assessments          HouseholdAssessment[]
   assessedBy           User?                 @relation("AssessedBy", fields: [assessedById], references: [id])
@@ -205,6 +213,8 @@ model Volunteer {
   phone        String
   role         VolunteerRole         @default(VOLUNTEER)
   status       VolunteerStatus       @default(AVAILABLE)
+  userId       String?               @unique
+  user         User?                 @relation(fields: [userId], references: [id])
   deliveryRuns DeliveryRun[]
   assignments  VolunteerAssignment[]
 
@@ -336,6 +346,19 @@ model Notification {
 
   @@index([userId, read])
   @@map("notifications")
+}
+
+model RefreshToken {
+  id        String   @id @default(cuid())
+  createdAt DateTime @default(now())
+  tokenHash String   @unique
+  userId    String
+  expiresAt DateTime
+  revoked   Boolean  @default(false)
+  user      User     @relation(fields: [userId], references: [id])
+
+  @@index([userId])
+  @@map("refresh_tokens")
 }
 
 enum Role {

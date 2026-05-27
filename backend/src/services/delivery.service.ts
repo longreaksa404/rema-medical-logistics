@@ -205,7 +205,7 @@ export async function createDeliveryReceipt(data: {
       subWarehouseId: run.subWarehouseId,
       emkType: kit.emkType,
       quantity: kit.quantity,
-      reason: `Delivery to household ${householdId} — run ${deliveryRunId}`,
+      reason: `Delivery to ${household.address} - Team ${run.teamNumber} (${run.zone})`,
       performedById,
     });
   }
