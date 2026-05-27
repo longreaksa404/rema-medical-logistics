@@ -276,6 +276,10 @@ export const hubApi = {
     return results.map(r => r.data);
   },
 
+  deleteTeam: (districtId: string, alertId: string, teamNumber: number) =>
+  api.delete('/api/volunteers/team', { data: { districtId, alertId, teamNumber } })
+    .then(r => r.data),
+
   // ── Deliveries ─────────────────────────────────────────────────────────────
 
   getDeliveryRuns: async (districtId: string): Promise<DeliveryRun[]> => {

@@ -1,5 +1,6 @@
 import { Request, Response } from 'express';
 import { VolunteerRole, VolunteerStatus } from '@prisma/client';
+// update the import at the top
 import {
   listVolunteers,
   createCommunityVolunteer,
@@ -8,6 +9,7 @@ import {
   assignVolunteer,
   assignTeam,
   getDistrictRoster,
+  deleteTeamAssignments,  // add this
 } from '../services/volunteer.service';
 
 export async function list(req: Request, res: Response): Promise<void> {
@@ -144,5 +146,27 @@ export async function roster(req: Request, res: Response): Promise<void> {
   } catch (err) {
     const message = err instanceof Error ? err.message : 'District not found';
     res.status(404).json({ error: message });
+  }
+}
+
+// add at the bottom
+export async function deleteTeam(req: Request, res: Response): Promise<void> {
+  const { districtId, alertId, teamNumber } = req.body;
+
+  if (!districtId || !alertId || !teamNumber) {
+    res.status(400).json({ error: 'districtId, alertId, and teamNumber are required' });
+    return;
+  }
+
+  try {
+    const result = await deleteTeamAssignments({
+      districtId,
+      alertId,
+      teamNumber: Number(teamNumber),
+    });
+    res.json(result);
+  } catch (err) {
+    const message = err instanceof Error ? err.message : 'Error deleting team';
+    res.status(400).json({ error: message });
   }
 }

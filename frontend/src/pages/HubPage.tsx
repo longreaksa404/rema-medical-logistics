@@ -541,6 +541,16 @@ function VolunteersTab({ districtId, subWarehouseId }: { districtId: string; sub
     },
   });
 
+  const deleteTeamMutation = useMutation({
+    mutationFn: (teamNum: number) => hubApi.deleteTeam(districtId, alertId, teamNum),
+    onSuccess: (_, teamNum) => {
+      setSuccess(`Team ${teamNum} removed.`);
+      // if deleted team was selected, fall back to team 1
+      if (selectedTeamNum === teamNum) setSelectedTeamNum(1);
+      invalidateRoster();
+    },
+  });
+
   const STATUS_COLORS: Record<string, string> = {
     AVAILABLE: 'text-accent-green border-accent-green/30 bg-accent-green/5',
     DEPLOYED:  'text-accent-blue border-accent-blue/30 bg-accent-blue/5',
@@ -551,7 +561,8 @@ function VolunteersTab({ districtId, subWarehouseId }: { districtId: string; sub
     (deployTeamMutation.error as any)?.response?.data?.error ||
     (roleMutation.error as any)?.response?.data?.error ||
     (statusMutation.error as any)?.response?.data?.error ||
-    (communityMutation.error as any)?.response?.data?.error || '';
+    (communityMutation.error as any)?.response?.data?.error ||
+    (deleteTeamMutation.error as any)?.response?.data?.error || '';
 
   const canDeploy =
     !!alertId &&
@@ -597,6 +608,7 @@ function VolunteersTab({ districtId, subWarehouseId }: { districtId: string; sub
             roleMutation.reset();
             statusMutation.reset();
             communityMutation.reset();
+            deleteTeamMutation.reset();
           }}
         />
       )}
@@ -686,7 +698,8 @@ function VolunteersTab({ districtId, subWarehouseId }: { districtId: string; sub
                               onClick={() => { setSelectedTeamNum(n); setTeamDropdownOpen(false); }}>
                               Team {n}
                             </span>
-                            {isRemovable && (
+                            {isRemovable ? (
+                              // locally added, not in DB yet
                               <button
                                 onClick={e => {
                                   e.stopPropagation();
@@ -698,7 +711,20 @@ function VolunteersTab({ districtId, subWarehouseId }: { districtId: string; sub
                                 title="Remove team">
                                 ✕
                               </button>
-                            )}
+                            ) : n > 3 ? (
+                              // in DB — call delete endpoint
+                              <button
+                                onClick={e => {
+                                  e.stopPropagation();
+                                  deleteTeamMutation.mutate(n);
+                                  setTeamDropdownOpen(false);
+                                }}
+                                disabled={deleteTeamMutation.isPending}
+                                className="ml-2 font-mono text-[10px] text-accent-red hover:text-accent-red/70 px-1 py-0.5 rounded hover:bg-accent-red/10 transition-colors"
+                                title="Remove team">
+                                ✕
+                              </button>
+                            ) : null}
                           </div>
                         );
                       })}

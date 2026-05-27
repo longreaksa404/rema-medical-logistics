@@ -298,3 +298,57 @@ async function buildRoster(districtId: string, alertId?: string) {
     volunteers,
   };
 }
+
+export async function deleteTeamAssignments(data: {
+  districtId: string;
+  alertId: string;
+  teamNumber: number;
+}) {
+  const { districtId, alertId, teamNumber } = data;
+
+  // find all assignments for this team in this alert
+  const assignments = await prisma.volunteerAssignment.findMany({
+    where: { alertId, teamNumber },
+    include: { volunteer: true },
+  });
+
+  if (assignments.length === 0) {
+    throw new Error(`No assignments found for Team ${teamNumber} in this alert`);
+  }
+
+  // block delete if team has an active run
+  const sw = await prisma.subWarehouse.findFirst({ where: { districtId } });
+  if (sw) {
+    const activeRun = await prisma.deliveryRun.findFirst({
+      where: { subWarehouseId: sw.id, teamNumber, status: 'IN_PROGRESS' },
+    });
+    if (activeRun) {
+      throw new Error(`Team ${teamNumber} has an active delivery run. Complete or abort it first.`);
+    }
+  }
+
+  const volunteerIds = assignments.map(a => a.volunteerId);
+
+  await prisma.$transaction(async (tx) => {
+    // delete all assignments for this team
+    await tx.volunteerAssignment.deleteMany({
+      where: { alertId, teamNumber },
+    });
+
+    // return volunteers to AVAILABLE — only if not assigned to another team
+    for (const vid of volunteerIds) {
+      const otherAssignment = await tx.volunteerAssignment.findFirst({
+        where: { volunteerId: vid, alertId },
+      });
+      if (!otherAssignment) {
+        await tx.volunteer.update({
+          where: { id: vid },
+          data: { status: VolunteerStatus.AVAILABLE },
+        });
+      }
+    }
+  });
+
+  invalidateVolunteerCache(districtId);
+  return { deleted: assignments.length, teamNumber };
+}
