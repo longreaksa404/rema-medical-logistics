@@ -65,7 +65,7 @@ REMA is a pre-positioned, vulnerability-scored medical logistics system designed
 | Response window | 24-48 hours (critical phase) |
 | Water depth range | 30-80cm operational; suspended above 80cm |
 | API endpoints | 55+ |
-| Database tables | 17 |
+| Database tables | 20 |
 | Frontend views | 10 |
 | User roles | 5 |
 | Documented assumptions | 64 |

@@ -124,7 +124,7 @@ Score bands:
 
 ---
 
-## 8. DATABASE SCHEMA (Complete — 17 Tables)
+## 8. DATABASE SCHEMA (Complete — 20 Tables)
 
 ### users
 ```
