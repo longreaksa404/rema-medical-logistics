@@ -701,7 +701,10 @@ export function DashboardPage() {
           </div>
 
           {/* 5 ── Stock chart */}
-          <StockChart districts={data.districts.filter(d => d.name !== '__central__')} />
+          <StockChart
+            districts={data.districts.filter(d => d.name !== '__central__')}
+            centralWarehouse={data.centralWarehouse}
+          />
 
           {/* 6 ── Delivery runs + Radio */}
           <div className="grid grid-cols-1 lg:grid-cols-5 gap-4">

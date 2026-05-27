@@ -4,8 +4,8 @@ import { getCached, setCached, deleteCached } from '../utils/cache';
 
 const prisma = new PrismaClient();
 
-const KEY_SUMMARY          = 'dashboard:summary';
-const KEY_DISTRICT_PREFIX  = 'dashboard:district:';
+const KEY_SUMMARY         = 'dashboard:summary';
+const KEY_DISTRICT_PREFIX = 'dashboard:district:';
 
 export function invalidateCache(key?: string): void {
   if (key) {
@@ -47,7 +47,7 @@ async function buildDistrictDashboard(districtId: string) {
   const sw    = district.subWarehouse;
   const stock = sw?.stock;
 
-  let stockPct = 0;
+  let stockPct  = 0;
   let anyScarce = false;
 
   if (stock) {
@@ -82,7 +82,7 @@ async function buildDistrictDashboard(districtId: string) {
   ]);
 
   const householdsAssessed = householdCounts.reduce((sum, row) => sum + row._count._all, 0);
-  const deliveredCount = householdCounts.find((r) => r.delivered === true)?._count._all ?? 0;
+  const deliveredCount     = householdCounts.find((r) => r.delivered === true)?._count._all ?? 0;
 
   const recentCheckins = await prisma.radioCheckin.findMany({
     where: { districtId },
@@ -93,9 +93,9 @@ async function buildDistrictDashboard(districtId: string) {
 
   return {
     districtId,
-    name: district.name,
-    population: district.population,
-    subWarehouseId: sw?.id ?? null,
+    name:               district.name,
+    population:         district.population,
+    subWarehouseId:     sw?.id ?? null,
     subWarehouseStatus: sw?.status ?? null,
     stockPct,
     anyScarce,
@@ -107,7 +107,7 @@ async function buildDistrictDashboard(districtId: string) {
     householdsAssessed,
     deliveredCount,
     openIncidents,
-    activeDeliveryRuns: activeRuns,
+    activeDeliveryRuns:  activeRuns,
     recentRadioCheckins: recentCheckins,
   };
 }
@@ -115,7 +115,8 @@ async function buildDistrictDashboard(districtId: string) {
 async function buildSummary() {
   const [
     alert,
-    districts,               // ← no filter needed — central_warehouse is its own table now
+    districts,
+    centralWarehouse,
     globalHouseholdCounts,
     districtHouseholdCounts,
     districtIncidentCounts,
@@ -128,6 +129,8 @@ async function buildSummary() {
       orderBy: { name: 'asc' },
       include: { subWarehouse: { include: { stock: true } } },
     }),
+
+    prisma.centralWarehouse.findFirst(),
 
     prisma.household.groupBy({
       by: ['priorityBand', 'delivered'],
@@ -188,7 +191,7 @@ async function buildSummary() {
     orderBy: [{ status: 'asc' }, { createdAt: 'desc' }],
     take: 10,
     include: {
-      district: { select: { name: true } },
+      district:   { select: { name: true } },
       reportedBy: { select: { name: true, role: true } },
     },
   });
@@ -221,10 +224,10 @@ async function buildSummary() {
     const openCount     = incidentMap.get(d.id) ?? 0;
 
     return {
-      districtId:        d.id,
-      name:              d.name,
-      population:        d.population,
-      subWarehouseId:    sw?.id ?? null,
+      districtId:         d.id,
+      name:               d.name,
+      population:         d.population,
+      subWarehouseId:     sw?.id ?? null,
       subWarehouseStatus: sw?.status ?? null,
       stockPct,
       anyScarce,
@@ -248,6 +251,14 @@ async function buildSummary() {
       rainfallExceeds100mm: alert.rainfallExceeds100mm,
       streetFloodingReport: alert.streetFloodingReport,
     } : null,
+    centralWarehouse: centralWarehouse ? {
+      emk1Total:     centralWarehouse.emk1Total,
+      emk1Remaining: centralWarehouse.emk1Remaining,
+      emk2Total:     centralWarehouse.emk2Total,
+      emk2Remaining: centralWarehouse.emk2Remaining,
+      emk3Total:     centralWarehouse.emk3Total,
+      emk3Remaining: centralWarehouse.emk3Remaining,
+    } : null,
     households: {
       critical, high, medium, standard, delivered,
       total:           critical + high + medium + standard + delivered,
@@ -255,7 +266,7 @@ async function buildSummary() {
     },
     activeDeliveryRuns: activeRuns,
     todayRadioCheckins: todayCheckins,
-    districts: districtCards,
+    districts:          districtCards,
     openIncidents,
   };
 }

@@ -19,6 +19,12 @@ export interface DistrictCard {
   openIncidents: number;
 }
 
+export interface CentralWarehouseStock {
+  emk1Total: number; emk1Remaining: number;
+  emk2Total: number; emk2Remaining: number;
+  emk3Total: number; emk3Remaining: number;
+}
+
 export interface DashboardSummary {
   phase: 0 | 1 | 2;
   activated: boolean;
@@ -28,6 +34,7 @@ export interface DashboardSummary {
     rainfallExceeds100mm: boolean;
     streetFloodingReport: boolean;
   } | null;
+  centralWarehouse: CentralWarehouseStock | null;
   households: {
     critical: number;
     high: number;
