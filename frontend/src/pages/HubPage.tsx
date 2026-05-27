@@ -818,7 +818,7 @@ function VolunteersTab({ districtId, subWarehouseId }: { districtId: string; sub
                     <p className="font-mono text-[9px] text-text-muted">
                       {existingZone}
                       {activeRunForTeam && (
-                        ` · departed ${fmtTime(activeRunForTeam.departedAt)} · ${activeRunForTeam.receipts?.length ?? 0} delivered`
+                        ` · departed ${fmtTime(activeRunForTeam.departedAt)} · ${new Set(activeRunForTeam.receipts?.map(r => r.householdId) ?? []).size} delivered`
                       )}
                     </p>
                   </div>
@@ -1289,7 +1289,7 @@ function DeliveriesTab({ districtId, subWarehouseId }: { districtId: string; sub
                     </span>
                   </div>
                   <p className="font-mono text-[10px] text-text-muted mb-3">
-                    {r.receipts?.length ?? 0} deliveries recorded
+                    {new Set(r.receipts?.map(rec => rec.householdId) ?? []).size} deliveries recorded
                   </p>
                   <div className="flex gap-2">
                     <button
@@ -1365,7 +1365,7 @@ function DeliveriesTab({ districtId, subWarehouseId }: { districtId: string; sub
                       {r.leadVolunteer?.name ?? '—'} · {fmtTime(r.departedAt)}
                       {r.returnedAt ? ` → ${fmtTime(r.returnedAt)}` : ''}
                       {duration !== null ? ` · ${duration}m` : ''}
-                      {' · '}{r.receipts?.length ?? 0} delivered
+                      {' · '}{new Set(r.receipts?.map(rec => rec.householdId) ?? []).size} delivered
                     </p>
                   </div>
                 </div>
