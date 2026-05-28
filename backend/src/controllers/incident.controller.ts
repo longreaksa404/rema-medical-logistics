@@ -37,15 +37,18 @@ export async function report(req: Request, res: Response): Promise<void> {
 // ─── GET /api/incidents ───────────────────────────────────────────────────────
 
 export async function list(req: Request, res: Response): Promise<void> {
-  const { districtId, type, status } = req.query;
+  const { districtId, type } = req.query;
+  const page     = Math.max(1, parseInt(req.query.page     as string) || 1);
+  const pageSize = Math.min(100, Math.max(1, parseInt(req.query.pageSize as string) || 20));
 
   try {
-    const incidents = await listIncidents({
+    const result = await listIncidents({
       districtId: districtId as string | undefined,
-      type: type as IncidentType | undefined,
-      status: status as IncidentStatus | undefined,
+      type:       type       as IncidentType | undefined,
+      page,
+      pageSize,
     });
-    res.json(incidents);
+    res.json(result);
   } catch (err) {
     const message = err instanceof Error ? err.message : 'Error fetching incidents';
     res.status(500).json({ error: message });

@@ -8,6 +8,16 @@ const KEY_ALL = 'delivery:runs:all';
 const KEY_DISTRICT_PREFIX = 'delivery:runs:district:';
 const TTL = 10_000;
 
+export interface PaginatedResult<T> {
+  data: T[];
+  total: number;
+  page: number;
+  pageSize: number;
+  totalPages: number;
+}
+
+const DEFAULT_PAGE_SIZE = 20;
+
 function invalidateRunsCache(districtId?: string): void {
   deleteCached(KEY_ALL);
   if (districtId) {
@@ -92,60 +102,111 @@ export async function startDeliveryRun(data: {
 }
 
 // ─── LIST DELIVERY RUNS ───────────────────────────────────────────────────────
+// Returns active runs in full + paginated history separately.
+// Active runs are always needed whole — complete/abort buttons depend on them.
+// History grows unbounded across flood events — paginated.
 
 export async function listDeliveryRuns(filters: {
   districtId?: string;
-  status?: DeliveryRunStatus;
-}) {
+  page?: number;
+  pageSize?: number;
+}): Promise<{ active: object[]; history: PaginatedResult<object> }> {
+  const page     = filters.page     ?? 1;
+  const pageSize = filters.pageSize ?? DEFAULT_PAGE_SIZE;
+
   if (filters.districtId) {
-    const key = `${KEY_DISTRICT_PREFIX}${filters.districtId}`;
     const sw = await prisma.subWarehouse.findUnique({
       where: { districtId: filters.districtId },
     });
-    if (!sw) return [];
-    const cached = getCached<Awaited<ReturnType<typeof fetchRunsByWarehouse>>>(key);
-    const all = cached ?? await (async () => {
-      const result = await fetchRunsByWarehouse(sw.id);
-      setCached(key, result, TTL);
-      return result;
-    })();
-    return filters.status ? all.filter(r => r.status === filters.status) : all;
+    if (!sw) return { active: [], history: { data: [], total: 0, page, pageSize, totalPages: 0 } };
+
+    return fetchRunsByWarehouse(sw.id, page, pageSize);
   }
 
-  const cached = getCached<Awaited<ReturnType<typeof fetchAllRuns>>>(KEY_ALL);
-  const all = cached ?? await (async () => {
-    const result = await fetchAllRuns();
-    setCached(KEY_ALL, result, TTL);
-    return result;
-  })();
-  return filters.status ? all.filter(r => r.status === filters.status) : all;
+  return fetchAllRuns(page, pageSize);
 }
 
-async function fetchAllRuns() {
-  return prisma.deliveryRun.findMany({
-    orderBy: { departedAt: 'desc' },
-    include: {
-      subWarehouse: { include: { district: { select: { name: true } } } },
-      leadVolunteer: { select: { name: true, phone: true } },
-      receipts: {
-        select: { id: true, emkType: true, quantity: true, deliveredAt: true, householdId: true },
-      },
+async function fetchAllRuns(
+  page: number,
+  pageSize: number
+): Promise<{ active: object[]; history: PaginatedResult<object> }> {
+  const include = {
+    subWarehouse: { include: { district: { select: { name: true } } } },
+    leadVolunteer: { select: { name: true, phone: true } },
+    receipts: {
+      select: { id: true, emkType: true, quantity: true, deliveredAt: true, householdId: true },
     },
-  });
+  };
+
+  const [active, historyData, historyTotal] = await prisma.$transaction([
+    prisma.deliveryRun.findMany({
+      where: { status: 'IN_PROGRESS' },
+      orderBy: { departedAt: 'desc' },
+      include,
+    }),
+    prisma.deliveryRun.findMany({
+      where: { status: { not: 'IN_PROGRESS' } },
+      orderBy: { departedAt: 'desc' },
+      skip: (page - 1) * pageSize,
+      take: pageSize,
+      include,
+    }),
+    prisma.deliveryRun.count({ where: { status: { not: 'IN_PROGRESS' } } }),
+  ]);
+
+  return {
+    active,
+    history: {
+      data: historyData,
+      total: historyTotal,
+      page,
+      pageSize,
+      totalPages: Math.ceil(historyTotal / pageSize),
+    },
+  };
 }
 
-async function fetchRunsByWarehouse(subWarehouseId: string) {
-  return prisma.deliveryRun.findMany({
-    where: { subWarehouseId },
-    orderBy: { departedAt: 'desc' },
-    include: {
-      subWarehouse: { include: { district: { select: { name: true } } } },
-      leadVolunteer: { select: { name: true, phone: true } },
-      receipts: {
-        select: { id: true, emkType: true, quantity: true, deliveredAt: true, householdId: true },
-      },
+async function fetchRunsByWarehouse(
+  subWarehouseId: string,
+  page: number,
+  pageSize: number
+): Promise<{ active: object[]; history: PaginatedResult<object> }> {
+  const include = {
+    subWarehouse: { include: { district: { select: { name: true } } } },
+    leadVolunteer: { select: { name: true, phone: true } },
+    receipts: {
+      select: { id: true, emkType: true, quantity: true, deliveredAt: true, householdId: true },
     },
-  });
+  };
+
+  const [active, historyData, historyTotal] = await prisma.$transaction([
+    prisma.deliveryRun.findMany({
+      where: { subWarehouseId, status: 'IN_PROGRESS' },
+      orderBy: { departedAt: 'desc' },
+      include,
+    }),
+    prisma.deliveryRun.findMany({
+      where: { subWarehouseId, status: { not: 'IN_PROGRESS' } },
+      orderBy: { departedAt: 'desc' },
+      skip: (page - 1) * pageSize,
+      take: pageSize,
+      include,
+    }),
+    prisma.deliveryRun.count({
+      where: { subWarehouseId, status: { not: 'IN_PROGRESS' } },
+    }),
+  ]);
+
+  return {
+    active,
+    history: {
+      data: historyData,
+      total: historyTotal,
+      page,
+      pageSize,
+      totalPages: Math.ceil(historyTotal / pageSize),
+    },
+  };
 }
 
 // ─── GET SINGLE RUN WITH RECEIPTS ────────────────────────────────────────────

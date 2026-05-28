@@ -44,20 +44,17 @@ export async function startRun(req: Request, res: Response): Promise<void> {
 // ─── GET /api/delivery/runs ───────────────────────────────────────────────────
 
 export async function listRuns(req: Request, res: Response): Promise<void> {
-  const { districtId, status } = req.query;
-
-  const validStatuses = ['IN_PROGRESS', 'COMPLETE', 'ABORTED'];
-  if (status && !validStatuses.includes(status as string)) {
-    res.status(400).json({ error: `status must be one of: ${validStatuses.join(', ')}` });
-    return;
-  }
+  const { districtId } = req.query;
+  const page     = Math.max(1, parseInt(req.query.page     as string) || 1);
+  const pageSize = Math.min(100, Math.max(1, parseInt(req.query.pageSize as string) || 20));
 
   try {
-    const runs = await listDeliveryRuns({
+    const result = await listDeliveryRuns({
       districtId: districtId as string | undefined,
-      status: status as DeliveryRunStatus | undefined,
+      page,
+      pageSize,
     });
-    res.json(runs);
+    res.json(result);
   } catch (err) {
     const message = err instanceof Error ? err.message : 'Error fetching runs';
     res.status(500).json({ error: message });

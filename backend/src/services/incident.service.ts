@@ -12,6 +12,16 @@ const KEY_ALL = 'incidents:all';
 const KEY_DISTRICT_PREFIX = 'incidents:district:';
 const TTL = 20_000; // 20 s
 
+export interface PaginatedResult<T> {
+  data: T[];
+  total: number;
+  page: number;
+  pageSize: number;
+  totalPages: number;
+}
+
+const DEFAULT_PAGE_SIZE = 20;
+
 // ─── INCIDENT NOTIFICATION ────────────────────────────────────────────────────
 // Notifies the hub manager for the affected district when an incident is reported.
 // Also notifies EC for escalated types (VOLUNTEER_SAFETY, BUILDING_FLOODED).
@@ -56,10 +66,10 @@ async function notifyDistrictHub(
 
 function invalidateIncidentCache(districtId?: string): void {
   deleteCached(KEY_ALL);
+  deleteCached(`${KEY_ALL}:open`);
   if (districtId) {
     deleteCached(`${KEY_DISTRICT_PREFIX}${districtId}`);
-  } else {
-    deleteCached(KEY_DISTRICT_PREFIX);
+    deleteCached(`${KEY_DISTRICT_PREFIX}${districtId}:open`);
   }
 }
 
@@ -118,46 +128,69 @@ export async function reportIncident(data: {
 }
 
 // ─── LIST INCIDENTS ───────────────────────────────────────────────────────────
-// Cached 20 s. Filters applied post-cache (small dataset).
+// Open/escalated incidents always returned in full — operationally critical.
+// Resolved incidents are paginated — grow unbounded over a flood event.
 
 export async function listIncidents(filters: {
   districtId?: string;
   type?: IncidentType;
-  status?: IncidentStatus;
-}) {
-  // Use district-scoped cache when filtering by district; global cache otherwise
-  const key = filters.districtId
+  page?: number;
+  pageSize?: number;
+}): Promise<{ open: object[]; resolved: PaginatedResult<object> }> {
+  const page     = filters.page     ?? 1;
+  const pageSize = filters.pageSize ?? DEFAULT_PAGE_SIZE;
+
+  const where: Record<string, unknown> = {};
+  if (filters.districtId) where.districtId = filters.districtId;
+  if (filters.type)       where.type       = filters.type;
+
+  const include = {
+    district:   { select: { name: true } },
+    reportedBy: { select: { name: true, role: true } },
+    resolvedBy: { select: { name: true, role: true } },
+  };
+
+  // cache key still works — open incidents are the hot path
+  const cacheKey = filters.districtId
     ? `${KEY_DISTRICT_PREFIX}${filters.districtId}`
     : KEY_ALL;
 
-  const cached = getCached<Awaited<ReturnType<typeof fetchIncidents>>>(key);
-  const all = cached ?? await (async () => {
-    const result = await fetchIncidents(filters.districtId);
-    setCached(key, result, TTL);
-    return result;
-  })();
+  // only cache open incidents — resolved are paginated and change less frequently
+  const cachedOpen = getCached<object[]>(`${cacheKey}:open`);
 
-  // Apply remaining filters in-memory
-  return all.filter(i => {
-    if (filters.type && i.type !== filters.type) return false;
-    if (filters.status && i.status !== filters.status) return false;
-    return true;
-  });
-}
+  const [openData, resolvedData, resolvedTotal] = await Promise.all([
+    cachedOpen
+      ? Promise.resolve(cachedOpen)
+      : prisma.incident.findMany({
+          where: { ...where, status: { not: IncidentStatus.RESOLVED } },
+          orderBy: [{ status: 'asc' }, { createdAt: 'desc' }],
+          include,
+        }).then(data => {
+          setCached(`${cacheKey}:open`, data, TTL);
+          return data;
+        }),
+    prisma.incident.findMany({
+      where: { ...where, status: IncidentStatus.RESOLVED },
+      orderBy: { createdAt: 'desc' },
+      skip: (page - 1) * pageSize,
+      take: pageSize,
+      include,
+    }),
+    prisma.incident.count({
+      where: { ...where, status: IncidentStatus.RESOLVED },
+    }),
+  ]);
 
-async function fetchIncidents(districtId?: string) {
-  const where: Record<string, unknown> = {};
-  if (districtId) where.districtId = districtId;
-
-  return prisma.incident.findMany({
-    where,
-    orderBy: [{ status: 'asc' }, { createdAt: 'desc' }],
-    include: {
-      district: { select: { name: true } },
-      reportedBy: { select: { name: true, role: true } },
-      resolvedBy: { select: { name: true, role: true } },
+  return {
+    open: openData,
+    resolved: {
+      data: resolvedData,
+      total: resolvedTotal,
+      page,
+      pageSize,
+      totalPages: Math.ceil(resolvedTotal / pageSize),
     },
-  });
+  };
 }
 
 // ─── RESOLVE AN INCIDENT ──────────────────────────────────────────────────────

@@ -332,7 +332,7 @@ function StockTab({ districtId, subWarehouseId }: {
 
         {/* Adjust */}
         <div className="card p-5">
-          <SectionTitle sub="Manual correction with mandatory reason (Section B.7)">
+          <SectionTitle sub="Manual correction with mandatory reason">
             Manual Adjustment
           </SectionTitle>
           <div className="space-y-3">
@@ -450,12 +450,14 @@ function VolunteersTab({ districtId, subWarehouseId }: { districtId: string; sub
     enabled: !!districtId,
   });
 
-  const { data: runs = [], isPending: runsPending } = useQuery({
+  const { data: runsResult, isPending: runsPending } = useQuery({
     queryKey: queryKeys.hub.deliveries(districtId),
-    queryFn: () => hubApi.getDeliveryRuns(districtId),
-    enabled: !!districtId,
+    queryFn:  () => hubApi.getDeliveryRuns(districtId),
+    enabled:  !!districtId,
     refetchInterval: 30_000,
   });
+
+  const runs = runsResult?.active ?? [];
 
   const invalidateRoster = useCallback(() => {
     queryClient.invalidateQueries({ queryKey: [...queryKeys.hub.volunteers(districtId), alertId] });
@@ -612,7 +614,7 @@ function VolunteersTab({ districtId, subWarehouseId }: { districtId: string; sub
     { label: `+ New Team (Team ${nextTeamNumber})`, value: 'new' as const },
   ];
 
-  if ((rosterPending && !roster) || (runsPending && runs.length === 0)) {
+  if ((rosterPending && !roster) || (runsPending && !runsResult)) {
     return (
       <div className="space-y-4">
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
@@ -1094,6 +1096,7 @@ function DeliveriesTab({ districtId, subWarehouseId }: { districtId: string; sub
   const [team, setTeam] = useState(1);
   const [abortId, setAbortId] = useState('');
   const [abortReason, setAbortReason] = useState('');
+  const [historyPage, setHistoryPage] = useState(1);
 
   const { data: alertData } = useQuery({
     queryKey: queryKeys.alert.status(),
@@ -1101,12 +1104,22 @@ function DeliveriesTab({ districtId, subWarehouseId }: { districtId: string; sub
   });
   const alertId = alertData?.id ?? '';
 
-  const { data: runs = [], isPending: runsPending } = useQuery({
+  const { data: runsResult, isPending: runsPending } = useQuery({
     queryKey: queryKeys.hub.deliveries(districtId),
-    queryFn: () => hubApi.getDeliveryRuns(districtId),
-    enabled: !!districtId,
+    queryFn:  () => hubApi.getDeliveryRuns(districtId),
+    enabled:  !!districtId,
     refetchInterval: 30_000,
   });
+
+  const runs = runsResult?.active ?? [];
+
+  const activeRuns        = runsResult?.active ?? [];
+  const historyData       = runsResult?.history?.data ?? [];
+  const historyTotalPages = runsResult?.history?.totalPages ?? 1;
+  const historyTotal      = runsResult?.history?.total ?? 0;
+
+  // reset history page when district changes
+  useEffect(() => { setHistoryPage(1); }, [districtId]);
 
   // fetch roster with current alertId so assignments reflect this deployment session
   const { data: roster } = useQuery({
@@ -1160,7 +1173,6 @@ function DeliveriesTab({ districtId, subWarehouseId }: { districtId: string; sub
     onSuccess: () => {
       setSuccess('Run marked complete. Team returned to base.');
       invalidateDeliveries();
-      // also bust roster so volunteer statuses update
       queryClient.invalidateQueries({ queryKey: queryKeys.hub.volunteers(districtId) });
     },
   });
@@ -1174,9 +1186,6 @@ function DeliveriesTab({ districtId, subWarehouseId }: { districtId: string; sub
     },
   });
 
-  const activeRuns = useMemo(() => runs.filter((r: DeliveryRun) => r.status === 'IN_PROGRESS'), [runs]);
-  const pastRuns   = useMemo(() => runs.filter((r: DeliveryRun) => r.status !== 'IN_PROGRESS'), [runs]);
-
   // team is locked if it already has an active run
   const activeRunForTeam = useMemo(
     () => activeRuns.find((r: DeliveryRun) => r.teamNumber === team) ?? null,
@@ -1188,7 +1197,7 @@ function DeliveriesTab({ districtId, subWarehouseId }: { districtId: string; sub
     (completeMutation.error as { response?: { data?: { error?: string } } })?.response?.data?.error ??
     (abortMutation.error as { response?: { data?: { error?: string } } })?.response?.data?.error ?? '';
 
-  if (runsPending && runs.length === 0) {
+  if (runsPending && !runsResult) {
     return (
       <div className="space-y-4">
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
@@ -1364,47 +1373,75 @@ function DeliveriesTab({ districtId, subWarehouseId }: { districtId: string; sub
       </div>
 
       {/* run history */}
-      {pastRuns.length > 0 && (
-        <div>
-          <SectionTitle sub="Completed and aborted runs">Run History</SectionTitle>
-          <div className="card divide-y divide-bg-border">
-            {pastRuns.map((r: DeliveryRun) => {
-              const duration = r.returnedAt
-                ? Math.round((new Date(r.returnedAt).getTime() - new Date(r.departedAt).getTime()) / 60000)
-                : null;
-              return (
-                <div key={r.id} className="px-4 py-3 flex items-center justify-between gap-3">
-                  <div className="min-w-0 flex-1">
-                    <div className="flex items-center gap-2 mb-0.5">
-                      <p className="font-sans text-sm text-text-primary">
-                        Team {r.teamNumber} · {r.zone}
-                      </p>
-                      {r.status === 'COMPLETE' ? (
-                        <span className="font-mono text-[9px] px-1.5 py-0.5 rounded border text-accent-green border-accent-green/30 bg-accent-green/5">
-                          COMPLETE
-                        </span>
-                      ) : (
-                        <span className="font-mono text-[9px] px-1.5 py-0.5 rounded border text-accent-red border-accent-red/30 bg-accent-red/5">
-                          ABORTED
-                        </span>
-                      )}
-                    </div>
-                    <p className="font-mono text-[10px] text-text-muted">
-                      {r.leadVolunteer?.name ?? '—'} · {fmtTime(r.departedAt)}
-                      {r.returnedAt ? ` → ${fmtTime(r.returnedAt)}` : ''}
-                      {duration !== null ? ` · ${duration}m` : ''}
-                      {' · '}{new Set(r.receipts?.map(rec => rec.householdId) ?? []).size} delivered
-                    </p>
-                  </div>
-                </div>
-              );
-            })}
+      <div>
+        <SectionTitle sub={`${historyTotal} completed and aborted runs total`}>
+          Run History
+        </SectionTitle>
+        {historyData.length === 0 ? (
+          <div className="card">
+            <Empty message="No completed or aborted runs yet." />
           </div>
-        </div>
-      )}
+        ) : (
+          <>
+            <div className="card divide-y divide-bg-border">
+              {historyData.map((r: DeliveryRun) => {
+                const duration = r.returnedAt
+                  ? Math.round((new Date(r.returnedAt).getTime() - new Date(r.departedAt).getTime()) / 60000)
+                  : null;
+                return (
+                  <div key={r.id} className="px-4 py-3 flex items-center justify-between gap-3">
+                    <div className="min-w-0 flex-1">
+                      <div className="flex items-center gap-2 mb-0.5">
+                        <p className="font-sans text-sm text-text-primary">
+                          Team {r.teamNumber} · {r.zone}
+                        </p>
+                        {r.status === 'COMPLETE' ? (
+                          <span className="font-mono text-[9px] px-1.5 py-0.5 rounded border text-accent-green border-accent-green/30 bg-accent-green/5">
+                            COMPLETE
+                          </span>
+                        ) : (
+                          <span className="font-mono text-[9px] px-1.5 py-0.5 rounded border text-accent-red border-accent-red/30 bg-accent-red/5">
+                            ABORTED
+                          </span>
+                        )}
+                      </div>
+                      <p className="font-mono text-[10px] text-text-muted">
+                        {r.leadVolunteer?.name ?? '—'} · {fmtTime(r.departedAt)}
+                        {r.returnedAt ? ` → ${fmtTime(r.returnedAt)}` : ''}
+                        {duration !== null ? ` · ${duration}m` : ''}
+                        {' · '}{new Set(r.receipts?.map(rec => rec.householdId) ?? []).size} delivered
+                      </p>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+
+            {historyTotalPages > 1 && (
+              <div className="flex items-center justify-between mt-3 px-1">
+                <button
+                  onClick={() => setHistoryPage(p => Math.max(1, p - 1))}
+                  disabled={historyPage === 1}
+                  className="font-mono text-xs px-3 py-1.5 rounded border border-bg-border text-text-muted hover:text-text-primary disabled:opacity-30 transition-colors">
+                  ← Prev
+                </button>
+                <span className="font-mono text-[10px] text-text-muted">
+                  {historyPage} / {historyTotalPages} · {historyTotal} total
+                </span>
+                <button
+                  onClick={() => setHistoryPage(p => Math.min(historyTotalPages, p + 1))}
+                  disabled={historyPage === historyTotalPages}
+                  className="font-mono text-xs px-3 py-1.5 rounded border border-bg-border text-text-muted hover:text-text-primary disabled:opacity-30 transition-colors">
+                  Next →
+                </button>
+              </div>
+            )}
+          </>
+        )}
+      </div>
     </div>
   );
-}
+} 
 
 // ─── TAB: INCIDENTS ───────────────────────────────────────────────────────────
 
@@ -1413,12 +1450,21 @@ function IncidentsTab({ districtId }: { districtId: string }) {
   const [success, setSuccess] = useState('');
   const [incType, setIncType] = useState<Incident['type']>('ROUTE_BLOCKED');
   const [incDesc, setIncDesc] = useState('');
+  const [resolvedPage, setResolvedPage] = useState(1);
 
-  const { data: incidents = [], isPending } = useQuery({
-    queryKey: queryKeys.hub.incidents(districtId),
-    queryFn: () => hubApi.getIncidents(districtId),
-    enabled: !!districtId,
+  const { data: incResult, isPending } = useQuery({
+    queryKey: [...queryKeys.hub.incidents(districtId), resolvedPage],
+    queryFn:  () => hubApi.getIncidents(districtId, resolvedPage),
+    enabled:  !!districtId,
+    placeholderData: keepPreviousData,
   });
+
+  const open               = incResult?.open ?? [];
+  const resolved           = incResult?.resolved?.data ?? [];
+  const resolvedTotalPages = incResult?.resolved?.totalPages ?? 1;
+  const resolvedTotal      = incResult?.resolved?.total ?? 0;
+
+  useEffect(() => { setResolvedPage(1); }, [districtId]);
 
   const invalidateIncidents = useCallback(() => {
     queryClient.invalidateQueries({ queryKey: queryKeys.hub.incidents(districtId) });
@@ -1441,21 +1487,20 @@ function IncidentsTab({ districtId }: { districtId: string }) {
   });
 
   const STATUS_COLORS: Record<string, string> = {
-    OPEN: 'text-accent-orange border-accent-orange/30 bg-accent-orange/5',
-    ESCALATED: 'text-accent-red border-accent-red/30 bg-accent-red/5',
+    OPEN:     'text-accent-orange border-accent-orange/30 bg-accent-orange/5',
+    ESCALATED:'text-accent-red border-accent-red/30 bg-accent-red/5',
     RESOLVED: 'text-text-muted border-bg-border bg-bg-elevated',
   };
+
   const INCIDENT_TYPES: Incident['type'][] = [
     'ROUTE_BLOCKED', 'VOLUNTEER_SAFETY', 'STOCK_SCARCITY', 'BUILDING_FLOODED', 'OTHER',
   ];
-  const open = useMemo(() => incidents.filter((i: Incident) => i.status !== 'RESOLVED'), [incidents]);
-  const resolved = useMemo(() => incidents.filter((i: Incident) => i.status === 'RESOLVED'), [incidents]);
 
   const mutationError =
     (reportMutation.error as { response?: { data?: { error?: string } } })?.response?.data?.error ??
     (resolveMutation.error as { response?: { data?: { error?: string } } })?.response?.data?.error ?? '';
 
-  if (isPending && incidents.length === 0) {
+  if (isPending && !incResult) {
     return <div className="space-y-4"><Skeleton className="h-48" /><Skeleton className="h-64" /></div>;
   }
 
@@ -1526,7 +1571,6 @@ function IncidentsTab({ districtId }: { districtId: string }) {
                 </button>
               </div>
 
-              {/* FIX: Civil defense escalation note for VOLUNTEER_SAFETY */}
               {inc.status === 'ESCALATED' && (
                 <div className="bg-accent-red/10 border border-accent-red/30 rounded px-3 py-2 mt-2 space-y-1">
                   {(inc as Incident & { escalationNote?: string }).escalationNote && (
@@ -1548,25 +1592,51 @@ function IncidentsTab({ districtId }: { districtId: string }) {
         </div>
       </div>
 
-      {resolved.length > 0 && (
-        <div>
-          <SectionTitle sub={`${resolved.length} resolved`}>Resolved Incidents</SectionTitle>
-          <div className="card divide-y divide-bg-border">
-            {resolved.slice(0, 10).map((inc: Incident) => (
-              <div key={inc.id} className="px-4 py-3 opacity-60">
-                <div className="flex items-center gap-2 mb-0.5">
-                  <Badge label="RESOLVED" color={STATUS_COLORS.RESOLVED} />
-                  <span className="font-mono text-[10px] text-text-muted">{inc.type.replace(/_/g, ' ')}</span>
-                </div>
-                <p className="font-sans text-xs text-text-secondary">{inc.description}</p>
-                <p className="font-mono text-[10px] text-text-muted mt-0.5">
-                  Resolved {inc.resolvedAt ? timeAgo(inc.resolvedAt) : '—'} by {inc.resolvedBy?.name ?? '—'}
-                </p>
-              </div>
-            ))}
+      <div>
+        <SectionTitle sub={`${resolvedTotal} resolved total`}>Resolved Incidents</SectionTitle>
+        {resolved.length === 0 ? (
+          <div className="card">
+            <Empty message="No resolved incidents yet." />
           </div>
-        </div>
-      )}
+        ) : (
+          <>
+            <div className="card divide-y divide-bg-border">
+              {resolved.map((inc: Incident) => (
+                <div key={inc.id} className="px-4 py-3 opacity-60">
+                  <div className="flex items-center gap-2 mb-0.5">
+                    <Badge label="RESOLVED" color={STATUS_COLORS.RESOLVED} />
+                    <span className="font-mono text-[10px] text-text-muted">{inc.type.replace(/_/g, ' ')}</span>
+                  </div>
+                  <p className="font-sans text-xs text-text-secondary">{inc.description}</p>
+                  <p className="font-mono text-[10px] text-text-muted mt-0.5">
+                    Resolved {inc.resolvedAt ? timeAgo(inc.resolvedAt) : '—'} by {inc.resolvedBy?.name ?? '—'}
+                  </p>
+                </div>
+              ))}
+            </div>
+
+            {resolvedTotalPages > 1 && (
+              <div className="flex items-center justify-between mt-3 px-1">
+                <button
+                  onClick={() => setResolvedPage(p => Math.max(1, p - 1))}
+                  disabled={resolvedPage === 1}
+                  className="font-mono text-xs px-3 py-1.5 rounded border border-bg-border text-text-muted hover:text-text-primary disabled:opacity-30 transition-colors">
+                  ← Prev
+                </button>
+                <span className="font-mono text-[10px] text-text-muted">
+                  {resolvedPage} / {resolvedTotalPages} · {resolvedTotal} total
+                </span>
+                <button
+                  onClick={() => setResolvedPage(p => Math.min(resolvedTotalPages, p + 1))}
+                  disabled={resolvedPage === resolvedTotalPages}
+                  className="font-mono text-xs px-3 py-1.5 rounded border border-bg-border text-text-muted hover:text-text-primary disabled:opacity-30 transition-colors">
+                  Next →
+                </button>
+              </div>
+            )}
+          </>
+        )}
+      </div>
     </div>
   );
 }
