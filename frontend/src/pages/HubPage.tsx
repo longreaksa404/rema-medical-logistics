@@ -110,6 +110,7 @@ function StockTab({ districtId, subWarehouseId }: {
 }) {
   const queryClient = useQueryClient();
   const [success, setSuccess] = useState('');
+  const [movPage, setMovPage] = useState(1);
 
   // ── Dispatch form ─────────────────────────────────────────────────────────
   const [dispEmkType, setDispEmkType] = useState<'EMK1' | 'EMK2' | 'EMK3'>('EMK1');
@@ -134,12 +135,15 @@ function StockTab({ districtId, subWarehouseId }: {
     enabled:  !!districtId,
   });
 
-  const { data: movements = [], isPending: movPending } = useQuery({
-    queryKey: queryKeys.hub.movements(districtId),
-    queryFn:  () => hubApi.getMovements(districtId),
+  const { data: movResult, isPending: movPending } = useQuery({
+    queryKey: [...queryKeys.hub.movements(districtId), movPage],
+    queryFn:  () => hubApi.getMovements(districtId, movPage),
     enabled:  !!districtId,
-    select:   (data: StockMovement[]) => data.slice(0, 50),
+    placeholderData: keepPreviousData,
   });
+
+  const movements = movResult?.data ?? [];
+  const movTotalPages = movResult?.totalPages ?? 1;
 
   // only true when no cached data exists at all
   const isLoading = (stockPending && !stock) || (movPending && movements.length === 0);
@@ -181,6 +185,8 @@ function StockTab({ districtId, subWarehouseId }: {
     REALLOCATION: 'text-accent-blue border-accent-blue/30 bg-accent-blue/5',
     ADJUSTMENT:   'text-accent-orange border-accent-orange/30 bg-accent-orange/5',
   };
+
+  useEffect(() => { setMovPage(1); }, [districtId]);
 
   if (isLoading) {
     return (
@@ -363,7 +369,7 @@ function StockTab({ districtId, subWarehouseId }: {
 
       {/* ── AUDIT LOG ──────────────────────────────────────────────────────── */}
       <div>
-        <SectionTitle sub="Last 50 stock movements for this district">Audit Log</SectionTitle>
+        <SectionTitle sub={`Page ${movPage} of ${movTotalPages} — 20 per page`}>Audit Log</SectionTitle>
         <div className="card divide-y divide-bg-border">
           {movements.length === 0 ? (
             <Empty message="No movements yet." />
@@ -388,6 +394,28 @@ function StockTab({ districtId, subWarehouseId }: {
             ))
           )}
         </div>
+
+        {/* pagination controls */}
+        {movTotalPages > 1 && (
+          <div className="flex items-center justify-between mt-3 px-1">
+            <button
+              onClick={() => setMovPage(p => Math.max(1, p - 1))}
+              disabled={movPage === 1}
+              className="font-mono text-xs px-3 py-1.5 rounded border border-bg-border text-text-muted hover:text-text-primary disabled:opacity-30 transition-colors">
+              ← Prev
+            </button>
+            <span className="font-mono text-[10px] text-text-muted">
+              {movPage} / {movTotalPages}
+              {movResult && <span className="ml-2 text-text-muted">({movResult.total} total)</span>}
+            </span>
+            <button
+              onClick={() => setMovPage(p => Math.min(movTotalPages, p + 1))}
+              disabled={movPage === movTotalPages}
+              className="font-mono text-xs px-3 py-1.5 rounded border border-bg-border text-text-muted hover:text-text-primary disabled:opacity-30 transition-colors">
+              Next →
+            </button>
+          </div>
+        )}
       </div>
     </div>
   );
@@ -1756,6 +1784,7 @@ function CentralTab({ subWarehouseId, allSubWarehouses }: {
 
   const queryClient = useQueryClient();
   const [success, setSuccess] = useState('');
+  const [centralMovPage, setCentralMovPage] = useState(1);
 
   // ── Replenish form ────────────────────────────────────────────────────────
   const [repEmkType, setRepEmkType] = useState<'EMK1' | 'EMK2' | 'EMK3'>('EMK1');
@@ -1784,14 +1813,17 @@ function CentralTab({ subWarehouseId, allSubWarehouses }: {
     placeholderData: keepPreviousData,   // show old data while revalidating
   });
 
-  const { data: movements, isPending: movPending } = useQuery({
-    queryKey: queryKeys.hub.centralMovements(),
-    queryFn:  () => hubApi.getCentralMovements(),
+  const { data: movResult, isPending: movPending } = useQuery({
+    queryKey: [...queryKeys.hub.centralMovements(), centralMovPage],
+    queryFn:  () => hubApi.getCentralMovements(centralMovPage),
     staleTime: 2 * 60 * 1000,
     gcTime:    10 * 60 * 1000,
     refetchOnWindowFocus: false,
     placeholderData: keepPreviousData,
   });
+
+const movements = movResult?.data ?? [];
+const centralMovTotalPages = movResult?.totalPages ?? 1;
 
   // isPending is only true when there is no cached data at all
   // isLoading (old behavior) was true even during background refetches
@@ -2147,14 +2179,14 @@ function CentralTab({ subWarehouseId, allSubWarehouses }: {
 
       {/* ── CENTRAL AUDIT LOG ────────────────────────────────────────────── */}
       <div>
-        <SectionTitle sub="All central warehouse operations — last 100 entries">
+        <SectionTitle sub={`Page ${centralMovPage} of ${centralMovTotalPages} — 20 per page`}>
           Central Warehouse Audit Log
         </SectionTitle>
         <div className="card divide-y divide-bg-border">
-          {(movements ?? []).length === 0 ? (
+          {movements.length === 0 ? (
             <Empty message="No central warehouse movements yet." />
           ) : (
-            (movements ?? []).map((m: CentralMovement) => {
+            movements.map((m: CentralMovement) => {
               const isAlloc = m.movementType === 'ALLOCATION_CHANGE';
               return (
                 <div key={m.id} className="px-4 py-3 flex items-start justify-between gap-3">
@@ -2191,6 +2223,28 @@ function CentralTab({ subWarehouseId, allSubWarehouses }: {
             })
           )}
         </div>
+
+        {/* pagination controls */}
+        {centralMovTotalPages > 1 && (
+          <div className="flex items-center justify-between mt-3 px-1">
+            <button
+              onClick={() => setCentralMovPage(p => Math.max(1, p - 1))}
+              disabled={centralMovPage === 1}
+              className="font-mono text-xs px-3 py-1.5 rounded border border-bg-border text-text-muted hover:text-text-primary disabled:opacity-30 transition-colors">
+              ← Prev
+            </button>
+            <span className="font-mono text-[10px] text-text-muted">
+              {centralMovPage} / {centralMovTotalPages}
+              {movResult && <span className="ml-2">({movResult.total} total)</span>}
+            </span>
+            <button
+              onClick={() => setCentralMovPage(p => Math.min(centralMovTotalPages, p + 1))}
+              disabled={centralMovPage === centralMovTotalPages}
+              className="font-mono text-xs px-3 py-1.5 rounded border border-bg-border text-text-muted hover:text-text-primary disabled:opacity-30 transition-colors">
+              Next →
+            </button>
+          </div>
+        )}
       </div>
     </div>
   );

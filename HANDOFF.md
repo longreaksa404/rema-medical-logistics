@@ -1,24 +1,33 @@
-## Last Session Changes
+## Last Session - Pagination for stock movement endpoints
 
-### Bug Fix 1 — Delivery stock deduction (mixed kit households)
-- `backend/src/services/delivery.service.ts` — `createDeliveryReceipt` now accepts
-  `kits: Array<{ emkType, quantity }>` instead of single emkType+quantity.
-  Loops `recordDelivery` once per kit type before transaction, so EMK3 and EMK1
-  deduct from separate stock buckets correctly.
-- `backend/src/controllers/delivery.controller.ts` — `addReceipt` normalises both
-  call shapes: new `kits[]` array or legacy `emkType + quantity` single.
-- `frontend/src/pages/VolunteerPage.tsx` — `deliverMutation` in DeliverTab now
-  builds `kits[]` from `emk3Quantity`, `emk2Quantity`, `emk1Quantity` fields.
-  Falls back to `recommendedEmk x1` for households assessed before quantity fields.
+### What changed
+- `backend/src/services/stock.service.ts`
+  - Added `PaginatedMovements<T>` interface and `DEFAULT_PAGE_SIZE = 20` constant
+  - `getCentralMovements(page, pageSize)` - now paginated, returns `{ data, total, page, pageSize, totalPages }`
+  - `getAllMovements(page, pageSize)` - same
+  - `getMovementsByDistrict(districtId, page, pageSize)` - same
+  - Uses `prisma.$transaction([findMany, count])` for accurate totals
 
-### Bug Fix 2 — EMK quantity calculation (EMK2 skipped when EMK3 present)
-- `backend/src/utils/scoring.ts` — `calculateEmkQuantity`: removed wrong condition
-  `emk3 === 0` from EMK2 assignment. EMK3 and EMK2 are independent needs.
-- `frontend/src/utils/scoring.ts` — same fix, files must stay identical.
-- Result: household with chronic illness patient + vulnerable member now correctly
-  gets both EMK3 and EMK2, not just EMK3 + extra EMK1s.
+- `backend/src/controllers/stock.controller.ts`
+  - `getCentralMovementsHandler` - parses `?page=` and `?pageSize=` query params, defaults to page 1 / size 20, caps pageSize at 100
+  - `getMovements` - same
+  - `getMovementsByDistrictHandler` - same
 
-## Current System State
-- Backend: https://rema-medical-logistics.onrender.com
+- `frontend/src/api/hub.ts`
+  - Added `PaginatedResponse<T>` interface
+  - `getCentralMovements(page)` - now accepts page param, returns `PaginatedResponse<CentralMovement>`
+  - `getMovements(districtId, page)` - same
+
+- `frontend/src/pages/HubPage.tsx`
+  - `StockTab` - added `movPage` state, query key includes page, `placeholderData: keepPreviousData`, `useEffect` resets page on district change, prev/next pagination controls under audit log
+  - `CentralTab` - added `centralMovPage` state, same pattern
+
+### Current system state
+- Backend: pagination changes ready to deploy to Render
+- Frontend: pagination UI ready to deploy to Vercel
+- DB: no schema changes, no migration needed
+
+### Live URLs
 - Frontend: https://rema-system.vercel.app
-- All 125 unit tests passing (check scoring.test.ts case F emkQuantity assertion)
+- Backend: https://rema-medical-logistics.onrender.com
+- Swagger: https://rema-medical-logistics.onrender.com/api/docs

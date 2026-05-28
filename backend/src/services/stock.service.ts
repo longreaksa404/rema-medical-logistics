@@ -162,7 +162,7 @@ export interface PaginatedMovements<T> {
   totalPages: number;
 }
 
-const DEFAULT_PAGE_SIZE = 20;
+const DEFAULT_PAGE_SIZE = 10;
 
 export async function getCentralMovements(
   page = 1,

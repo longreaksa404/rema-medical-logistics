@@ -418,6 +418,15 @@
 
 ---
 
+## Pagination Session - Stock Movement Pagination
+
+- [x] `stock.service.ts` - `getCentralMovements`, `getAllMovements`, `getMovementsByDistrict` all paginated (page/pageSize params, `$transaction` count)
+- [x] `stock.controller.ts` - all 3 movement handlers parse `?page` and `?pageSize` query params
+- [x] `hub.ts` - `PaginatedResponse<T>` type added, `getMovements` and `getCentralMovements` updated
+- [x] `HubPage.tsx` - `StockTab` and `CentralTab` audit logs have prev/next pagination, page resets on district change
+
+---
+
 ## Delivery Bug Session
 
 ### Fix 1 — Mixed kit stock deduction
