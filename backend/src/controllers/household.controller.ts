@@ -10,10 +10,9 @@ import {
 import { ScoreInput } from '../utils/scoring';
 
 // ─── POST /api/score/household ────────────────────────────────────────────────
-// Score only — no DB write. Returns band, EMK recommendation, and quantity breakdown.
 
 export async function scoreOnly(req: Request, res: Response): Promise<void> {
-  const { cat1, cat2, cat3, cat4, cat5, householdSize, chronicIllCount, hasVulnerableMember } = req.body;
+  const { cat1, cat2, cat3, cat4, cat5, householdSize, hasVulnerableMember } = req.body;
 
   if (
     cat1 === undefined || cat2 === undefined || cat3 === undefined ||
@@ -27,7 +26,6 @@ export async function scoreOnly(req: Request, res: Response): Promise<void> {
     const result = computeScore({
       cat1, cat2, cat3, cat4, cat5,
       householdSize,
-      chronicIllCount,
       hasVulnerableMember,
     });
     res.json(result);
@@ -43,7 +41,7 @@ export async function create(req: Request, res: Response): Promise<void> {
   const {
     address, districtId,
     cat1, cat2, cat3, cat4, cat5,
-    householdSize, chronicIllCount, hasVulnerableMember,
+    householdSize, hasVulnerableMember,
     notes,
   } = req.body;
 
@@ -64,7 +62,6 @@ export async function create(req: Request, res: Response): Promise<void> {
     const scoreInput: ScoreInput = {
       cat1, cat2, cat3, cat4, cat5,
       householdSize,
-      chronicIllCount,
       hasVulnerableMember,
     };
     const household = await createHousehold({
@@ -100,7 +97,6 @@ export async function list(req: Request, res: Response): Promise<void> {
 }
 
 // ─── GET /api/households/priority-queue ───────────────────────────────────────
-// Must be defined BEFORE /:id to avoid route conflict
 
 export async function priorityQueue(req: Request, res: Response): Promise<void> {
   const { districtId } = req.query;
@@ -136,19 +132,18 @@ export async function getOne(req: Request, res: Response): Promise<void> {
 export async function update(req: Request, res: Response): Promise<void> {
   const {
     cat1, cat2, cat3, cat4, cat5,
-    householdSize, chronicIllCount, hasVulnerableMember,
+    householdSize, hasVulnerableMember,
     notes,
   } = req.body;
 
   try {
     const scoreInput: Partial<ScoreInput> = {};
-    if (cat1 !== undefined)               scoreInput.cat1 = cat1;
-    if (cat2 !== undefined)               scoreInput.cat2 = cat2;
-    if (cat3 !== undefined)               scoreInput.cat3 = cat3;
-    if (cat4 !== undefined)               scoreInput.cat4 = cat4;
-    if (cat5 !== undefined)               scoreInput.cat5 = cat5;
-    if (householdSize !== undefined)      scoreInput.householdSize = householdSize;
-    if (chronicIllCount !== undefined)    scoreInput.chronicIllCount = chronicIllCount;
+    if (cat1 !== undefined)                scoreInput.cat1 = cat1;
+    if (cat2 !== undefined)                scoreInput.cat2 = cat2;
+    if (cat3 !== undefined)                scoreInput.cat3 = cat3;
+    if (cat4 !== undefined)                scoreInput.cat4 = cat4;
+    if (cat5 !== undefined)                scoreInput.cat5 = cat5;
+    if (householdSize !== undefined)       scoreInput.householdSize = householdSize;
     if (hasVulnerableMember !== undefined) scoreInput.hasVulnerableMember = hasVulnerableMember;
 
     const household = await updateHousehold(req.params.id, {
