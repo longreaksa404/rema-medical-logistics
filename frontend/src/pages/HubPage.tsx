@@ -384,7 +384,7 @@ function StockTab({ districtId, subWarehouseId }: {
         </div>
 
         {/* Reallocate */}
-        <div className="card p-5 border-accent-blue/20 flex flex-col">
+        <div className="card p-5 flex flex-col">
           <SectionTitle sub="Send surplus stock to another district's sub-warehouse">
             Reallocate to District
           </SectionTitle>
