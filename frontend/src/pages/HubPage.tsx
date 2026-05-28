@@ -1828,8 +1828,7 @@ function CentralTab({ subWarehouseId, allSubWarehouses }: {
       const target = vars.target === 'central' ? 'Central' : 'Sub-warehouse';
       setSuccess(`${target} ${vars.emkType} allocation set to ${vars.newTotal.toLocaleString()}.`);
       setAllocNewTotal(''); setAllocReason('');
-      invalidateCentral();
-      // also invalidate sub-warehouse stock if that was the target
+      invalidateCentral();  // already invalidates centralMovements — this is sufficient
       if (vars.target === 'subWarehouse') {
         queryClient.invalidateQueries({ queryKey: ['hub'] });
       }

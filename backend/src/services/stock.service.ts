@@ -521,13 +521,12 @@ export async function setAllocation(data: {
         where: { id: central.id },
         data: { [totalField]: newTotal },
       }),
-      // Log allocation change — quantity = newTotal (the new reference value)
       prisma.centralStockMovement.create({
         data: {
           centralWarehouseId: central.id,
           emkType,
           movementType: 'ALLOCATION_CHANGE',
-          quantity: newTotal,   // records what the new total was set to
+          quantity: newTotal,
           reason,
           performedById,
         },
@@ -556,27 +555,42 @@ export async function setAllocation(data: {
     });
     if (!stock) throw new Error('Stock record not found for this sub-warehouse');
 
-    const updated = await prisma.stock.update({
-      where: { subWarehouseId },
-      data: { [totalField]: newTotal },
-      include: {
-        subWarehouse: { include: { district: { select: { name: true } } } },
-      },
-    });
+    // need central id to write the cross-log entry
+    const central = await prisma.centralWarehouse.findFirst();
+    if (!central) throw new Error('Central warehouse not found. Run seed.');
 
-    // Log in sub-warehouse movement log too for full auditability
-    await prisma.stockMovement.create({
-      data: {
-        subWarehouseId,
-        emkType,
-        movementType: MovementType.ADJUSTMENT, // closest existing type
-        quantity: 0,                           // no Remaining change
-        reason: `ALLOCATION CHANGE: ${reason} (new total: ${newTotal})`,
-        performedById,
-      },
-    });
+    const [updated] = await prisma.$transaction([
+      prisma.stock.update({
+        where: { subWarehouseId },
+        data: { [totalField]: newTotal },
+        include: {
+          subWarehouse: { include: { district: { select: { name: true } } } },
+        },
+      }),
+      prisma.stockMovement.create({
+        data: {
+          subWarehouseId,
+          emkType,
+          movementType: MovementType.ADJUSTMENT,
+          quantity: 0,
+          reason: `ALLOCATION CHANGE: ${reason} (new total: ${newTotal})`,
+          performedById,
+        },
+      }),
+      prisma.centralStockMovement.create({
+        data: {
+          centralWarehouseId: central.id,
+          emkType,
+          movementType: 'ALLOCATION_CHANGE',
+          quantity: newTotal,
+          reason: `[${stock.subWarehouse.district.name}] ${reason} (new total: ${newTotal})`,
+          performedById,
+        },
+      }),
+    ] as const);
 
     deleteCached(KEY_STATUS);
+    deleteCached(KEY_CENTRAL);  // central movements cache also needs busting
     invalidateCache(`dashboard:district:${updated.subWarehouse.districtId}`);
     invalidateCache('dashboard:summary');
 
