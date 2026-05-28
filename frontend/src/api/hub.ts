@@ -137,8 +137,11 @@ export const hubApi = {
     return res.data;
   },
 
-  getCentralMovements: async (): Promise<CentralMovement[]> => {
-    const res = await api.get<CentralMovement[]>('/api/stock/central/movements');
+  getCentralMovements: async (page = 1): Promise<PaginatedResponse<CentralMovement>> => {
+    const res = await api.get<PaginatedResponse<CentralMovement>>(
+      '/api/stock/central/movements',
+      { params: { page, pageSize: 20 } }
+    );
     return res.data;
   },
 
@@ -209,8 +212,11 @@ export const hubApi = {
     return res.data;
   },
 
-  getMovements: async (districtId: string): Promise<StockMovement[]> => {
-    const res = await api.get<StockMovement[]>(`/api/stock/movements/${districtId}`);
+  getMovements: async (districtId: string, page = 1): Promise<PaginatedResponse<StockMovement>> => {
+    const res = await api.get<PaginatedResponse<StockMovement>>(
+      `/api/stock/movements/${districtId}`,
+      { params: { page, pageSize: 20 } }
+    );
     return res.data;
   },
 
