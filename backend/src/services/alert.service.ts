@@ -174,5 +174,6 @@ export async function resetSystem() {
   });
 
   invalidateCache();
+  io.emit('phase_changed', { phase: 0, activated: false });
   return updated;
 }
