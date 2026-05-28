@@ -578,3 +578,23 @@ Sidebar footer replaced with clickable user card (avatar + name) linking to prof
 | 62 | socket.io events are broadcast to all connected clients — no per-user or per-district filtering | All operational roles need awareness of system-wide events; filtering adds complexity without meaningful security benefit |
 | 63 | mustChangePassword is enforced client-side only — no server middleware blocks API calls | API calls still work with old password; enforcement is a UX gate not a security gate. Real deployment could add server-side check if needed |
 | 64 | Per-zone route recommend falls back to hardcoded defaults (15/25/45cm) only when no route records exist in DB | New deployments have no route records; fallback prevents blank map on first load |
+
+### 13.7 Server-Side Pagination (Pagination Session)
+
+All list endpoints that grow unbounded now paginate at the database layer.
+
+| Endpoint | Strategy | Page Size |
+|---|---|---|
+| GET /api/stock/movements | Prisma skip/take + $transaction count | 20 |
+| GET /api/stock/central/movements | Same | 20 |
+| GET /api/households/priority-queue | Fetch all → in-memory sort → slice (Section C tiebreaker requires this) | 20 |
+| GET /api/households | Prisma skip/take + $transaction count | 20 |
+| GET /api/delivery/runs | Active runs always full; history paginated | 20 |
+| GET /api/incidents | Open/escalated always full; resolved paginated | 20 |
+
+Response shape for all paginated endpoints:
+{ data, total, page, pageSize, totalPages }
+
+Frontend: prev/next controls, placeholderData: keepPreviousData (no flash on page change), page resets on district/filter change.
+
+Active delivery runs and open incidents are intentionally excluded from pagination — Hub Managers need full visibility of in-progress operations without navigation.
