@@ -161,7 +161,7 @@ function EmkQuantityBadge({ emk3, emk2, emk1, total }: { emk3: number; emk2: num
 // Shows last 10 assessed households for this district — placed below live score
 
 function AssessAuditLog({ districtId }: { districtId: string }) {
-  const { data: history = [], isLoading } = useQuery({
+  const { data: historyResult, isLoading } = useQuery({
     queryKey: [...queryKeys.households.queue(districtId), 'all'],
     queryFn: () => householdsApi.list({ districtId }),
     enabled: !!districtId,
@@ -169,6 +169,7 @@ function AssessAuditLog({ districtId }: { districtId: string }) {
   });
 
   // sort by createdAt descending, take last 10
+  const history = historyResult?.data ?? [];
   const recent = useMemo(
     () => [...history]
       .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
@@ -593,7 +594,7 @@ function DeliverTab({ districtId }: { districtId: string }) {
   const queryClient = useQueryClient();
   const [confirming, setConfirming] = useState<string | null>(null);
 
-  const { data: households = [], isLoading: queueLoading } = useQuery({
+  const { data: householdsResult, isLoading: queueLoading } = useQuery({
     queryKey: queryKeys.households.queue(districtId),
     queryFn: () => householdsApi.getPriorityQueue(districtId),
     enabled: !!districtId,
@@ -608,6 +609,7 @@ function DeliverTab({ districtId }: { districtId: string }) {
 
   const activeRun: DeliveryRun | null = runsData?.[0] ?? null;
 
+  const households = householdsResult?.data ?? [];
   const sorted = useMemo(
     () => [...households].sort((a: Household, b: Household) => BAND_ORDER[a.priorityBand] - BAND_ORDER[b.priorityBand]),
     [households]
