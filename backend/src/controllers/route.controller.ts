@@ -44,7 +44,6 @@ export async function recommend(req: Request, res: Response): Promise<void> {
 }
 
 // ─── POST /api/route/update ───────────────────────────────────────────────────
-
 export async function update(req: Request, res: Response): Promise<void> {
   const { districtId, zone, waterDepthCm } = req.body;
 
@@ -61,12 +60,21 @@ export async function update(req: Request, res: Response): Promise<void> {
     return;
   }
 
+  // hub managers can only update their own district
+  const user = req.user!;
+  if (user.role === 'HUB_MANAGER' && user.districtId !== districtId) {
+    res.status(403).json({
+      error: 'HUB_MANAGER can only update water depth for their own district',
+    });
+    return;
+  }
+
   try {
     const result = await updateRouteDepth({
       districtId,
       zone,
       waterDepthCm: depth,
-      reportedById: req.user!.userId,
+      reportedById: user.userId,
     });
     res.json(result);
   } catch (err) {

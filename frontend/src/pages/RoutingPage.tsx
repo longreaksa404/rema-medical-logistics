@@ -8,6 +8,7 @@ import { routesApi } from '../api/routes';
 import { queryKeys } from '../api/queryKeys';
 import type { RouteLog, DeliveryMode } from '../api/routes';
 import type { DistrictCard } from '../api/dashboard.types';
+import { useAuth } from '../context/AuthContext';
 
 // ─── CONSTANTS ────────────────────────────────────────────────────────────────
 
@@ -230,6 +231,10 @@ export function RoutingPage() {
 
   const [zoneDepths, setZoneDepths] = useState<Record<string, Record<string, number>>>({});
   const [loadedDistricts, setLoadedDistricts] = useState<Set<string>>(new Set());
+  const { user } = useAuth();
+  const isHubManager = user?.role === 'HUB_MANAGER';
+  // hub managers can only edit their own district — districtId from JWT
+  const canEditSelected = !isHubManager || selectedDistrictId === user?.districtId;
 
   useEffect(() => {
     if ((window as any).L) { setLeafletLoaded(true); return; }
@@ -428,6 +433,15 @@ export function RoutingPage() {
                 <div className="card px-4 py-8 text-center">
                   <p className="font-mono text-[10px] text-text-muted uppercase tracking-widest">
                     Select a district on the map
+                  </p>
+                </div>
+              ) : !canEditSelected ? (
+                <div className="card px-4 py-8 text-center space-y-2">
+                  <p className="font-mono text-[10px] text-text-muted uppercase tracking-widest">
+                    Read-only
+                  </p>
+                  <p className="font-mono text-[10px] text-text-muted">
+                    You can only adjust water depth for your own district
                   </p>
                 </div>
               ) : (
