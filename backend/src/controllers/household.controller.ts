@@ -41,7 +41,7 @@ export async function create(req: Request, res: Response): Promise<void> {
   const {
     address, districtId,
     cat1, cat2, cat3, cat4, cat5,
-    householdSize, hasVulnerableMember,
+    householdSize, hasVulnerableMember, chronicIllCount,
     notes,
   } = req.body;
 
@@ -68,6 +68,7 @@ export async function create(req: Request, res: Response): Promise<void> {
       address,
       districtId,
       scoreInput,
+      chronicIllCount,  // add this line
       notes,
       assessedById: req.user?.userId,
     });

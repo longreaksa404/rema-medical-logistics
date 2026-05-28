@@ -25,34 +25,34 @@ export async function createHousehold(data: {
   address: string;
   districtId: string;
   scoreInput: ScoreInput;
+  chronicIllCount?: number;
   notes?: string;
   assessedById?: string;
 }) {
   const result = scoreHousehold(data.scoreInput);
 
-  // resolve optional quantity fields with the same defaults as scoring.ts
-  const householdSize  = data.scoreInput.householdSize  ?? 4;
-  const chronicIllCount = data.scoreInput.chronicIllCount ?? 0;
+  const householdSize   = data.scoreInput.householdSize ?? 4;
+  const chronicIllCount = data.chronicIllCount ?? 0;
 
   const household = await prisma.household.create({
     data: {
-      address:             data.address,
-      districtId:          data.districtId,
-      medicalUrgencyScore: result.cat1,
-      vulnerabilityScore:  result.cat2,
-      floodExposureScore:  result.cat3,
+      address:              data.address,
+      districtId:           data.districtId,
+      medicalUrgencyScore:  result.cat1,
+      vulnerabilityScore:   result.cat2,
+      floodExposureScore:   result.cat3,
       selfSufficiencyScore: result.cat4,
-      isolationScore:      result.cat5,
-      totalScore:          result.totalScore,
-      priorityBand:        result.priorityBand as PriorityBand,
-      recommendedEmk:      result.recommendedEmk as EmkType,
+      isolationScore:       result.cat5,
+      totalScore:           result.totalScore,
+      priorityBand:         result.priorityBand as PriorityBand,
+      recommendedEmk:       result.recommendedEmk as EmkType,
       householdSize,
       chronicIllCount,
-      emk1Quantity:        result.emkQuantity.emk1,
-      emk2Quantity:        result.emkQuantity.emk2,
-      emk3Quantity:        result.emkQuantity.emk3,
-      totalEmkQuantity:    result.emkQuantity.total,
-      assessedById:        data.assessedById ?? null,
+      emk1Quantity:         result.emkQuantity.emk1,
+      emk2Quantity:         result.emkQuantity.emk2,
+      emk3Quantity:         result.emkQuantity.emk3,
+      totalEmkQuantity:     result.emkQuantity.total,
+      assessedById:         data.assessedById ?? null,
     },
   });
 
@@ -130,6 +130,7 @@ export async function updateHousehold(
   id: string,
   data: {
     scoreInput?: Partial<ScoreInput>;
+    chronicIllCount?: number;
     notes?: string;
     assessedById?: string;
   }
@@ -143,12 +144,13 @@ export async function updateHousehold(
     cat3: data.scoreInput?.cat3 ?? existing.floodExposureScore,
     cat4: data.scoreInput?.cat4 ?? existing.selfSufficiencyScore,
     cat5: data.scoreInput?.cat5 ?? existing.isolationScore,
-    // fall back to stored values so a partial update preserves household size
-    householdSize:       data.scoreInput?.householdSize   ?? existing.householdSize,
-    chronicIllCount:     data.scoreInput?.chronicIllCount ?? existing.chronicIllCount,
+    householdSize:       data.scoreInput?.householdSize ?? existing.householdSize,
     hasVulnerableMember: data.scoreInput?.hasVulnerableMember
       ?? (existing.vulnerabilityScore > 0),
   };
+
+  // chronicIllCount lives on the DB record, not in ScoreInput
+  const chronicIllCount = data.chronicIllCount ?? existing.chronicIllCount;
 
   const result = scoreHousehold(mergedInput);
 
@@ -164,7 +166,7 @@ export async function updateHousehold(
       priorityBand:         result.priorityBand as PriorityBand,
       recommendedEmk:       result.recommendedEmk as EmkType,
       householdSize:        mergedInput.householdSize,
-      chronicIllCount:      mergedInput.chronicIllCount,
+      chronicIllCount,
       emk1Quantity:         result.emkQuantity.emk1,
       emk2Quantity:         result.emkQuantity.emk2,
       emk3Quantity:         result.emkQuantity.emk3,
