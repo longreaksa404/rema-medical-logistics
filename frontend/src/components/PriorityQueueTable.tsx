@@ -1,5 +1,5 @@
-import { useState, useMemo, memo } from 'react';
-import { useQuery } from '@tanstack/react-query';
+import { useState, useMemo, memo, useEffect } from 'react';
+import { useQuery, keepPreviousData } from '@tanstack/react-query';
 import { householdsApi } from '../api/households';
 import { queryKeys } from '../api/queryKeys';
 import type { Household } from '../api/households';
@@ -31,20 +31,30 @@ function SkeletonRow() {
 export const PriorityQueueTable = memo(function PriorityQueueTable({ districts }: PriorityQueueTableProps) {
   const [selectedDistrictId, setSelectedDistrictId] = useState<string>(districts[0]?.districtId ?? '');
   const [bandFilter, setBandFilter] = useState<string>('ALL');
+  const [page, setPage] = useState(1);
 
   const selectedDistrict = useMemo(
     () => districts.find(d => d.districtId === selectedDistrictId),
     [districts, selectedDistrictId]
   );
 
-  // React Query: cached per districtId — switching districts is instant on revisit
-  const { data: households = [], isLoading, error } = useQuery({
-    queryKey: queryKeys.households.queue(selectedDistrictId),
-    queryFn: () => householdsApi.getPriorityQueue(selectedDistrictId),
-    enabled: !!selectedDistrictId,
-    staleTime: 15_000, // queue changes frequently during active flood
+  // reset page when district or band filter changes
+  useEffect(() => { setPage(1); }, [selectedDistrictId]);
+  useEffect(() => { setPage(1); }, [bandFilter]);
+
+  const { data: result, isLoading, error } = useQuery({
+    queryKey: [...queryKeys.households.queue(selectedDistrictId), page],
+    queryFn:  () => householdsApi.getPriorityQueue(selectedDistrictId, page),
+    enabled:  !!selectedDistrictId,
+    staleTime: 15_000,
+    placeholderData: keepPreviousData,
   });
 
+  const households = result?.data ?? [];
+  const totalPages = result?.totalPages ?? 1;
+  const total      = result?.total ?? 0;
+
+  // filters current page only — band counts show this page
   const filtered = useMemo(
     () => bandFilter === 'ALL' ? households : households.filter((h: Household) => h.priorityBand === bandFilter),
     [households, bandFilter]
@@ -89,7 +99,7 @@ export const PriorityQueueTable = memo(function PriorityQueueTable({ districts }
             className={`font-mono text-[10px] px-2.5 py-1 rounded border transition-all ${
               bandFilter === 'ALL' ? 'bg-bg-elevated border-bg-border text-text-primary' : 'border-transparent text-text-muted hover:text-text-secondary'
             }`}>
-            ALL ({households.length})
+            ALL ({total})
           </button>
           {(Object.keys(BAND_CONFIG) as Array<keyof typeof BAND_CONFIG>).map((band) => {
             const cfg = BAND_CONFIG[band];
@@ -124,9 +134,9 @@ export const PriorityQueueTable = memo(function PriorityQueueTable({ districts }
                     {error
                       ? <p className="font-mono text-xs text-accent-red">Failed to load priority queue.</p>
                       : <p className="font-mono text-xs text-text-muted">
-                          {households.length === 0
+                          {total === 0
                             ? `No households assessed in ${selectedDistrict?.name ?? 'this district'} yet.`
-                            : 'No households match this filter.'}
+                            : 'No households match this filter on this page.'}
                         </p>
                     }
                   </td>
@@ -177,14 +187,38 @@ export const PriorityQueueTable = memo(function PriorityQueueTable({ districts }
         </table>
       </div>
 
-      {filtered.length > 0 && (
-        <div className="px-4 py-2.5 border-t border-bg-border flex items-center justify-between">
-          <span className="font-mono text-[10px] text-text-muted">
-            Showing {filtered.length} of {households.length} undelivered households
-          </span>
-          <span className="font-mono text-[10px] text-text-muted">
-            Sorted: band → score → cat.1 → submitted first
-          </span>
+      {(filtered.length > 0 || totalPages > 1) && (
+        <div className="px-4 py-2.5 border-t border-bg-border space-y-2">
+          <div className="flex items-center justify-between">
+            <span className="font-mono text-[10px] text-text-muted">
+              {bandFilter === 'ALL'
+                ? `${total} undelivered total — page ${page} of ${totalPages}`
+                : `Filtered to ${filtered.length} on this page`}
+            </span>
+            <span className="font-mono text-[10px] text-text-muted">
+              Sorted: band → score → cat.1 → submitted first
+            </span>
+          </div>
+
+          {totalPages > 1 && (
+            <div className="flex items-center justify-between">
+              <button
+                onClick={() => setPage(p => Math.max(1, p - 1))}
+                disabled={page === 1}
+                className="font-mono text-xs px-3 py-1.5 rounded border border-bg-border text-text-muted hover:text-text-primary disabled:opacity-30 transition-colors">
+                ← Prev
+              </button>
+              <span className="font-mono text-[10px] text-text-muted">
+                {page} / {totalPages}
+              </span>
+              <button
+                onClick={() => setPage(p => Math.min(totalPages, p + 1))}
+                disabled={page === totalPages}
+                className="font-mono text-xs px-3 py-1.5 rounded border border-bg-border text-text-muted hover:text-text-primary disabled:opacity-30 transition-colors">
+                Next →
+              </button>
+            </div>
+          )}
         </div>
       )}
     </div>

@@ -83,14 +83,20 @@ export async function create(req: Request, res: Response): Promise<void> {
 
 export async function list(req: Request, res: Response): Promise<void> {
   const { districtId, band, delivered } = req.query;
+  const page     = Math.max(1, parseInt(req.query.page     as string) || 1);
+  const pageSize = Math.min(100, Math.max(1, parseInt(req.query.pageSize as string) || 20));
 
   try {
-    const households = await listHouseholds({
-      districtId: districtId as string | undefined,
-      band: band as string | undefined,
-      delivered: delivered !== undefined ? delivered === 'true' : undefined,
-    });
-    res.json(households);
+    const result = await listHouseholds(
+      {
+        districtId: districtId as string | undefined,
+        band:       band       as string | undefined,
+        delivered:  delivered !== undefined ? delivered === 'true' : undefined,
+      },
+      page,
+      pageSize
+    );
+    res.json(result);
   } catch (err) {
     const message = err instanceof Error ? err.message : 'Error fetching households';
     res.status(500).json({ error: message });
@@ -107,9 +113,12 @@ export async function priorityQueue(req: Request, res: Response): Promise<void> 
     return;
   }
 
+  const page     = Math.max(1, parseInt(req.query.page     as string) || 1);
+  const pageSize = Math.min(100, Math.max(1, parseInt(req.query.pageSize as string) || 20));
+
   try {
-    const queue = await getPriorityQueue(districtId as string);
-    res.json(queue);
+    const result = await getPriorityQueue(districtId as string, page, pageSize);
+    res.json(result);
   } catch (err) {
     const message = err instanceof Error ? err.message : 'Error fetching priority queue';
     res.status(500).json({ error: message });

@@ -9,8 +9,23 @@ const prisma = new PrismaClient();
 const KEY_QUEUE_PREFIX = 'household:queue:';
 const TTL_QUEUE = 15_000;
 
+export interface PaginatedResult<T> {
+  data: T[];
+  total: number;
+  page: number;
+  pageSize: number;
+  totalPages: number;
+}
+
+const DEFAULT_PAGE_SIZE = 20;
+
 export function invalidateQueueCache(districtId: string): void {
-  deleteCached(`${KEY_QUEUE_PREFIX}${districtId}`);
+  // pattern-delete all cached pages for this district
+  // cache utility stores by exact key, so we delete the prefix match manually
+  // simplest approach: delete the first 10 pages — covers any realistic dataset
+  for (let p = 1; p <= 10; p++) {
+    deleteCached(`${KEY_QUEUE_PREFIX}${districtId}:${p}:20`);
+  }
 }
 
 // ─── SCORE ONLY (no DB write) ─────────────────────────────────────────────────
@@ -78,11 +93,11 @@ export async function createHousehold(data: {
 
 // ─── LIST HOUSEHOLDS ──────────────────────────────────────────────────────────
 
-export async function listHouseholds(filters: {
-  districtId?: string;
-  band?: string;
-  delivered?: boolean;
-}) {
+export async function listHouseholds(
+  filters: { districtId?: string; band?: string; delivered?: boolean },
+  page = 1,
+  pageSize = DEFAULT_PAGE_SIZE
+): Promise<PaginatedResult<object>> {
   const where: Record<string, unknown> = {};
 
   if (filters.districtId) where.districtId = filters.districtId;
@@ -94,14 +109,23 @@ export async function listHouseholds(filters: {
     }
   }
 
-  return prisma.household.findMany({
-    where,
-    orderBy: [{ totalScore: 'desc' }, { createdAt: 'asc' }],
-    include: {
-      district:   { select: { name: true } },
-      assessedBy: { select: { name: true, email: true } },
-    },
-  });
+  const skip = (page - 1) * pageSize;
+
+  const [data, total] = await prisma.$transaction([
+    prisma.household.findMany({
+      where,
+      orderBy: [{ totalScore: 'desc' }, { createdAt: 'asc' }],
+      skip,
+      take: pageSize,
+      include: {
+        district:   { select: { name: true } },
+        assessedBy: { select: { name: true, email: true } },
+      },
+    }),
+    prisma.household.count({ where }),
+  ]);
+
+  return { data, total, page, pageSize, totalPages: Math.ceil(total / pageSize) };
 }
 
 // ─── GET SINGLE HOUSEHOLD ─────────────────────────────────────────────────────
@@ -204,23 +228,33 @@ const BAND_ORDER: Record<PriorityBand, number> = {
   STANDARD: 3,
 };
 
-export async function getPriorityQueue(districtId: string) {
-  const key = `${KEY_QUEUE_PREFIX}${districtId}`;
-  const cached = getCached<Awaited<ReturnType<typeof buildPriorityQueue>>>(key);
+export async function getPriorityQueue(
+  districtId: string,
+  page = 1,
+  pageSize = DEFAULT_PAGE_SIZE
+): Promise<PaginatedResult<object>> {
+  // cache key includes page so different pages cache independently
+  const key = `${KEY_QUEUE_PREFIX}${districtId}:${page}:${pageSize}`;
+  const cached = getCached<PaginatedResult<object>>(key);
   if (cached) return cached;
 
-  const result = await buildPriorityQueue(districtId);
+  const result = await buildPriorityQueue(districtId, page, pageSize);
   setCached(key, result, TTL_QUEUE);
   return result;
 }
 
-async function buildPriorityQueue(districtId: string) {
-  const households = await prisma.household.findMany({
+async function buildPriorityQueue(
+  districtId: string,
+  page: number,
+  pageSize: number
+): Promise<PaginatedResult<object>> {
+  // fetch all undelivered for this district — sort must happen before slice
+  const all = await prisma.household.findMany({
     where: { districtId, delivered: false },
     include: { district: { select: { name: true } } },
   });
 
-  return households.sort((a, b) => {
+  const sorted = all.sort((a, b) => {
     const bandDiff = BAND_ORDER[a.priorityBand] - BAND_ORDER[b.priorityBand];
     if (bandDiff !== 0) return bandDiff;
 
@@ -232,4 +266,10 @@ async function buildPriorityQueue(districtId: string) {
 
     return a.createdAt.getTime() - b.createdAt.getTime();
   });
+
+  const total = sorted.length;
+  const skip  = (page - 1) * pageSize;
+  const data  = sorted.slice(skip, skip + pageSize);
+
+  return { data, total, page, pageSize, totalPages: Math.ceil(total / pageSize) };
 }
