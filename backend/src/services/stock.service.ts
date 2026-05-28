@@ -555,42 +555,41 @@ export async function setAllocation(data: {
     });
     if (!stock) throw new Error('Stock record not found for this sub-warehouse');
 
-    // need central id to write the cross-log entry
     const central = await prisma.centralWarehouse.findFirst();
     if (!central) throw new Error('Central warehouse not found. Run seed.');
 
-    const [updated] = await prisma.$transaction([
-      prisma.stock.update({
-        where: { subWarehouseId },
-        data: { [totalField]: newTotal },
-        include: {
-          subWarehouse: { include: { district: { select: { name: true } } } },
-        },
-      }),
-      prisma.stockMovement.create({
-        data: {
-          subWarehouseId,
-          emkType,
-          movementType: MovementType.ADJUSTMENT,
-          quantity: 0,
-          reason: `ALLOCATION CHANGE: ${reason} (new total: ${newTotal})`,
-          performedById,
-        },
-      }),
-      prisma.centralStockMovement.create({
-        data: {
-          centralWarehouseId: central.id,
-          emkType,
-          movementType: 'ALLOCATION_CHANGE',
-          quantity: newTotal,
-          reason: `[${stock.subWarehouse.district.name}] ${reason} (new total: ${newTotal})`,
-          performedById,
-        },
-      }),
-    ] as const);
+    const updated = await prisma.stock.update({
+      where: { subWarehouseId },
+      data: { [totalField]: newTotal },
+      include: {
+        subWarehouse: { include: { district: { select: { name: true } } } },
+      },
+    });
+
+    await prisma.stockMovement.create({
+      data: {
+        subWarehouseId,
+        emkType,
+        movementType: MovementType.ADJUSTMENT,
+        quantity: 0,
+        reason: `ALLOCATION CHANGE: ${reason} (new total: ${newTotal})`,
+        performedById,
+      },
+    });
+
+    await prisma.centralStockMovement.create({
+      data: {
+        centralWarehouseId: central.id,
+        emkType,
+        movementType: 'ALLOCATION_CHANGE' as const,
+        quantity: newTotal,
+        reason: `[${stock.subWarehouse.district.name}] ${reason} (new total: ${newTotal})`,
+        performedById,
+      },
+    });
 
     deleteCached(KEY_STATUS);
-    deleteCached(KEY_CENTRAL);  // central movements cache also needs busting
+    deleteCached(KEY_CENTRAL);
     invalidateCache(`dashboard:district:${updated.subWarehouse.districtId}`);
     invalidateCache('dashboard:summary');
 
