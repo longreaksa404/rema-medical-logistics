@@ -1,228 +1,83 @@
-# REMA - Rapid Emergency Medical Access
+# REMA — Rapid Emergency Medical Access
 
-**Challenge:** Medical Logistics in a Sinking City
-**Track:** University Track
-**Organiser:** Viet Nam Red Cross (supported by BSSC, RMIT, Innoex, HELP Logistics)
+**Medical Logistics in a Sinking City** · University Track · Viet Nam Red Cross
 
 ---
 
-## Live Deployment
+## Live
 
-| Service | URL |
+| | URL |
 |---|---|
-| Frontend Application | https://rema-system.vercel.app |
+| Frontend | https://rema-system.vercel.app |
 | Backend API | https://rema-medical-logistics.onrender.com |
-| API Documentation (Swagger) | https://rema-medical-logistics.onrender.com/api/docs |
+| Swagger | https://rema-medical-logistics.onrender.com/api/docs |
 
-### Test Accounts
+**Test accounts** (password: `rema1234`)
 
-All passwords: `rema1234`
-
-| Email | Role | District |
-|---|---|---|
-| admin@rema.kh | SUPER_ADMIN | - |
-| coordinator@rema.kh | EMERGENCY_COORDINATOR | - |
-| hub1@rema.kh | HUB_MANAGER | Dangkao |
-| hub2@rema.kh | HUB_MANAGER | Mean Chey |
-| hub3@rema.kh | HUB_MANAGER | Pou Senchey |
-| volunteer1@rema.kh | VOLUNTEER | Dangkao |
-| viewer@rema.kh | VIEWER | - |
-
-> **Demo tip:** Log in as `admin@rema.kh` to reset the system to Phase 0 before a demo run. Log in as `coordinator@rema.kh` to trigger activation and advance phases.
-
----
-
-## What REMA Does
-
-REMA is a pre-positioned, vulnerability-scored medical logistics system designed to deliver Emergency Medical Kits to the right households within 24-48 hours of a flood event - through any water depth up to 80cm.
-
-**The core insight:** Reactive logistics fails in urban flooding because by the time demand is confirmed, roads are already gone. REMA pre-positions supplies before peaks, scores households by medical vulnerability, and adapts delivery mode to water depth.
-
-**Three-layer architecture:**
-- Layer 1: Central Warehouse - master stock, 30% reserve after dispatch
-- Layer 2: Sub-Warehouses x3 - stocked Hours 3-8 in existing community buildings
-- Layer 3: Last-mile volunteers - motorbike (0-30cm) / bicycle or foot (30-60cm) / boat (60-80cm) / suspended above 80cm
-
-**Three EMK types:**
-- EMK-1 General: ORS, wound care, paracetamol, hygiene
-- EMK-2 Vulnerable: all EMK-1 + infant formula, prenatal vitamins, thermometer
-- EMK-3 Chronic Illness: 3-day medication supply - MoH cold storage only, never pre-stored at sub-warehouses
-
-**Prioritisation:** 20-point vulnerability score across 5 categories. Critical households (15-20 points) delivered in current run. Every score is documented on paper and auditable.
-
-**Activation trigger:** 2 of 3 objective conditions (locked - no single-person override).
-
----
-
-## System Scope
-
-| Dimension | Value |
+| Email | Role |
 |---|---|
-| Districts | 3 |
-| Sub-warehouses | 3 (one per district) |
-| Volunteer minimum | 36 (12 per sub-warehouse) |
-| EMK types | 3 (General / Vulnerable / Chronic Illness) |
-| Response window | 24-48 hours (critical phase) |
-| Water depth range | 30-80cm operational; suspended above 80cm |
-| API endpoints | 55+ |
-| Database tables | 20 |
-| Frontend views | 10 |
-| User roles | 5 |
-| Documented assumptions | 64 |
-| Unit tests | 125 |
-| Annual system cost | ~$69,500 USD |
-| Cost per beneficiary | ~$0.95/person/year |
+| admin@rema.kh | SUPER_ADMIN |
+| coordinator@rema.kh | EMERGENCY_COORDINATOR |
+| hub1@rema.kh | HUB_MANAGER (Dangkao) |
+| volunteer1@rema.kh | VOLUNTEER (Dangkao) |
+| viewer@rema.kh | VIEWER |
+
+> Log in as `admin@rema.kh` to reset to Phase 0 before a demo. Use `coordinator@rema.kh` to trigger activation.
 
 ---
 
-## Technical Stack
+## What It Does
+
+Pre-positioned, vulnerability-scored medical kit delivery for urban flood response. Supplies are staged *before* flooding peaks. Households are scored by medical urgency. Delivery mode adapts to water depth.
+
+**3-layer logistics:** Central warehouse → 3 sub-warehouses (stocked Hours 3-8) → last-mile volunteers
+
+**Delivery tiers:** Motorbike (0-30cm) · Bicycle/foot (30-60cm) · Boat (60-80cm) · Suspended (>80cm)
+
+**3 EMK types:** General (EMK-1) · Vulnerable household (EMK-2) · Chronic illness (EMK-3, MoH cold storage only)
+
+**Scoring:** 20-point vulnerability score across 5 categories. 15-20 = CRITICAL, deliver in current run.
+
+**Activation:** 2 of 3 objective conditions met — no single-person override.
+
+---
+
+## Stack
 
 ```
 Backend:    Node.js + TypeScript + Express + Prisma + PostgreSQL
-Auth:       JWT access token (15m) + httpOnly refresh token (7d) + bcrypt
-Realtime:   socket.io — phase changes, scarcity alerts, incident notifications
+Auth:       JWT (15m) + httpOnly refresh token (7d) + bcrypt
+Realtime:   socket.io — phase changes, scarcity alerts, incidents
 Frontend:   React (Vite) + TypeScript + Tailwind CSS + Recharts + Leaflet.js
-Hosting:    Render (backend) + Supabase (PostgreSQL) + Vercel (frontend)
-API Docs:   Swagger (swagger-ui-express)
-Diagrams:   draw.io (V3 Warehouse Layout, V5 Stakeholder Flowchart)
-Protocol:   ReportLab PDF (V6 Operating Protocol - 8 pages, print-ready A4)
-Testing:    Jest + ts-jest (125 unit tests - backend utility functions)
-CI/CD:      GitHub Actions (tests gate every deployment)
-AI:         Anthropic Claude API - server-side AI Brief for Emergency Coordinator
+Hosting:    Render + Supabase + Vercel
+Testing:    Jest + ts-jest — 125 unit tests
+CI/CD:      GitHub Actions — tests gate every deploy
+AI:         Anthropic Claude API — server-side AI Brief (advisory only, no PII)
 ```
 
 ---
 
-## Running Locally
+## Engineering Highlights
 
-### Prerequisites
-- Node.js 20+
-- PostgreSQL (or a Supabase project)
-
-### Backend
-
-```bash
-cd backend
-cp .env.example .env
-# Fill in DATABASE_URL and DIRECT_URL from your Supabase project
-npm install
-npm run migrate        # applies all Prisma migrations
-npx ts-node src/seed.ts  # seeds districts, sub-warehouses, test accounts
-npm run dev            # starts on http://localhost:3000
-```
-
-API documentation: http://localhost:3000/api/docs
-
-### Frontend
-
-```bash
-cd frontend
-cp .env.example .env.local
-# Set: VITE_API_URL=http://localhost:3000
-npm install
-npm run dev            # starts on http://localhost:5173
-```
-
-### Running Tests
-
-```bash
-cd backend
-npm test
-```
-
-Expected output: **125 tests passing** across 4 test files:
-
-| File | Tests | What it verifies |
-|---|---|---|
-| `scoring.test.ts` | 59 | All 20-point scoring rules + Section C worked examples |
-| `stock.utils.test.ts` | 30 | Scarcity threshold logic (30% boundary) |
-| `alert.test.ts` | 13 | All 8 activation trigger combinations |
-| `route.test.ts` | 23 | All 4 delivery mode tiers and depth boundaries |
+- **125 unit tests** — scoring, stock scarcity, activation trigger, routing tiers
+- **CI/CD** — GitHub Actions blocks any PR that fails tests before deploy
+- **WebSocket realtime** — phase changes, scarcity alerts, and incidents push instantly to all clients
+- **Server-side pagination** — stock movements, households, delivery history, resolved incidents (20/page, Prisma `$transaction` count). Active runs and open incidents always returned in full — operational roles need complete in-progress visibility.
+- **Refresh tokens** — SHA-256 hashed, revocable, 7-day httpOnly cookie
+- **AI Brief** — reads aggregate DB state server-side, no PII in prompt, advisory only, graceful 503 degradation
+- **mustChangePassword** — admin-created accounts forced to change password on first login
+- **Per-zone routing map** — 9 real zone polygons clipped from OSM district boundaries, depth sliders wired to API
 
 ---
 
-## CI/CD Pipeline
+## Key Decisions
 
-Every push to `main` and every pull request runs the full test suite via GitHub Actions before deploying.
-
-```
-Pull request:
-  1. Install dependencies
-  2. Run 113 unit tests
-  → If tests fail: PR is blocked. No deploy.
-
-Push to main (after PR merge):
-  1. Install dependencies
-  2. Run 125 unit tests
-  3. Trigger Render deploy hook
-  → Render rebuilds backend. Vercel autodeploys frontend.
-```
-
-**Setup required (one-time, manual):**
-1. Go to GitHub repo → Settings → Secrets → Actions
-2. Add secret `RENDER_DEPLOY_HOOK_URL` (get from Render dashboard → your service → Settings → Deploy Hook)
-3. Confirm Vercel project is connected to the GitHub repo
-
----
-
-## Key Design Decisions
-
-| Decision | Choice | Why |
-|---|---|---|
-| Pre-positioning strategy | Stock staged Hours 3-8 before flooding peaks | Reactive logistics fails when roads are gone |
-| EMK-3 cold chain | MoH cold storage only; never at sub-warehouses | Community buildings cannot maintain 2-8C |
-| Activation trigger | 2 of 3 conditions (locked, not manual) | Prevents false activations; removes single-person authority |
-| Phase direction | Forward only (0→1→2) via frontend | Prevents accidental rollback during active flood response |
-| System reset | POST /api/alert/reset - SUPER_ADMIN only | Clean demo reset without touching the database directly |
-| Paper fallback | Every digital function has a paper equivalent | No single tool is in the critical path |
-| Asset model | Borrow trucks and boats via MOUs; pay per activation | Red Cross cannot afford year-round fleet ownership |
-| SUPER_ADMIN creation | Seed script only; never via API | Deliberate security decision for real deployment |
-| User deactivation | Deactivate, never delete | Audit trail preserved for accountability |
-| Scoring engine | Identical TypeScript in frontend and backend | Live preview without an API call; server validates on submit |
-| AI Brief | Advisory only; reads aggregate data; no PII in prompt | Technology augments human judgment - never replaces it |
-| Auth tokens | 15m access + 7d httpOnly refresh | Short window limits stolen token exposure; seamless renewal |
-| mustChangePassword | Forced redirect on first login | Admin never shares permanent passwords |
-| Avatar storage | base64 in users table, resized 128x128 | No extra service; stays under 25kb per user |
-| WebSocket events | Broadcast to all connected clients | All operational roles need system-wide situational awareness |
-| Per-zone routing | API-driven depths, fallback only if no records | Routing map always reflects real DB state |
-| Profile page | /profile for all roles | Central account management; sidebar user card is entry point |
-
----
-
-## AI Brief Feature
-
-The Emergency Coordinator dashboard includes an AI-powered operational brief. When triggered:
-
-1. Backend reads current dashboard state from the database (aggregate data only - no PII)
-2. Generates a 3-part brief: Situation Summary, Priority Alert, Recommended Next Step
-3. Returns the brief with a data snapshot showing exactly what data was used
-
-**Hard constraints:**
-- Advisory only - cannot trigger any database write or system action
-- No household names, addresses, or personal information in the prompt
-- Graceful degradation to HTTP 503 if unavailable
-- "Advisory only - human decision required" banner is always visible in the modal
-
----
-
-## Submission Documents
-
-The full submission package is in `docs/submission/`:
-
-| Document | Description |
+| Decision | Why |
 |---|---|
-| `REMA-Executive-Summary.md` | 1-page overview for judges |
-| `REMA-Master-Strategy.md` | Complete strategy across all 6 sections (A-F) |
-| `REMA-Demo-Guide.md` | Step-by-step walkthrough for judges (9 steps, ~15 min) |
-| `REMA-Presentation-Outline.md` | 10-slide presentation structure with speaker notes |
-
----
-
-## Visuals Included
-
-| Visual | File | Tool |
-|---|---|---|
-| V3 Central Warehouse Floor Plan | `sections/visuals/central-warehouse.drawio.png` | draw.io |
-| V3 Sub-Warehouse Floor Plan | `sections/visuals/sub-warehouse.drawio.png` | draw.io |
-| V5 Stakeholder Coordination Flowchart | `sections/visuals/REMA-stakeholder-flowchart.drawio.png` | draw.io |
-| V6 Operating Protocol | `sections/visuals/operating-protocol.pdf` | ReportLab PDF |
+| EMK-3 at MoH cold storage only | Community buildings cannot maintain 2-8°C |
+| 2-of-3 activation trigger | Removes single-person authority; prevents false activations |
+| Phase forward only (0→1→2) | No accidental rollback during active response |
+| Deactivate users, never delete | Audit trail preserved |
+| Paper fallback for every digital function | No single tool in the critical path |
+| AI output is advisory only | Technology augments human judgment, never replaces it |
+| Active runs/incidents unpaginated | Hub Managers need full in-progress visibility without navigation |
