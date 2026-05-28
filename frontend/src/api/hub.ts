@@ -95,6 +95,16 @@ export interface DeliveryRun {
   receipts: { id: string; emkType: string; quantity: number; deliveredAt: string; householdId: string }[];
 }
 
+export interface DeliveryRunsResult {
+  active: DeliveryRun[];
+  history: PaginatedResponse<DeliveryRun>;
+}
+
+export interface IncidentsResult {
+  open: Incident[];
+  resolved: PaginatedResponse<Incident>;
+}
+
 // ─── INCIDENTS ────────────────────────────────────────────────────────────────
 
 export interface Incident {
@@ -259,7 +269,7 @@ export const hubApi = {
 
   // convenience wrapper - sets role only
   setVolunteerRole: async (id: string, role: 'TEAM_LEADER' | 'VOLUNTEER') => {
-    const res = await api.patch(`/api/volunteers/${id}`, { role });
+    const res = await api.patch(`/api/volunteers/${id}/role`, { role });
     return res.data;
   },
 
@@ -296,8 +306,10 @@ export const hubApi = {
 
   // ── Deliveries ─────────────────────────────────────────────────────────────
 
-  getDeliveryRuns: async (districtId: string): Promise<DeliveryRun[]> => {
-    const res = await api.get<DeliveryRun[]>('/api/delivery/runs', { params: { districtId } });
+  getDeliveryRuns: async (districtId: string, page = 1): Promise<DeliveryRunsResult> => {
+    const res = await api.get<DeliveryRunsResult>('/api/delivery/runs', {
+      params: { districtId, page, pageSize: 20 },
+    });
     return res.data;
   },
 
@@ -320,8 +332,10 @@ export const hubApi = {
 
   // ── Incidents ──────────────────────────────────────────────────────────────
 
-  getIncidents: async (districtId: string): Promise<Incident[]> => {
-    const res = await api.get<Incident[]>('/api/incidents', { params: { districtId } });
+  getIncidents: async (districtId: string, page = 1): Promise<IncidentsResult> => {
+    const res = await api.get<IncidentsResult>('/api/incidents', {
+      params: { districtId, page, pageSize: 20 },
+    });
     return res.data;
   },
 
