@@ -41,6 +41,14 @@ export interface StockMovement {
   performedBy: { name: string; email: string; role: string };
 }
 
+export interface PaginatedResponse<T> {
+  data: T[];
+  total: number;
+  page: number;
+  pageSize: number;
+  totalPages: number;
+}
+
 // ─── VOLUNTEERS ───────────────────────────────────────────────────────────────
 
 export interface Volunteer {
