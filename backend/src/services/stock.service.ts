@@ -296,7 +296,7 @@ export async function dispatchStock(data: {
         emkType,
         movementType: emkType === 'EMK3' ? 'MOH_TRANSFER' : 'DISPATCH',
         quantity: -quantity,
-        reason: `${reasonText} → to sub-warehouse ${subWarehouseId}`,
+        reason: reasonText,
         performedById,
       },
     }),
@@ -323,8 +323,16 @@ export async function reallocateStock(data: {
 
   const { remainingField } = getFields(emkType);
 
-  const fromStock = await prisma.stock.findUnique({ where: { subWarehouseId: fromSubWarehouseId } });
-  const toStock   = await prisma.stock.findUnique({ where: { subWarehouseId: toSubWarehouseId } });
+  const [fromStock, toStock] = await Promise.all([
+    prisma.stock.findUnique({
+      where: { subWarehouseId: fromSubWarehouseId },
+      include: { subWarehouse: { include: { district: { select: { name: true } } } } },
+    }),
+    prisma.stock.findUnique({
+      where: { subWarehouseId: toSubWarehouseId },
+      include: { subWarehouse: { include: { district: { select: { name: true } } } } },
+    }),
+  ]);
 
   if (!fromStock) throw new Error('Source sub-warehouse stock not found');
   if (!toStock)   throw new Error('Destination sub-warehouse stock not found');
@@ -336,6 +344,8 @@ export async function reallocateStock(data: {
     throw new Error(`Insufficient stock: source only has ${fromRemaining} ${emkType} remaining`);
   }
 
+  const fromName = fromStock.subWarehouse.district.name;
+  const toName   = toStock.subWarehouse.district.name;
   const reasonText = reason ?? 'Cross-district reallocation';
 
   const [updatedFrom, updatedTo] = await prisma.$transaction([
@@ -354,7 +364,7 @@ export async function reallocateStock(data: {
         subWarehouseId: fromSubWarehouseId, emkType,
         movementType: MovementType.REALLOCATION,
         quantity: -quantity,
-        reason: `${reasonText} → to ${toSubWarehouseId}`,
+        reason: `${reasonText} → to ${toName}`,
         performedById,
       },
     }),
@@ -363,7 +373,7 @@ export async function reallocateStock(data: {
         subWarehouseId: toSubWarehouseId, emkType,
         movementType: MovementType.REALLOCATION,
         quantity,
-        reason: `${reasonText} ← from ${fromSubWarehouseId}`,
+        reason: `${reasonText} ← from ${fromName}`,
         performedById,
       },
     }),

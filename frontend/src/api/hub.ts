@@ -142,6 +142,11 @@ export const hubApi = {
 
   // ── Central warehouse ──────────────────────────────────────────────────────
 
+  getAllStock: async (): Promise<StockLevel[]> => {
+    const res = await api.get<StockLevel[]>('/api/stock/status');
+    return res.data;
+  },
+
   getCentralStock: async (): Promise<CentralStockLevel> => {
     const res = await api.get<CentralStockLevel>('/api/stock/central');
     return res.data;

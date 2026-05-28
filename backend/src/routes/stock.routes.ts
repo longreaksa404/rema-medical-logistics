@@ -37,7 +37,7 @@ router.get('/movements/:districtId',  requireAuth, getMovementsByDistrictHandler
 
 // Write operations
 router.post('/dispatch',   requireAuth, dispatch);
-router.post('/reallocate', requireAuth, requireRole('EMERGENCY_COORDINATOR'), reallocate);
+router.post('/reallocate', requireAuth, requireRole('HUB_MANAGER'), reallocate);
 router.post('/adjust',     requireAuth, requireRole('HUB_MANAGER'), adjust);
 
 // District stock — LAST

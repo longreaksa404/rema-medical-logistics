@@ -122,6 +122,12 @@ function StockTab({ districtId, subWarehouseId }: {
   const [adjQty,     setAdjQty]     = useState('');
   const [adjReason,  setAdjReason]  = useState('');
 
+  // ── Reallocation form ─────────────────────────────────────────────────────
+  const [realEmkType,  setRealEmkType]  = useState<'EMK1' | 'EMK2' | 'EMK3'>('EMK1');
+  const [realToSwId,   setRealToSwId]   = useState('');
+  const [realQty,      setRealQty]      = useState('');
+  const [realReason,   setRealReason]   = useState('');
+
   // ── Queries ───────────────────────────────────────────────────────────────
   const { data: centralStock } = useQuery({
     queryKey: queryKeys.hub.centralStock(),
@@ -135,6 +141,18 @@ function StockTab({ districtId, subWarehouseId }: {
     enabled:  !!districtId,
   });
 
+  // fetch all sub-warehouses for reallocation target dropdown
+  const { data: allStock } = useQuery({
+    queryKey: ['stock', 'all'],
+    queryFn:  () => hubApi.getAllStock(),
+    staleTime: 60_000,
+  });
+
+  const otherSubWarehouses = useMemo(
+    () => (allStock ?? []).filter(s => s.subWarehouseId !== subWarehouseId),
+    [allStock, subWarehouseId]
+  );
+
   const { data: movResult, isPending: movPending } = useQuery({
     queryKey: [...queryKeys.hub.movements(districtId), movPage],
     queryFn:  () => hubApi.getMovements(districtId, movPage),
@@ -145,7 +163,6 @@ function StockTab({ districtId, subWarehouseId }: {
   const movements = movResult?.data ?? [];
   const movTotalPages = movResult?.totalPages ?? 1;
 
-  // only true when no cached data exists at all
   const isLoading = (stockPending && !stock) || (movPending && movements.length === 0);
 
   const invalidateStock = useCallback(() => {
@@ -153,6 +170,7 @@ function StockTab({ districtId, subWarehouseId }: {
     queryClient.invalidateQueries({ queryKey: queryKeys.hub.centralMovements() });
     queryClient.invalidateQueries({ queryKey: queryKeys.hub.stock(districtId) });
     queryClient.invalidateQueries({ queryKey: queryKeys.hub.movements(districtId) });
+    queryClient.invalidateQueries({ queryKey: ['stock', 'all'] });
     queryClient.invalidateQueries({ queryKey: queryKeys.dashboard.summary() });
   }, [queryClient, districtId]);
 
@@ -175,6 +193,16 @@ function StockTab({ districtId, subWarehouseId }: {
     },
   });
 
+  const reallocateMutation = useMutation({
+    mutationFn: hubApi.reallocate,
+    onSuccess: (_, vars) => {
+      const target = otherSubWarehouses.find(s => s.subWarehouseId === vars.toSubWarehouseId);
+      setSuccess(`Reallocated ${vars.quantity}× ${vars.emkType} to ${target?.districtName ?? 'other district'}.`);
+      setRealQty(''); setRealReason(''); setRealToSwId('');
+      invalidateStock();
+    },
+  });
+
   // ── Constants ─────────────────────────────────────────────────────────────
   const EMK_TYPES: Array<'EMK1' | 'EMK2' | 'EMK3'> = ['EMK1', 'EMK2', 'EMK3'];
   const EMK_COLORS = { EMK1: 'text-accent-blue', EMK2: 'text-accent-green', EMK3: 'text-accent-yellow' };
@@ -188,33 +216,48 @@ function StockTab({ districtId, subWarehouseId }: {
 
   useEffect(() => { setMovPage(1); }, [districtId]);
 
+  // reset reallocation target when district changes
+  useEffect(() => { setRealToSwId(''); }, [districtId]);
+
   if (isLoading) {
     return (
       <div className="space-y-4">
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
           {[...Array(3)].map((_, i) => <Skeleton key={i} className="h-28" />)}
         </div>
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
-          <Skeleton className="h-48" /><Skeleton className="h-48" />
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-5">
+          <Skeleton className="h-48" /><Skeleton className="h-48" /><Skeleton className="h-48" />
         </div>
         <Skeleton className="h-64" />
       </div>
     );
   }
 
-  const dispError = (dispatchMutation.error as { response?: { data?: { error?: string } } } | null)?.response?.data?.error ?? '';
-  const adjError  = (adjustMutation.error  as { response?: { data?: { error?: string } } } | null)?.response?.data?.error ?? '';
-  const mutationError = dispError || adjError;
+  const dispError  = (dispatchMutation.error  as { response?: { data?: { error?: string } } } | null)?.response?.data?.error ?? '';
+  const adjError   = (adjustMutation.error    as { response?: { data?: { error?: string } } } | null)?.response?.data?.error ?? '';
+  const realError  = (reallocateMutation.error as { response?: { data?: { error?: string } } } | null)?.response?.data?.error ?? '';
+  const mutationError = dispError || adjError || realError;
 
-  // Central available for selected dispatch EMK type
   const centralAvailable = centralStock
     ? (centralStock[`${dispEmkType.toLowerCase()}Remaining` as keyof CentralStockLevel] as number)
+    : null;
+
+  // current district remaining for selected reallocation EMK type
+  const realFromRemaining = stock
+    ? (stock[`${realEmkType.toLowerCase()}Remaining` as keyof StockLevel] as number)
     : null;
 
   return (
     <div className="space-y-6">
       {mutationError && (
-        <ErrorBox msg={mutationError} onDismiss={() => { dispatchMutation.reset(); adjustMutation.reset(); }} />
+        <ErrorBox
+          msg={mutationError}
+          onDismiss={() => {
+            dispatchMutation.reset();
+            adjustMutation.reset();
+            reallocateMutation.reset();
+          }}
+        />
       )}
       {success && <SuccessBox msg={success} onDismiss={() => setSuccess('')} />}
 
@@ -276,11 +319,11 @@ function StockTab({ districtId, subWarehouseId }: {
         )}
       </div>
 
-      {/* ── DISPATCH + ADJUST ──────────────────────────────────────────────── */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
+      {/* ── DISPATCH / ADJUST / REALLOCATE ────────────────────────────────── */}
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-5 items-stretch">
 
         {/* Dispatch */}
-        <div className="card p-5">
+        <div className="card p-5 flex flex-col">
           <SectionTitle sub="Moves stock from central warehouse → this sub-warehouse">
             Record Dispatch
           </SectionTitle>
@@ -296,11 +339,14 @@ function StockTab({ districtId, subWarehouseId }: {
             </div>
           )}
 
-          <div className="space-y-3">
+          <div className="space-y-3 flex flex-col flex-1">
             <div className="grid grid-cols-2 gap-3">
               <div>
                 <label className="label">EMK Type</label>
-                <select value={dispEmkType} onChange={e => setDispEmkType(e.target.value as 'EMK1' | 'EMK2' | 'EMK3')} className="input">
+                <select
+                  value={dispEmkType}
+                  onChange={e => setDispEmkType(e.target.value as 'EMK1' | 'EMK2' | 'EMK3')}
+                  className="input">
                   {EMK_TYPES.map(t => <option key={t} value={t}>{t}</option>)}
                 </select>
               </div>
@@ -315,31 +361,125 @@ function StockTab({ districtId, subWarehouseId }: {
               <input type="text" className="input" placeholder="Phase 1 resupply..."
                 value={dispReason} onChange={e => setDispReason(e.target.value)} />
             </div>
-            <button
-              onClick={() => {
-                if (!subWarehouseId || !dispQty) return;
-                dispatchMutation.mutate({ subWarehouseId, emkType: dispEmkType, quantity: Number(dispQty), reason: dispReason || undefined });
-              }}
-              disabled={dispatchMutation.isPending || !dispQty || !subWarehouseId}
-              className="btn-primary w-full">
-              {dispatchMutation.isPending ? 'Dispatching...' : 'Dispatch to Sub-Warehouse'}
-            </button>
-            {!subWarehouseId && (
-              <p className="font-mono text-[10px] text-accent-orange">No sub-warehouse assigned.</p>
-            )}
+            <div className="mt-auto pt-2">
+              <button
+                onClick={() => {
+                  if (!subWarehouseId || !dispQty) return;
+                  dispatchMutation.mutate({
+                    subWarehouseId,
+                    emkType: dispEmkType,
+                    quantity: Number(dispQty),
+                    reason: dispReason || undefined,
+                  });
+                }}
+                disabled={dispatchMutation.isPending || !dispQty || !subWarehouseId}
+                className="btn-primary w-full">
+                {dispatchMutation.isPending ? 'Dispatching...' : 'Dispatch to Sub-Warehouse'}
+              </button>
+              {!subWarehouseId && (
+                <p className="font-mono text-[10px] text-accent-orange mt-2">No sub-warehouse assigned.</p>
+              )}
+            </div>
+          </div>
+        </div>
+
+        {/* Reallocate */}
+        <div className="card p-5 border-accent-blue/20 flex flex-col">
+          <SectionTitle sub="Send surplus stock to another district's sub-warehouse">
+            Reallocate to District
+          </SectionTitle>
+          <div className="space-y-3 flex flex-col flex-1">
+
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label className="label">EMK Type</label>
+                <select
+                  value={realEmkType}
+                  onChange={e => setRealEmkType(e.target.value as 'EMK1' | 'EMK2' | 'EMK3')}
+                  className="input">
+                  {EMK_TYPES.map(t => <option key={t} value={t}>{t}</option>)}
+                </select>
+              </div>
+              <div>
+                <label className="label">Quantity</label>
+                <input
+                  type="number" min="1" className="input" placeholder="e.g. 100"
+                  value={realQty} onChange={e => setRealQty(e.target.value)} />
+                {realQty && realFromRemaining !== null && Number(realQty) > realFromRemaining && (
+                  <p className="font-mono text-[10px] text-accent-red mt-1">
+                    Exceeds available ({fmt(realFromRemaining)}).
+                  </p>
+                )}
+              </div>
+            </div>
+
+            <div>
+              <label className="label">To District</label>
+              {otherSubWarehouses.length === 0 ? (
+                <p className="font-mono text-[10px] text-text-muted">No other sub-warehouses found.</p>
+              ) : (
+                <select
+                  value={realToSwId}
+                  onChange={e => setRealToSwId(e.target.value)}
+                  className="input">
+                  <option value="">Select destination...</option>
+                  {otherSubWarehouses.map(s => (
+                    <option key={s.subWarehouseId} value={s.subWarehouseId}>
+                      {s.districtName}
+                    </option>
+                  ))}
+                </select>
+              )}
+            </div>
+
+            <div>
+              <label className="label">Reason (required)</label>
+              <input
+                type="text" className="input"
+                placeholder="e.g. Mean Chey critically low on EMK1"
+                value={realReason} onChange={e => setRealReason(e.target.value)} />
+            </div>
+
+            <div className="mt-auto pt-2">
+              <button
+                onClick={() => {
+                  if (!subWarehouseId || !realToSwId || !realQty || !realReason.trim()) return;
+                  reallocateMutation.mutate({
+                    fromSubWarehouseId: subWarehouseId,
+                    toSubWarehouseId:   realToSwId,
+                    emkType:            realEmkType,
+                    quantity:           Number(realQty),
+                    reason:             realReason,
+                  });
+                }}
+                disabled={
+                  reallocateMutation.isPending || !realToSwId || !realQty ||
+                  !realReason.trim() || !subWarehouseId ||
+                  (realFromRemaining !== null && Number(realQty) > realFromRemaining)
+                }
+                className="w-full font-mono text-xs py-2.5 rounded border border-accent-blue/40 text-accent-blue hover:bg-accent-blue/10 transition-all disabled:opacity-40">
+                {reallocateMutation.isPending ? 'Reallocating...' : '⇄ Reallocate Stock'}
+              </button>
+              {!subWarehouseId && (
+                <p className="font-mono text-[10px] text-accent-orange mt-2">No sub-warehouse assigned.</p>
+              )}
+            </div>
           </div>
         </div>
 
         {/* Adjust */}
-        <div className="card p-5">
+        <div className="card p-5 flex flex-col">
           <SectionTitle sub="Manual correction with mandatory reason">
             Manual Adjustment
           </SectionTitle>
-          <div className="space-y-3">
+          <div className="space-y-3 flex flex-col flex-1">
             <div className="grid grid-cols-2 gap-3">
               <div>
                 <label className="label">EMK Type</label>
-                <select value={adjEmkType} onChange={e => setAdjEmkType(e.target.value as 'EMK1' | 'EMK2' | 'EMK3')} className="input">
+                <select
+                  value={adjEmkType}
+                  onChange={e => setAdjEmkType(e.target.value as 'EMK1' | 'EMK2' | 'EMK3')}
+                  className="input">
                   {EMK_TYPES.map(t => <option key={t} value={t}>{t}</option>)}
                 </select>
               </div>
@@ -354,15 +494,22 @@ function StockTab({ districtId, subWarehouseId }: {
               <input type="text" className="input" placeholder="e.g. Water-damaged kits removed"
                 value={adjReason} onChange={e => setAdjReason(e.target.value)} />
             </div>
-            <button
-              onClick={() => {
-                if (!subWarehouseId || !adjQty || !adjReason.trim()) return;
-                adjustMutation.mutate({ subWarehouseId, emkType: adjEmkType, quantity: Number(adjQty), reason: adjReason });
-              }}
-              disabled={adjustMutation.isPending || !adjQty || !adjReason.trim() || !subWarehouseId}
-              className="btn-ghost w-full">
-              {adjustMutation.isPending ? 'Adjusting...' : 'Record Adjustment'}
-            </button>
+            <div className="mt-auto pt-2">
+              <button
+                onClick={() => {
+                  if (!subWarehouseId || !adjQty || !adjReason.trim()) return;
+                  adjustMutation.mutate({
+                    subWarehouseId,
+                    emkType: adjEmkType,
+                    quantity: Number(adjQty),
+                    reason: adjReason,
+                  });
+                }}
+                disabled={adjustMutation.isPending || !adjQty || !adjReason.trim() || !subWarehouseId}
+                className="btn-ghost w-full">
+                {adjustMutation.isPending ? 'Adjusting...' : 'Record Adjustment'}
+              </button>
+            </div>
           </div>
         </div>
       </div>
@@ -395,7 +542,6 @@ function StockTab({ districtId, subWarehouseId }: {
           )}
         </div>
 
-        {/* pagination controls */}
         {movTotalPages > 1 && (
           <div className="flex items-center justify-between mt-3 px-1">
             <button
