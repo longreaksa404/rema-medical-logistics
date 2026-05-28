@@ -154,14 +154,41 @@ export async function getCentralStock(): Promise<CentralStockLevel> {
 
 // ─── GET CENTRAL MOVEMENTS ────────────────────────────────────────────────────
 
-export async function getCentralMovements() {
-  return prisma.centralStockMovement.findMany({
-    orderBy: { createdAt: 'desc' },
-    take: 100,
-    include: {
-      performedBy: { select: { name: true, email: true, role: true } },
-    },
-  });
+export interface PaginatedMovements<T> {
+  data: T[];
+  total: number;
+  page: number;
+  pageSize: number;
+  totalPages: number;
+}
+
+const DEFAULT_PAGE_SIZE = 20;
+
+export async function getCentralMovements(
+  page = 1,
+  pageSize = DEFAULT_PAGE_SIZE
+): Promise<PaginatedMovements<object>> {
+  const skip = (page - 1) * pageSize;
+
+  const [data, total] = await prisma.$transaction([
+    prisma.centralStockMovement.findMany({
+      orderBy: { createdAt: 'desc' },
+      skip,
+      take: pageSize,
+      include: {
+        performedBy: { select: { name: true, email: true, role: true } },
+      },
+    }),
+    prisma.centralStockMovement.count(),
+  ]);
+
+  return {
+    data,
+    total,
+    page,
+    pageSize,
+    totalPages: Math.ceil(total / pageSize),
+  };
 }
 
 // ─── GET ALL SUB-WAREHOUSE STOCK ─────────────────────────────────────────────
@@ -602,27 +629,52 @@ export async function setAllocation(data: {
 
 // ─── GET SUB-WAREHOUSE MOVEMENTS ─────────────────────────────────────────────
 
-export async function getAllMovements() {
-  return prisma.stockMovement.findMany({
-    orderBy: { createdAt: 'desc' },
-    include: {
-      subWarehouse: { include: { district: { select: { name: true } } } },
-      performedBy: { select: { name: true, email: true, role: true } },
-    },
-  });
+export async function getAllMovements(
+  page = 1,
+  pageSize = DEFAULT_PAGE_SIZE
+): Promise<PaginatedMovements<object>> {
+  const skip = (page - 1) * pageSize;
+
+  const [data, total] = await prisma.$transaction([
+    prisma.stockMovement.findMany({
+      orderBy: { createdAt: 'desc' },
+      skip,
+      take: pageSize,
+      include: {
+        subWarehouse: { include: { district: { select: { name: true } } } },
+        performedBy: { select: { name: true, email: true, role: true } },
+      },
+    }),
+    prisma.stockMovement.count(),
+  ]);
+
+  return { data, total, page, pageSize, totalPages: Math.ceil(total / pageSize) };
 }
 
-export async function getMovementsByDistrict(districtId: string) {
+export async function getMovementsByDistrict(
+  districtId: string,
+  page = 1,
+  pageSize = DEFAULT_PAGE_SIZE
+): Promise<PaginatedMovements<object>> {
   const sw = await prisma.subWarehouse.findUnique({ where: { districtId } });
   if (!sw) throw new Error(`No sub-warehouse found for district ${districtId}`);
 
-  return prisma.stockMovement.findMany({
-    where: { subWarehouseId: sw.id },
-    orderBy: { createdAt: 'desc' },
-    include: {
-      performedBy: { select: { name: true, email: true, role: true } },
-    },
-  });
+  const skip = (page - 1) * pageSize;
+
+  const [data, total] = await prisma.$transaction([
+    prisma.stockMovement.findMany({
+      where: { subWarehouseId: sw.id },
+      orderBy: { createdAt: 'desc' },
+      skip,
+      take: pageSize,
+      include: {
+        performedBy: { select: { name: true, email: true, role: true } },
+      },
+    }),
+    prisma.stockMovement.count({ where: { subWarehouseId: sw.id } }),
+  ]);
+
+  return { data, total, page, pageSize, totalPages: Math.ceil(total / pageSize) };
 }
 
 // ─── RECORD DELIVERY CONSUMPTION ─────────────────────────────────────────────
