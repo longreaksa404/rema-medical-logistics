@@ -29,9 +29,11 @@ export async function getCentral(_req: Request, res: Response): Promise<void> {
 
 // ─── GET /api/stock/central/movements ────────────────────────────────────────
 
-export async function getCentralMovementsHandler(_req: Request, res: Response): Promise<void> {
+export async function getCentralMovementsHandler(req: Request, res: Response): Promise<void> {
   try {
-    res.json(await getCentralMovements());
+    const page     = Math.max(1, parseInt(req.query.page     as string) || 1);
+    const pageSize = Math.min(100, Math.max(1, parseInt(req.query.pageSize as string) || 20));
+    res.json(await getCentralMovements(page, pageSize));
   } catch (err) {
     res.status(500).json({ error: err instanceof Error ? err.message : 'Error fetching central movements' });
   }
@@ -138,9 +140,11 @@ export async function adjust(req: Request, res: Response): Promise<void> {
 
 // ─── GET /api/stock/movements ─────────────────────────────────────────────────
 
-export async function getMovements(_req: Request, res: Response): Promise<void> {
+export async function getMovements(req: Request, res: Response): Promise<void> {
   try {
-    res.json(await getAllMovements());
+    const page     = Math.max(1, parseInt(req.query.page     as string) || 1);
+    const pageSize = Math.min(100, Math.max(1, parseInt(req.query.pageSize as string) || 20));
+    res.json(await getAllMovements(page, pageSize));
   } catch (err) {
     res.status(500).json({ error: err instanceof Error ? err.message : 'Error fetching movements' });
   }
@@ -150,7 +154,9 @@ export async function getMovements(_req: Request, res: Response): Promise<void> 
 
 export async function getMovementsByDistrictHandler(req: Request, res: Response): Promise<void> {
   try {
-    res.json(await getMovementsByDistrict(req.params.districtId));
+    const page     = Math.max(1, parseInt(req.query.page     as string) || 1);
+    const pageSize = Math.min(100, Math.max(1, parseInt(req.query.pageSize as string) || 20));
+    res.json(await getMovementsByDistrict(req.params.districtId, page, pageSize));
   } catch (err) {
     res.status(404).json({ error: err instanceof Error ? err.message : 'Not found' });
   }
