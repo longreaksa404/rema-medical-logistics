@@ -1,4 +1,4 @@
-# REMA — Rapid Emergency Medical Access
+# REMA - Rapid Emergency Medical Access
 
 **Medical Logistics in a Sinking City** · University Track · Viet Nam Red Cross
 
@@ -38,7 +38,7 @@ Pre-positioned, vulnerability-scored medical kit delivery for urban flood respon
 
 **Scoring:** 20-point vulnerability score across 5 categories. 15-20 = CRITICAL, deliver in current run.
 
-**Activation:** 2 of 3 objective conditions met — no single-person override.
+**Activation:** 2 of 3 objective conditions met - no single-person override.
 
 ---
 
@@ -47,26 +47,27 @@ Pre-positioned, vulnerability-scored medical kit delivery for urban flood respon
 ```
 Backend:    Node.js + TypeScript + Express + Prisma + PostgreSQL
 Auth:       JWT (15m) + httpOnly refresh token (7d) + bcrypt
-Realtime:   socket.io — phase changes, scarcity alerts, incidents
+Realtime:   socket.io - phase changes, scarcity alerts, incidents
 Frontend:   React (Vite) + TypeScript + Tailwind CSS + Recharts + Leaflet.js
 Hosting:    Render + Supabase + Vercel
-Testing:    Jest + ts-jest — 125 unit tests
-CI/CD:      GitHub Actions — tests gate every deploy
-AI:         Anthropic Claude API — server-side AI Brief (advisory only, no PII)
+Testing:    Jest + ts-jest - 125 unit tests
+CI/CD:      GitHub Actions - tests gate every deploy
+AI:         Anthropic Claude API - server-side AI Brief (advisory only, no PII)
 ```
 
 ---
 
 ## Engineering Highlights
 
-- **125 unit tests** — scoring, stock scarcity, activation trigger, routing tiers
-- **CI/CD** — GitHub Actions blocks any PR that fails tests before deploy
-- **WebSocket realtime** — phase changes, scarcity alerts, and incidents push instantly to all clients
-- **Server-side pagination** — stock movements, households, delivery history, resolved incidents (20/page, Prisma `$transaction` count). Active runs and open incidents always returned in full — operational roles need complete in-progress visibility.
-- **Refresh tokens** — SHA-256 hashed, revocable, 7-day httpOnly cookie
-- **AI Brief** — reads aggregate DB state server-side, no PII in prompt, advisory only, graceful 503 degradation
-- **mustChangePassword** — admin-created accounts forced to change password on first login
-- **Per-zone routing map** — 9 real zone polygons clipped from OSM district boundaries, depth sliders wired to API
+- **125 unit tests** - scoring, stock scarcity, activation trigger, routing tiers
+- **CI/CD** - GitHub Actions blocks any PR that fails tests before deploy
+- **WebSocket realtime** - phase changes, scarcity alerts, and incidents push instantly to all clients
+- **Server-side pagination** - stock movements, households, delivery history, resolved incidents (20/page, Prisma `$transaction` count). Active runs and open incidents always returned in full - operational roles need complete in-progress visibility.
+- **Refresh tokens** - SHA-256 hashed, revocable, 7-day httpOnly cookie
+- **AI Brief** - reads aggregate DB state server-side, no PII in prompt, advisory only, graceful 503 degradation
+- **mustChangePassword** - admin-created accounts forced to change password on first login
+- **Per-zone routing map** - 9 real zone polygons clipped from OSM district boundaries, depth sliders wired to API
+- **UptimeRobot monitoring** - pings `/api/health` every 5 minutes to prevent Render cold starts; backend has maintained 100% uptime since deployment
 
 ---
 
