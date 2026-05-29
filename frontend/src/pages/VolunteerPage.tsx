@@ -607,7 +607,7 @@ function DeliverTab({ districtId }: { districtId: string }) {
     refetchInterval: 30_000,
   });
 
-  const activeRun: DeliveryRun | null = runsData?.[0] ?? null;
+  const activeRun: DeliveryRun | null = runsData?.active?.[0] ?? null;
 
   const households = householdsResult?.data ?? [];
   const sorted = useMemo(
@@ -664,7 +664,7 @@ function DeliverTab({ districtId }: { districtId: string }) {
           <div>
             <p className="font-sans text-sm font-semibold text-text-primary">Team {activeRun.teamNumber} · {activeRun.zone} — Active Run</p>
             <p className="font-mono text-[10px] text-text-muted">
-              {new Set(activeRun.receipts?.map(r => r.householdId) ?? []).size} deliveries recorded so far
+              {new Set(activeRun.receipts?.map(r => r.householdId) ?? []).size} deliveries
             </p>
           </div>
         </div>
