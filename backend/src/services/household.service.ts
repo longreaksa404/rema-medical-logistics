@@ -17,7 +17,7 @@ export interface PaginatedResult<T> {
   totalPages: number;
 }
 
-const DEFAULT_PAGE_SIZE = 20;
+const DEFAULT_PAGE_SIZE = 10;
 
 export function invalidateQueueCache(districtId: string): void {
   // pattern-delete all cached pages for this district

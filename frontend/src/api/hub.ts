@@ -313,7 +313,7 @@ export const hubApi = {
 
   getDeliveryRuns: async (districtId: string, page = 1): Promise<DeliveryRunsResult> => {
     const res = await api.get<DeliveryRunsResult>('/api/delivery/runs', {
-      params: { districtId, page, pageSize: 20 },
+      params: { districtId, page, pageSize: 10 },
     });
     return res.data;
   },
@@ -339,7 +339,7 @@ export const hubApi = {
 
   getIncidents: async (districtId: string, page = 1): Promise<IncidentsResult> => {
     const res = await api.get<IncidentsResult>('/api/incidents', {
-      params: { districtId, page, pageSize: 20 },
+      params: { districtId, page, pageSize: 10 },
     });
     return res.data;
   },

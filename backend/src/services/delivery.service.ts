@@ -16,7 +16,7 @@ export interface PaginatedResult<T> {
   totalPages: number;
 }
 
-const DEFAULT_PAGE_SIZE = 20;
+const DEFAULT_PAGE_SIZE = 10;
 
 function invalidateRunsCache(districtId?: string): void {
   deleteCached(KEY_ALL);

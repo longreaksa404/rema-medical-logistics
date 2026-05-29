@@ -32,7 +32,7 @@ export async function getCentral(_req: Request, res: Response): Promise<void> {
 export async function getCentralMovementsHandler(req: Request, res: Response): Promise<void> {
   try {
     const page     = Math.max(1, parseInt(req.query.page     as string) || 1);
-    const pageSize = Math.min(100, Math.max(1, parseInt(req.query.pageSize as string) || 20));
+    const pageSize = Math.min(100, Math.max(1, parseInt(req.query.pageSize as string) || 10));
     res.json(await getCentralMovements(page, pageSize));
   } catch (err) {
     res.status(500).json({ error: err instanceof Error ? err.message : 'Error fetching central movements' });
@@ -143,7 +143,7 @@ export async function adjust(req: Request, res: Response): Promise<void> {
 export async function getMovements(req: Request, res: Response): Promise<void> {
   try {
     const page     = Math.max(1, parseInt(req.query.page     as string) || 1);
-    const pageSize = Math.min(100, Math.max(1, parseInt(req.query.pageSize as string) || 20));
+    const pageSize = Math.min(100, Math.max(1, parseInt(req.query.pageSize as string) || 10));
     res.json(await getAllMovements(page, pageSize));
   } catch (err) {
     res.status(500).json({ error: err instanceof Error ? err.message : 'Error fetching movements' });

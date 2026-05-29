@@ -20,7 +20,7 @@ export interface PaginatedResult<T> {
   totalPages: number;
 }
 
-const DEFAULT_PAGE_SIZE = 20;
+const DEFAULT_PAGE_SIZE = 10;
 
 // ─── INCIDENT NOTIFICATION ────────────────────────────────────────────────────
 // Notifies the hub manager for the affected district when an incident is reported.

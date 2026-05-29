@@ -84,7 +84,7 @@ export async function create(req: Request, res: Response): Promise<void> {
 export async function list(req: Request, res: Response): Promise<void> {
   const { districtId, band, delivered } = req.query;
   const page     = Math.max(1, parseInt(req.query.page     as string) || 1);
-  const pageSize = Math.min(100, Math.max(1, parseInt(req.query.pageSize as string) || 20));
+  const pageSize = Math.min(100, Math.max(1, parseInt(req.query.pageSize as string) || 10));
 
   try {
     const result = await listHouseholds(
@@ -114,7 +114,7 @@ export async function priorityQueue(req: Request, res: Response): Promise<void> 
   }
 
   const page     = Math.max(1, parseInt(req.query.page     as string) || 1);
-  const pageSize = Math.min(100, Math.max(1, parseInt(req.query.pageSize as string) || 20));
+  const pageSize = Math.min(100, Math.max(1, parseInt(req.query.pageSize as string) || 10));
 
   try {
     const result = await getPriorityQueue(districtId as string, page, pageSize);

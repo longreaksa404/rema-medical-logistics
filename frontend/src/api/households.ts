@@ -57,7 +57,7 @@ export interface CreateHouseholdPayload {
 export const householdsApi = {
   getPriorityQueue: async (districtId: string, page = 1): Promise<PaginatedResponse<Household>> => {
     const res = await api.get<PaginatedResponse<Household>>('/api/households/priority-queue', {
-      params: { districtId, page, pageSize: 20 },
+      params: { districtId, page, pageSize: 10 },
     });
     return res.data;
   },
@@ -67,7 +67,7 @@ export const householdsApi = {
     page = 1
   ): Promise<PaginatedResponse<Household>> => {
     const res = await api.get<PaginatedResponse<Household>>('/api/households', {
-      params: { ...filters, page, pageSize: 20 },
+      params: { ...filters, page, pageSize: 10 },
     });
     return res.data;
   },
