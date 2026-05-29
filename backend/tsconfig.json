@@ -10,7 +10,7 @@
     "skipLibCheck": true,
     "forceConsistentCasingInFileNames": true,
     "resolveJsonModule": true,
-    "types": ["jest", "node"]
+    "types": ["node"]
   },
   "include": ["src/**/*",
     "**/*.test.ts",
