@@ -590,8 +590,11 @@ function AssessTab({ districtId }: { districtId: string }) {
 
 // ─── TAB: DELIVER ─────────────────────────────────────────────────────────────
 
+// ─── TAB: DELIVER ─────────────────────────────────────────────────────────────
+
 function DeliverTab({ districtId }: { districtId: string }) {
   const queryClient = useQueryClient();
+  const [selectedRunId, setSelectedRunId] = useState<string | null>(null);
   const [confirming, setConfirming] = useState<string | null>(null);
 
   const { data: householdsResult, isLoading: queueLoading } = useQuery({
@@ -600,14 +603,19 @@ function DeliverTab({ districtId }: { districtId: string }) {
     enabled: !!districtId,
     staleTime: 15_000,
   });
+
   const { data: runsData, isLoading: runsLoading } = useQuery({
     queryKey: [...queryKeys.hub.deliveries(districtId), 'active'],
-    queryFn: () => api.get('/api/delivery/runs', { params: { districtId, status: 'IN_PROGRESS' } }).then(r => r.data),
+    queryFn: () => api.get('/api/delivery/runs', { params: { districtId } }).then(r => r.data),
     enabled: !!districtId,
     refetchInterval: 30_000,
   });
 
-  const activeRun: DeliveryRun | null = runsData?.active?.[0] ?? null;
+  const activeRuns: DeliveryRun[] = runsData?.active ?? [];
+
+  // auto-select the first run when runs load and nothing is selected yet
+  const activeRun: DeliveryRun | null =
+    activeRuns.find(r => r.id === selectedRunId) ?? activeRuns[0] ?? null;
 
   const households = householdsResult?.data ?? [];
   const sorted = useMemo(
@@ -616,32 +624,27 @@ function DeliverTab({ districtId }: { districtId: string }) {
   );
 
   const deliverMutation = useMutation({
-  mutationFn: (household: Household) => {
-    const now = new Date().toISOString();
-
-    // build kits array from per-type quantities if available
-    const kits: Array<{ emkType: string; quantity: number }> = [];
-    if ((household.emk3Quantity ?? 0) > 0) kits.push({ emkType: 'EMK3', quantity: household.emk3Quantity! });
-    if ((household.emk2Quantity ?? 0) > 0) kits.push({ emkType: 'EMK2', quantity: household.emk2Quantity! });
-    if ((household.emk1Quantity ?? 0) > 0) kits.push({ emkType: 'EMK1', quantity: household.emk1Quantity! });
-
-    // fallback for households assessed before quantity fields existed
-    if (kits.length === 0) kits.push({ emkType: household.recommendedEmk, quantity: household.totalEmkQuantity ?? 1 });
-
-    return api.post('/api/delivery/receipts', {
-      deliveryRunId: activeRun!.id,
-      householdId: household.id,
-      kits,
-      deliveredAt: now,
-    });
-  },
-  onSuccess: () => {
-    setConfirming(null);
-    queryClient.invalidateQueries({ queryKey: queryKeys.households.queue(districtId) });
-    queryClient.invalidateQueries({ queryKey: queryKeys.dashboard.summary() });
-    queryClient.invalidateQueries({ queryKey: [...queryKeys.hub.deliveries(districtId), 'active'] });
-  },
-});
+    mutationFn: (household: Household) => {
+      const now = new Date().toISOString();
+      const kits: Array<{ emkType: string; quantity: number }> = [];
+      if ((household.emk3Quantity ?? 0) > 0) kits.push({ emkType: 'EMK3', quantity: household.emk3Quantity! });
+      if ((household.emk2Quantity ?? 0) > 0) kits.push({ emkType: 'EMK2', quantity: household.emk2Quantity! });
+      if ((household.emk1Quantity ?? 0) > 0) kits.push({ emkType: 'EMK1', quantity: household.emk1Quantity! });
+      if (kits.length === 0) kits.push({ emkType: household.recommendedEmk, quantity: household.totalEmkQuantity ?? 1 });
+      return api.post('/api/delivery/receipts', {
+        deliveryRunId: activeRun!.id,
+        householdId: household.id,
+        kits,
+        deliveredAt: now,
+      });
+    },
+    onSuccess: () => {
+      setConfirming(null);
+      queryClient.invalidateQueries({ queryKey: queryKeys.households.queue(districtId) });
+      queryClient.invalidateQueries({ queryKey: queryKeys.dashboard.summary() });
+      queryClient.invalidateQueries({ queryKey: [...queryKeys.hub.deliveries(districtId), 'active'] });
+    },
+  });
 
   const deliverError = (deliverMutation.error as { response?: { data?: { error?: string } } })?.response?.data?.error ?? '';
   const isLoading = queueLoading || runsLoading;
@@ -658,22 +661,68 @@ function DeliverTab({ districtId }: { districtId: string }) {
     <div className="space-y-5">
       {deliverError && <ErrorBox msg={deliverError} onDismiss={() => deliverMutation.reset()} />}
 
-      {activeRun ? (
+      {/* ── run selector ── */}
+      {activeRuns.length === 0 ? (
+        <div className="card px-4 py-3 border-accent-orange/20">
+          <p className="font-mono text-xs text-accent-orange">No active delivery run. Contact your Hub Manager to start one.</p>
+        </div>
+      ) : activeRuns.length === 1 ? (
+        // single run — just show the banner, no need to pick
         <div className="card px-4 py-3 border-accent-green/30 bg-accent-green/5 flex items-center gap-3">
           <span className="w-2 h-2 rounded-full bg-accent-green animate-pulse-slow flex-shrink-0" />
           <div>
-            <p className="font-sans text-sm font-semibold text-text-primary">Team {activeRun.teamNumber} · {activeRun.zone} — Active Run</p>
+            <p className="font-sans text-sm font-semibold text-text-primary">
+              Team {activeRun!.teamNumber} · {activeRun!.zone} — Active Run
+            </p>
             <p className="font-mono text-[10px] text-text-muted">
-              {new Set(activeRun.receipts?.map(r => r.householdId) ?? []).size} deliveries
+              {new Set(activeRun!.receipts?.map(r => r.householdId) ?? []).size} deliveries
             </p>
           </div>
         </div>
       ) : (
-        <div className="card px-4 py-3 border-accent-orange/20">
-          <p className="font-mono text-xs text-accent-orange">No active delivery run. Contact your Hub Manager to start one.</p>
+        // multiple runs — let volunteer pick which one they're on
+        <div className="card p-4">
+          <p className="font-mono text-[10px] text-text-muted uppercase tracking-widest mb-3">
+            Select Your Run — {activeRuns.length} teams in field
+          </p>
+          <div className="space-y-2">
+            {activeRuns.map(run => {
+              const isSelected = (selectedRunId ?? activeRuns[0]?.id) === run.id;
+              const deliveryCount = new Set(run.receipts?.map(r => r.householdId) ?? []).size;
+              return (
+                <button
+                  key={run.id}
+                  onClick={() => { setSelectedRunId(run.id); setConfirming(null); }}
+                  className={`w-full text-left px-4 py-3 rounded border transition-all ${
+                    isSelected
+                      ? 'bg-accent-green/10 border-accent-green/40'
+                      : 'bg-bg-elevated border-bg-border hover:border-bg-border/60'
+                  }`}
+                >
+                  <div className="flex items-center justify-between gap-3">
+                    <div className="flex items-center gap-2">
+                      <span className={`w-1.5 h-1.5 rounded-full flex-shrink-0 ${isSelected ? 'bg-accent-green' : 'bg-text-muted'}`} />
+                      <span className={`font-sans text-sm font-semibold ${isSelected ? 'text-text-primary' : 'text-text-secondary'}`}>
+                        Team {run.teamNumber} · {run.zone}
+                      </span>
+                    </div>
+                    <div className="flex items-center gap-3">
+                      <span className="font-mono text-[10px] text-text-muted">{deliveryCount} delivered</span>
+                      {isSelected && (
+                        <span className="font-mono text-[9px] px-2 py-0.5 rounded border border-accent-green/40 text-accent-green bg-accent-green/10">
+                          SELECTED
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                </button>
+              );
+            })}
+          </div>
         </div>
       )}
 
+      {/* ── priority queue ── */}
       <div>
         <SectionTitle sub={`${households.length} undelivered households, sorted by priority`}>Priority Queue</SectionTitle>
         {households.length === 0 ? (
@@ -698,9 +747,7 @@ function DeliverTab({ districtId }: { districtId: string }) {
                         <Badge label={cfg.label} color={`${cfg.color} ${cfg.border} ${cfg.bg}`} />
                         <span className={`font-mono text-[10px] font-bold ${EMK_COLORS[h.recommendedEmk]}`}>{h.recommendedEmk}</span>
                         <span className="font-mono text-[10px] text-text-muted">{h.totalScore}/20</span>
-                        {qty > 1 && (
-                          <span className="font-mono text-[10px] text-accent-yellow font-bold">{qty} kits</span>
-                        )}
+                        {qty > 1 && <span className="font-mono text-[10px] text-accent-yellow font-bold">{qty} kits</span>}
                       </div>
                       <p className="font-sans text-sm text-text-primary">{h.address}</p>
                       {qty > 1 && (h.emk3Quantity || h.emk2Quantity || h.emk1Quantity) && (
