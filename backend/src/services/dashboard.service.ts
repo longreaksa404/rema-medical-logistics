@@ -7,6 +7,24 @@ const prisma = new PrismaClient();
 const KEY_SUMMARY         = 'dashboard:summary';
 const KEY_DISTRICT_PREFIX = 'dashboard:district:';
 
+// Render runs in UTC — all "today" boundaries and slot comparisons must use ICT (UTC+7)
+const ICT_OFFSET_MS = 7 * 60 * 60 * 1000;
+
+function nowInICT(): Date {
+  return new Date(Date.now() + ICT_OFFSET_MS);
+}
+
+// returns UTC Date objects safe to pass to Prisma where clauses
+function todayBoundaryICT(): { start: Date; end: Date } {
+  const ict = nowInICT();
+  // midnight ICT = midnight UTC+7, expressed as UTC
+  const startICT = new Date(ict);
+  startICT.setUTCHours(0, 0, 0, 0);
+  const start = new Date(startICT.getTime() - ICT_OFFSET_MS);
+  const end   = new Date(start.getTime() + 24 * 60 * 60 * 1000);
+  return { start, end };
+}
+
 export function invalidateCache(key?: string): void {
   if (key) {
     deleteCached(key);
@@ -117,10 +135,8 @@ const SLOT_HOURS: Record<string, number> = { T0800: 8, T1200: 12, T1600: 16, T20
 const ALL_SLOTS = ['T0800', 'T1200', 'T1600', 'T2000'];
 
 async function buildSummary() {
-  const today = new Date();
-  today.setHours(0, 0, 0, 0);
-  const tomorrow = new Date(today);
-  tomorrow.setDate(tomorrow.getDate() + 1);
+  // use ICT boundaries so "today" means Cambodia today, not UTC today
+  const { start: todayStart, end: todayEnd } = todayBoundaryICT();
 
   const [
     alert,
@@ -159,18 +175,20 @@ async function buildSummary() {
 
     prisma.deliveryRun.count({ where: { status: 'IN_PROGRESS' } }),
 
-    // fetch slim records instead of a raw count — lets us apply slot-hour logic
+    // slim fetch — slot-hour logic applied after
     prisma.radioCheckin.findMany({
-      where: { createdAt: { gte: today, lt: tomorrow } },
+      where: { createdAt: { gte: todayStart, lt: todayEnd } },
       select: { districtId: true, scheduledTime: true },
     }),
   ]);
 
-  // compute filled/due using the same slot-hour logic as RadioCompliancePanel
-  const nowHour = new Date().getHours();
-  const pastDueSlots = ALL_SLOTS.filter(s => nowHour >= SLOT_HOURS[s]);
+  // ICT hour for slot-due comparison — matches isSlotPastDue() in RadioCompliancePanel
+  const nowHourICT = nowInICT().getUTCHours();
+  const pastDueSlots = ALL_SLOTS.filter(s => nowHourICT >= SLOT_HOURS[s]);
   const operationalDistricts = districts.filter(d => d.name !== '__central__');
+
   const todayRadio = {
+    // count unique district+slot pairs only — duplicate submissions don't inflate the number
     filled: operationalDistricts.reduce((acc, d) => {
       return acc + pastDueSlots.filter(slot =>
         todayCheckinRecords.some(c => c.districtId === d.id && c.scheduledTime === slot)
