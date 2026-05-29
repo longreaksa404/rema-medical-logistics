@@ -163,7 +163,7 @@ function EmkQuantityBadge({ emk3, emk2, emk1, total }: { emk3: number; emk2: num
 function AssessAuditLog({ districtId }: { districtId: string }) {
   const { data: historyResult, isLoading } = useQuery({
     queryKey: [...queryKeys.households.queue(districtId), 'all'],
-    queryFn: () => householdsApi.list({ districtId }),
+    queryFn: () => householdsApi.list({ districtId }, 1, 100),
     enabled: !!districtId,
     staleTime: 15_000,
   });
@@ -173,7 +173,7 @@ function AssessAuditLog({ districtId }: { districtId: string }) {
   const recent = useMemo(
     () => [...history]
       .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
-      .slice(0, 10),
+      .slice(0, 20),
     [history]
   );
 
@@ -599,7 +599,7 @@ function DeliverTab({ districtId }: { districtId: string }) {
 
   const { data: householdsResult, isLoading: queueLoading } = useQuery({
     queryKey: queryKeys.households.queue(districtId),
-    queryFn: () => householdsApi.getPriorityQueue(districtId),
+    queryFn: () => householdsApi.getPriorityQueue(districtId, 1, 200),
     enabled: !!districtId,
     staleTime: 15_000,
   });
@@ -724,7 +724,7 @@ function DeliverTab({ districtId }: { districtId: string }) {
 
       {/* ── priority queue ── */}
       <div>
-        <SectionTitle sub={`${households.length} undelivered households, sorted by priority`}>Priority Queue</SectionTitle>
+        <SectionTitle sub={`${householdsResult?.total ?? 0} undelivered households, sorted by priority`}>Priority Queue</SectionTitle>
         {households.length === 0 ? (
           <div className="card py-12 text-center">
             <p className="text-3xl mb-2">✓</p>
