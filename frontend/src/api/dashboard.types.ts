@@ -45,7 +45,7 @@ export interface DashboardSummary {
     pendingDelivery: number;
   };
   activeDeliveryRuns: number;
-  todayRadioCheckins: number;
+  todayRadio: { filled: number; due: number };
   districts: DistrictCard[];
   openIncidents: {
     id: string;

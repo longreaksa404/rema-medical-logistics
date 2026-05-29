@@ -112,7 +112,16 @@ async function buildDistrictDashboard(districtId: string) {
   };
 }
 
+// slot hours match RadioCompliancePanel on the frontend
+const SLOT_HOURS: Record<string, number> = { T0800: 8, T1200: 12, T1600: 16, T2000: 20 };
+const ALL_SLOTS = ['T0800', 'T1200', 'T1600', 'T2000'];
+
 async function buildSummary() {
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  const tomorrow = new Date(today);
+  tomorrow.setDate(tomorrow.getDate() + 1);
+
   const [
     alert,
     districts,
@@ -121,7 +130,7 @@ async function buildSummary() {
     districtHouseholdCounts,
     districtIncidentCounts,
     activeRuns,
-    todayCheckins,
+    todayCheckinRecords,
   ] = await Promise.all([
     prisma.floodAlert.findFirst({ orderBy: { createdAt: 'desc' } }),
 
@@ -150,16 +159,25 @@ async function buildSummary() {
 
     prisma.deliveryRun.count({ where: { status: 'IN_PROGRESS' } }),
 
-    (() => {
-      const today = new Date();
-      today.setHours(0, 0, 0, 0);
-      const tomorrow = new Date(today);
-      tomorrow.setDate(tomorrow.getDate() + 1);
-      return prisma.radioCheckin.count({
-        where: { createdAt: { gte: today, lt: tomorrow } },
-      });
-    })(),
+    // fetch slim records instead of a raw count — lets us apply slot-hour logic
+    prisma.radioCheckin.findMany({
+      where: { createdAt: { gte: today, lt: tomorrow } },
+      select: { districtId: true, scheduledTime: true },
+    }),
   ]);
+
+  // compute filled/due using the same slot-hour logic as RadioCompliancePanel
+  const nowHour = new Date().getHours();
+  const pastDueSlots = ALL_SLOTS.filter(s => nowHour >= SLOT_HOURS[s]);
+  const operationalDistricts = districts.filter(d => d.name !== '__central__');
+  const todayRadio = {
+    filled: operationalDistricts.reduce((acc, d) => {
+      return acc + pastDueSlots.filter(slot =>
+        todayCheckinRecords.some(c => c.districtId === d.id && c.scheduledTime === slot)
+      ).length;
+    }, 0),
+    due: operationalDistricts.length * pastDueSlots.length,
+  };
 
   let critical = 0, high = 0, medium = 0, standard = 0, delivered = 0;
   for (const row of globalHouseholdCounts) {
@@ -196,7 +214,7 @@ async function buildSummary() {
     },
   });
 
-  const districtCards = districts.map((d) => {
+  const districtCards = operationalDistricts.map((d) => {
     const sw    = d.subWarehouse;
     const stock = sw?.stock ?? null;
 
@@ -265,7 +283,7 @@ async function buildSummary() {
       pendingDelivery: critical + high + medium + standard,
     },
     activeDeliveryRuns: activeRuns,
-    todayRadioCheckins: todayCheckins,
+    todayRadio,
     districts:          districtCards,
     openIncidents,
   };

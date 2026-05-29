@@ -532,7 +532,6 @@ export function DashboardPage() {
 
   const topStats = useMemo(() => {
     if (!data) return null;
-    const totalScheduled = data.districts.filter(d => d.name !== '__central__').length * 4;
     return {
       activeRuns:      data.activeDeliveryRuns,
       pendingDelivery: data.households.pendingDelivery,
@@ -541,8 +540,8 @@ export function DashboardPage() {
       deliveryPct:     data.households.total > 0
         ? Math.round((data.households.delivered / data.households.total) * 100)
         : 0,
-      todayCheckins:   data.todayRadioCheckins,
-      totalScheduled,
+      todayCheckins:   data.todayRadio.filled,
+      totalScheduled:  data.todayRadio.due,
     };
   }, [data]);
 
@@ -654,7 +653,7 @@ export function DashboardPage() {
               color="text-accent-green"
             />
             <StatCard
-              label="Check-ins Today"
+              label="Check-ins"
               value={`${topStats.todayCheckins}/${topStats.totalScheduled}`}
               sub={
                 topStats.todayCheckins === topStats.totalScheduled
