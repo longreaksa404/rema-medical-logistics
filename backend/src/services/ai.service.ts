@@ -190,3 +190,206 @@ export async function generateAiBrief(): Promise<AiBriefResult> {
     dataSnapshot: snapshot,
   };
 }
+
+
+
+
+// real version
+// import Anthropic from '@anthropic-ai/sdk';
+// import { PrismaClient } from '@prisma/client';
+// import { isInScarcity } from '../utils/stock.utils';
+
+// const prisma = new PrismaClient();
+
+// // init once at module level - not per request
+// const anthropic = new Anthropic({
+//   apiKey: process.env.ANTHROPIC_API_KEY,
+// });
+
+// // ─── TYPES ────────────────────────────────────────────────────────────────────
+
+// export interface AiBriefResult {
+//   summary: string;
+//   priorityAlert: string;
+//   nextStep: string;
+//   generatedAt: string;
+//   dataSnapshot: {
+//     phase: number;
+//     totalCritical: number;
+//     totalHigh: number;
+//     totalMedium: number;
+//     totalStandard: number;
+//     scarcityActive: boolean;
+//     activeDeliveryRuns: number;
+//     openIncidentCount: number;
+//     radioCompliancePct: number;
+//   };
+// }
+
+// // ─── PROMPT BUILDER ───────────────────────────────────────────────────────────
+
+// function buildPrompt(snapshot: AiBriefResult['dataSnapshot']): string {
+//   const phaseLabel = ['pre-activation', 'Phase 1 (Hours 0-24)', 'Phase 2 (Hours 24-48)'][snapshot.phase] ?? `Phase ${snapshot.phase}`;
+//   const totalUndelivered = snapshot.totalCritical + snapshot.totalHigh + snapshot.totalMedium + snapshot.totalStandard;
+
+//   return `
+// You are the operational AI assistant for REMA - a flood emergency medical kit distribution system run by the Red Cross.
+
+// CURRENT SYSTEM STATE:
+// - Phase: ${phaseLabel}
+// - Undelivered households: CRITICAL=${snapshot.totalCritical}, HIGH=${snapshot.totalHigh}, MEDIUM=${snapshot.totalMedium}, STANDARD=${snapshot.totalStandard} (total: ${totalUndelivered})
+// - Stock scarcity active in one or more districts: ${snapshot.scarcityActive}
+// - Active delivery runs in progress: ${snapshot.activeDeliveryRuns}
+// - Open/escalated incidents: ${snapshot.openIncidentCount}
+// - Radio check-in compliance today: ${snapshot.radioCompliancePct}%
+
+// SYSTEM CONTEXT:
+// - 3 districts, each with a sub-warehouse and 12 volunteers
+// - 4 priority bands: CRITICAL (deliver this run), HIGH (same day), MEDIUM (within 48h), STANDARD (collection point)
+// - Scarcity triggers at below 30% stock remaining
+// - Radio check-ins are scheduled at 4 fixed times per day per district (12 total expected)
+// - Delivery suspends above 80cm water depth
+
+// Produce a brief for the Emergency Coordinator.
+
+// Respond with ONLY a valid JSON object - no preamble, no explanation, no markdown fences:
+// {
+//   "summary": "2-3 sentence situation overview covering phase, delivery queue, and stock status",
+//   "priorityAlert": "the single most urgent issue right now, or confirm no critical alerts",
+//   "nextStep": "one concrete action for the Emergency Coordinator to take in the next 60 minutes"
+// }
+
+// Rules:
+// - No PII, no names, no addresses
+// - Be direct and operational - this is an active emergency
+// - Advisory only - never imply the system will act automatically
+// - If everything is normal, say so clearly rather than manufacturing urgency
+// `.trim();
+// }
+
+// // ─── AI CALL ──────────────────────────────────────────────────────────────────
+
+// async function callAI(snapshot: AiBriefResult['dataSnapshot']): Promise<{
+//   summary: string;
+//   priorityAlert: string;
+//   nextStep: string;
+// }> {
+//   const message = await anthropic.messages.create({
+//     model: 'claude-haiku-4-5',  // fast + cheap for a dashboard brief
+//     max_tokens: 500,
+//     messages: [{ role: 'user', content: buildPrompt(snapshot) }],
+//   });
+
+//   const textBlock = message.content.find(b => b.type === 'text');
+//   if (!textBlock || textBlock.type !== 'text') {
+//     throw new Error('no text block in API response');
+//   }
+
+//   // strip markdown fences if the model adds them anyway
+//   const clean = textBlock.text.replace(/```json|```/g, '').trim();
+//   const parsed = JSON.parse(clean);
+
+//   if (!parsed.summary || !parsed.priorityAlert || !parsed.nextStep) {
+//     throw new Error('API response missing required fields');
+//   }
+
+//   return {
+//     summary: parsed.summary,
+//     priorityAlert: parsed.priorityAlert,
+//     nextStep: parsed.nextStep,
+//   };
+// }
+
+// // ─── MAIN SERVICE FUNCTION ────────────────────────────────────────────────────
+
+// export async function generateAiBrief(): Promise<AiBriefResult> {
+//   const [
+//     alert,
+//     districts,
+//     householdCounts,
+//     incidentCount,
+//     todayCheckins,
+//   ] = await Promise.all([
+//     prisma.floodAlert.findFirst({ orderBy: { createdAt: 'desc' } }),
+
+//     prisma.district.findMany({
+//       orderBy: { name: 'asc' },
+//       include: { subWarehouse: { include: { stock: true } } },
+//     }),
+
+//     prisma.household.groupBy({
+//       by: ['priorityBand', 'delivered'],
+//       _count: { _all: true },
+//     }),
+
+//     prisma.incident.count({
+//       where: { status: { in: ['OPEN', 'ESCALATED'] } },
+//     }),
+
+//     (() => {
+//       const today = new Date();
+//       today.setHours(0, 0, 0, 0);
+//       const tomorrow = new Date(today);
+//       tomorrow.setDate(tomorrow.getDate() + 1);
+//       return prisma.radioCheckin.count({
+//         where: { createdAt: { gte: today, lt: tomorrow } },
+//       });
+//     })(),
+//   ]);
+
+//   let critical = 0, high = 0, medium = 0, standard = 0;
+//   for (const row of householdCounts) {
+//     if (row.delivered) continue;
+//     switch (row.priorityBand) {
+//       case 'CRITICAL': critical += row._count._all; break;
+//       case 'HIGH':     high    += row._count._all; break;
+//       case 'MEDIUM':   medium  += row._count._all; break;
+//       case 'STANDARD': standard += row._count._all; break;
+//     }
+//   }
+
+//   let scarcityActive = false;
+//   for (const d of districts) {
+//     const stock = d.subWarehouse?.stock;
+//     if (!stock) continue;
+//     if (
+//       isInScarcity(stock.emk1Remaining, stock.emk1Total) ||
+//       isInScarcity(stock.emk2Remaining, stock.emk2Total) ||
+//       isInScarcity(stock.emk3Remaining, stock.emk3Total)
+//     ) {
+//       scarcityActive = true;
+//       break;
+//     }
+//   }
+
+//   const expectedCheckins = districts.length * 4;
+//   const radioCompliancePct = expectedCheckins > 0
+//     ? Math.round((todayCheckins / expectedCheckins) * 100)
+//     : 100;
+
+//   const activeDeliveryRuns = await prisma.deliveryRun.count({
+//     where: { status: 'IN_PROGRESS' },
+//   });
+
+//   const snapshot: AiBriefResult['dataSnapshot'] = {
+//     phase: alert?.phase ?? 0,
+//     totalCritical: critical,
+//     totalHigh: high,
+//     totalMedium: medium,
+//     totalStandard: standard,
+//     scarcityActive,
+//     activeDeliveryRuns,
+//     openIncidentCount: incidentCount,
+//     radioCompliancePct,
+//   };
+
+//   const { summary, priorityAlert, nextStep } = await callAI(snapshot);
+
+//   return {
+//     summary,
+//     priorityAlert,
+//     nextStep,
+//     generatedAt: new Date().toISOString(),
+//     dataSnapshot: snapshot,
+//   };
+// }
