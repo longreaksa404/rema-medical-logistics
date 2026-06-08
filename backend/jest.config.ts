@@ -8,17 +8,9 @@ const config: Config = {
   moduleFileExtensions: ['ts', 'js', 'json'],
   transform: {
     '^.+\\.ts$': ['ts-jest', {
-      tsconfig: {
-        // Add jest types so describe/test/expect are recognised without imports
-        types: ['jest', 'node'],
-        strict: false,
-        esModuleInterop: true,
-        skipLibCheck: true,
-      },
+      tsconfig: './tsconfig.test.json',
     }],
   },
-  // Never import from prisma, express, or any external service in tests.
-  // Tests must be pure utility functions only.
   collectCoverageFrom: [
     'src/utils/**/*.ts',
     '!src/utils/__tests__/**',
