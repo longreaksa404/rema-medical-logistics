@@ -582,9 +582,15 @@ export function DashboardPage() {
 
       <ConfirmModal
         isOpen={confirmResetOpen}
-        title="Reset System"
-        description="Reset to Phase 0? This clears all trigger conditions and deactivates REMA. All data is preserved in the database."
-        confirmLabel="Reset to Phase 0"
+        title="Close Flood Event"
+        description={
+          'Close this flood event and return REMA to standby (Phase 0)? The event is archived in Event History with all its data. '
+          + (data?.activeDeliveryRuns
+            ? `${data.activeDeliveryRuns} delivery run${data.activeDeliveryRuns === 1 ? '' : 's'} still in progress will be marked aborted, and `
+            : '')
+          + 'all deployed volunteers will be stood down.'
+        }
+        confirmLabel="Close event & reset"
         cancelLabel="Cancel"
         variant="danger"
         isLoading={resetLoading}

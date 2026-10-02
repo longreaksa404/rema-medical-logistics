@@ -15,6 +15,7 @@ import {
   OperatingProtocolPage,
 } from './pages/PlaceholderPages';
 import StakeholderPage from './pages/StakeholderPage';
+import { EventHistoryPage } from './pages/EventHistoryPage';
 
 export function App() {
   return (
@@ -55,6 +56,10 @@ export function App() {
 
               <Route element={<ProtectedRoute roles={['SUPER_ADMIN']} />}>
                 <Route path="/users" element={<UsersPage />} />
+              </Route>
+
+              <Route element={<ProtectedRoute roles={['EMERGENCY_COORDINATOR', 'SUPER_ADMIN', 'VIEWER', 'HUB_MANAGER']} />}>
+                <Route path="/history" element={<EventHistoryPage />} />
               </Route>
 
               {/* profile — all authenticated users */}

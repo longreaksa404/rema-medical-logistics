@@ -36,6 +36,7 @@ model User {
   volunteer             Volunteer?
   refreshTokens         RefreshToken[]
   alertConditionReports AlertConditionReport[]
+  floodEventsClosed     FloodAlert[]           @relation("AlertClosedBy")
 
   @@map("users")
 }
@@ -150,9 +151,16 @@ model FloodAlert {
   activated            Boolean                @default(false)
   activatedAt          DateTime?
   phase                Int                    @default(0)
+  // one row per flood event: the open event has closedAt = null; closing it
+  // (system reset) archives it and starts a fresh standby row
+  phase2At             DateTime?
+  closedAt             DateTime?
+  closedById           String?
+  closedBy             User?                  @relation("AlertClosedBy", fields: [closedById], references: [id])
   volunteerAssignments VolunteerAssignment[]
   conditionReports     AlertConditionReport[]
 
+  @@index([closedAt, createdAt])
   @@map("flood_alerts")
 }
 

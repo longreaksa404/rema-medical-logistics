@@ -9,6 +9,7 @@ import {
   Warehouse,
   GitFork,
   FileText,
+  History,
   Users,
   LogOut,
   ChevronRight,
@@ -41,6 +42,7 @@ const NAV_GROUPS: NavGroup[] = [
       { label: 'Routing',   to: '/routing',   Icon: Map,       roles: ['EMERGENCY_COORDINATOR', 'HUB_MANAGER', 'SUPER_ADMIN'] },
       { label: 'Hub Portal',to: '/hub',       Icon: Building2, roles: ['HUB_MANAGER', 'SUPER_ADMIN', 'EMERGENCY_COORDINATOR'] },
       { label: 'Volunteer', to: '/volunteer', Icon: UserCheck,  roles: ['VOLUNTEER', 'HUB_MANAGER', 'SUPER_ADMIN'] },
+      { label: 'Event History', to: '/history', Icon: History, roles: ['EMERGENCY_COORDINATOR', 'SUPER_ADMIN', 'VIEWER', 'HUB_MANAGER'] },
     ],
   },
   {

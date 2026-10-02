@@ -144,7 +144,7 @@ export function DashboardLayout({
             <button
               onClick={onReset}
               disabled={resetLoading}
-              title="Reset system to Phase 0 (SUPER_ADMIN only)"
+              title="Close and archive the flood event, return to Phase 0 (SUPER_ADMIN only)"
               className={`
                 flex items-center gap-1.5 px-3 py-1.5 rounded border font-mono text-xs
                 transition-all duration-150

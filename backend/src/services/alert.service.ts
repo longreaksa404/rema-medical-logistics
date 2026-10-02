@@ -1,7 +1,9 @@
 import { prisma } from '../lib/prisma';
 import { invalidateCache } from './dashboard.service';
-import { Role } from '@prisma/client';
+import { DeliveryRunStatus, Role, VolunteerStatus } from '@prisma/client';
 import { io } from '../app';
+import { deleteCached } from '../utils/cache';
+import { ConflictError } from '../lib/errors';
 
 
 export type TriggerCondition =
@@ -47,6 +49,7 @@ const ALERT_CREATE_LOCK = 72_001;
 
 async function getOrCreateActiveAlert() {
   const existing = await prisma.floodAlert.findFirst({
+    where: { closedAt: null },
     orderBy: { createdAt: 'desc' },
   });
 
@@ -54,7 +57,7 @@ async function getOrCreateActiveAlert() {
 
   return prisma.$transaction(async (tx) => {
     await tx.$executeRaw`SELECT pg_advisory_xact_lock(${ALERT_CREATE_LOCK})`;
-    const again = await tx.floodAlert.findFirst({ orderBy: { createdAt: 'desc' } });
+    const again = await tx.floodAlert.findFirst({ where: { closedAt: null }, orderBy: { createdAt: 'desc' } });
     if (again) return again;
     return tx.floodAlert.create({
       data: {
@@ -134,6 +137,8 @@ export async function getAlertStatus() {
 }
 
 // ─── ADVANCE PHASE ────────────────────────────────────────────────────────────
+// Forward only (0→1→2). The update is conditional on the current phase, so two
+// coordinators pressing "advance" together cannot both succeed.
 
 export async function advancePhase(targetPhase: number) {
   const alert = await getOrCreateActiveAlert();
@@ -142,20 +147,21 @@ export async function advancePhase(targetPhase: number) {
     throw new Error('Cannot advance phase - REMA is not yet activated');
   }
 
-  if (targetPhase !== alert.phase + 1) {
-    throw new Error(
-      `Invalid phase transition: current phase is ${alert.phase}, cannot jump to ${targetPhase}`
-    );
-  }
-
   if (targetPhase > 2) {
     throw new Error('Maximum phase is 2');
   }
 
-  const updated = await prisma.floodAlert.update({
-    where: { id: alert.id },
-    data: { phase: targetPhase },
+  const { count } = await prisma.floodAlert.updateMany({
+    where: { id: alert.id, activated: true, phase: targetPhase - 1, closedAt: null },
+    data: { phase: targetPhase, ...(targetPhase === 2 && { phase2At: new Date() }) },
   });
+  if (count === 0) {
+    const current = await prisma.floodAlert.findUniqueOrThrow({ where: { id: alert.id } });
+    throw new Error(
+      `Invalid phase transition: current phase is ${current.phase}, cannot jump to ${targetPhase}`
+    );
+  }
+  const updated = await prisma.floodAlert.findUniqueOrThrow({ where: { id: alert.id } });
 
   invalidateCache();
 
@@ -174,24 +180,70 @@ export async function advancePhase(targetPhase: number) {
   return updated;
 }
 
-// ─── RESET SYSTEM ─────────────────────────────────────────────────────────────
+// ─── CLOSE EVENT / RESET SYSTEM ───────────────────────────────────────────────
+// Archives the current flood event (it stays readable in Event History) and
+// starts a fresh standby alert (Phase 0). Because the event is over:
+//   - delivery runs still IN_PROGRESS are marked ABORTED ("Flood event closed")
+//   - deployed volunteers are stood down to AVAILABLE
+// A standby alert with nothing triggered has nothing to archive and is left as is.
 
-export async function resetSystem() {
+export interface ResetResult {
+  alert: Awaited<ReturnType<typeof getOrCreateActiveAlert>>;
+  archivedEventId: string | null;
+  runsAborted: number;
+  volunteersStoodDown: number;
+}
+
+export async function resetSystem(closedById: string): Promise<ResetResult> {
   const alert = await getOrCreateActiveAlert();
 
-  const updated = await prisma.floodAlert.update({
-    where: { id: alert.id },
-    data: {
-      phase: 0,
-      activated: false,
-      activatedAt: null,
-      warningLevelTwo: false,
-      rainfallExceeds100mm: false,
-      streetFloodingReport: false,
-    },
-  });
+  const hadActivity =
+    alert.activated || alert.phase > 0 ||
+    alert.warningLevelTwo || alert.rainfallExceeds100mm || alert.streetFloodingReport;
 
+  if (!hadActivity) {
+    return { alert, archivedEventId: null, runsAborted: 0, volunteersStoodDown: 0 };
+  }
+
+  const now = new Date();
+  const result = await prisma.$transaction(async (tx) => {
+    // only one concurrent reset can close the event
+    const { count } = await tx.floodAlert.updateMany({
+      where: { id: alert.id, closedAt: null },
+      data: { closedAt: now, closedById },
+    });
+    if (count === 0) throw new ConflictError('This flood event has already been closed');
+
+    const runs = await tx.deliveryRun.updateMany({
+      where: { status: DeliveryRunStatus.IN_PROGRESS },
+      data: { status: DeliveryRunStatus.ABORTED, returnedAt: now, abortReason: 'Flood event closed' },
+    });
+    const volunteers = await tx.volunteer.updateMany({
+      where: { status: VolunteerStatus.DEPLOYED },
+      data: { status: VolunteerStatus.AVAILABLE },
+    });
+    // starts exactly when the old one closed, so every record belongs to exactly one event
+    const next = await tx.floodAlert.create({ data: { createdAt: now } });
+
+    return { next, runsAborted: runs.count, volunteersStoodDown: volunteers.count };
+  }, { timeout: 15_000 });
+
+  // runs, rosters, queues and dashboards all changed — drop every cached view
+  deleteCached();
   invalidateCache();
   io.emit('phase_changed', { phase: 0, activated: false });
-  return updated;
+
+  await notifyByRole(
+    [Role.HUB_MANAGER, Role.EMERGENCY_COORDINATOR, Role.SUPER_ADMIN],
+    'EVENT_CLOSED',
+    'The flood event has been closed and archived. REMA is back on standby (Phase 0).' +
+      (result.runsAborted > 0 ? ` ${result.runsAborted} delivery run(s) still in progress were marked aborted.` : ''),
+  );
+
+  return {
+    alert: result.next,
+    archivedEventId: alert.id,
+    runsAborted: result.runsAborted,
+    volunteersStoodDown: result.volunteersStoodDown,
+  };
 }

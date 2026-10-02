@@ -6,7 +6,8 @@ export const queryKeys = {
     district: (id: string) => ['dashboard', 'district', id] as const,
   },
   alert: {
-    status: () => ['alert', 'status'] as const,
+    status:  () => ['alert', 'status'] as const,
+    history: () => ['alert', 'history'] as const,
   },
   districts: {
     list: () => ['districts'] as const,

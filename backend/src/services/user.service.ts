@@ -347,6 +347,7 @@ export async function resetUserPassword(
 
 export async function getPublicStatus() {
   const alert = await prisma.floodAlert.findFirst({
+    where: { closedAt: null },
     orderBy: { createdAt: 'desc' },
   });
 
@@ -370,9 +371,9 @@ export async function getPublicStatus() {
     status: alert?.activated ? 'ACTIVE' : 'STANDBY',
     phase: alert?.phase ?? 0,
     phaseDescription:
-      alert?.phase === 0 ? 'Standby - monitoring flood conditions' :
+      alert?.phase === 2 ? 'Phase 2 - Last-mile delivery in progress' :
       alert?.phase === 1 ? 'Phase 1 - Activated: pre-positioning supplies' :
-      'Phase 2 - Last-mile delivery in progress',
+      'Standby - monitoring flood conditions',
     activatedAt: alert?.activated ? alert.activatedAt : null,
     activeDistricts,
     totalDistricts,
