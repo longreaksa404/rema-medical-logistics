@@ -1,8 +1,12 @@
 import { Request, Response, NextFunction } from 'express';
 import jwt from 'jsonwebtoken';
 import { JwtPayload } from '../types/auth';
+import { config } from '../config';
 
-const JWT_SECRET = process.env.JWT_SECRET || 'rema-dev-secret-change-in-production';
+// Throws if the token is missing, malformed, expired or signed with another key
+export function verifyAccessToken(token: string): JwtPayload {
+  return jwt.verify(token, config.jwtSecret) as JwtPayload;
+}
 
 // ─── REQUIRE AUTH ─────────────────────────────────────────────────────────────
 // Attach this to any route that requires a logged-in user.
@@ -19,8 +23,7 @@ export function requireAuth(req: Request, res: Response, next: NextFunction): vo
   const token = authHeader.split(' ')[1];
 
   try {
-    const decoded = jwt.verify(token, JWT_SECRET) as JwtPayload;
-    req.user = decoded;
+    req.user = verifyAccessToken(token);
     next();
   } catch {
     res.status(401).json({ error: 'Invalid or expired token' });

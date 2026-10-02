@@ -50,7 +50,7 @@ Auth:       JWT (15m) + httpOnly refresh token (7d) + bcrypt
 Realtime:   socket.io - phase changes, scarcity alerts, incidents
 Frontend:   React (Vite) + TypeScript + Tailwind CSS + Recharts + Leaflet.js
 Hosting:    Render + Supabase + Vercel
-Testing:    Jest + ts-jest - 125 unit tests
+Testing:    Jest + ts-jest - unit tests + Postgres integration tests (supertest)
 CI/CD:      GitHub Actions - tests gate every deploy
 AI:         Anthropic Claude API - server-side AI Brief (advisory only, no PII)
 ```
@@ -59,8 +59,9 @@ AI:         Anthropic Claude API - server-side AI Brief (advisory only, no PII)
 
 ## Engineering Highlights
 
-- **125 unit tests** - scoring, stock scarcity, activation trigger, routing tiers
-- **CI/CD** - GitHub Actions blocks any PR that fails tests before deploy
+- **Unit tests** - scoring, stock scarcity, activation trigger, routing tiers, config, error mapping
+- **Integration tests** against real Postgres - concurrent stock/delivery writes, role + district permissions, auth hardening, request validation
+- **CI/CD** - GitHub Actions runs typecheck, unit + integration tests, migration checks and the frontend build before any deploy
 - **WebSocket realtime** - phase changes, scarcity alerts, and incidents push instantly to all clients
 - **Server-side pagination** - stock movements, households, delivery history, resolved incidents (20/page, Prisma `$transaction` count). Active runs and open incidents always returned in full - operational roles need complete in-progress visibility.
 - **Refresh tokens** - SHA-256 hashed, revocable, 7-day httpOnly cookie
@@ -68,6 +69,43 @@ AI:         Anthropic Claude API - server-side AI Brief (advisory only, no PII)
 - **mustChangePassword** - admin-created accounts forced to change password on first login
 - **Per-zone routing map** - 9 real zone polygons clipped from OSM district boundaries, depth sliders wired to API
 - **UptimeRobot monitoring** - pings `/api/health` every 5 minutes to prevent Render cold starts; backend has maintained 100% uptime since deployment
+
+---
+
+## Running Tests
+
+```bash
+cd backend
+npm test                      # unit tests, no database needed
+
+# integration tests need a throwaway Postgres (the database name must contain "test")
+docker run -d --name rema-test-pg -p 5433:5432 -e POSTGRES_PASSWORD=postgres -e POSTGRES_DB=rema_test postgres:16-alpine
+TEST_DATABASE_URL=postgresql://postgres:postgres@localhost:5433/rema_test npm run test:integration
+```
+
+---
+
+## Database Migrations
+
+Schema changes go through Prisma migrations in `backend/prisma/migrations`.
+
+```bash
+cd backend
+npx prisma migrate dev --name <change>   # local: create + apply a migration
+npm run migrate:deploy                   # apply pending migrations (what Render runs)
+```
+
+- Render runs `prisma migrate deploy` as the last build step. If a migration fails, the build fails and the previous version stays live.
+- CI applies every migration to an empty Postgres and fails if `schema.prisma` and the migrations disagree.
+- Never edit a migration that has already been applied to production — add a new one.
+
+**Before the first deploy with this pipeline**, check production is tracked by Prisma:
+
+```bash
+DATABASE_URL=<supabase> DIRECT_URL=<supabase-direct> npx prisma migrate status
+```
+
+If it reports the database is not managed by Migrate (schema created with `db push`), baseline it once with `npx prisma migrate resolve --applied <migration>` for each migration that already matches production.
 
 ---
 

@@ -1,11 +1,15 @@
 import { Router } from 'express';
-import { requireAuth } from '../middleware/auth';
+import { requireAuth, requireRole } from '../middleware/auth';
+import { requireDistrictAccess, district } from '../middleware/district-access';
 import { checkin, list, compliance } from '../controllers/radio.controller';
+import { validate } from '../middleware/validate';
+import { radioCheckinBody } from '../schemas/operations.schemas';
 
 const router = Router();
 
 // POST /api/radio/checkin — submit a scheduled check-in
-router.post('/checkin', requireAuth, checkin);
+router.post('/checkin', requireAuth, requireRole('VOLUNTEER'), validate({ body: radioCheckinBody }),
+  requireDistrictAccess(district.fromBody('districtId')), checkin);
 
 // GET /api/radio/checkins — list check-ins (filter by district + date)
 router.get('/checkins', requireAuth, list);

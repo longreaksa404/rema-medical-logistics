@@ -11,11 +11,9 @@ export async function postAiBrief(req: Request, res: Response): Promise<void> {
     const result = await generateAiBrief();
     res.status(200).json(result);
   } catch (err) {
-    const message = err instanceof Error ? err.message : 'AI Brief temporarily unavailable';
-    // Always return 503 — caller shows graceful fallback, not a crash
-    res.status(503).json({
-      error: 'AI Brief temporarily unavailable',
-      detail: message,
-    });
+    // Always return 503 — caller shows graceful fallback, not a crash.
+    // The underlying error (DB / upstream API) is logged, not sent to the client.
+    console.error('[ai-brief]', err);
+    res.status(503).json({ error: 'AI Brief temporarily unavailable' });
   }
 }

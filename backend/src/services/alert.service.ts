@@ -41,6 +41,10 @@ async function notifyByRole(
 
 // ─── GET OR CREATE ACTIVE ALERT ───────────────────────────────────────────────
 
+// Arbitrary constant key for a Postgres advisory lock — serialises creation of
+// the alert row so concurrent first requests cannot each create their own.
+const ALERT_CREATE_LOCK = 72_001;
+
 async function getOrCreateActiveAlert() {
   const existing = await prisma.floodAlert.findFirst({
     orderBy: { createdAt: 'desc' },
@@ -48,53 +52,56 @@ async function getOrCreateActiveAlert() {
 
   if (existing) return existing;
 
-  return prisma.floodAlert.create({
-    data: {
-      warningLevelTwo: false,
-      rainfallExceeds100mm: false,
-      streetFloodingReport: false,
-      activated: false,
-      phase: 0,
-    },
+  return prisma.$transaction(async (tx) => {
+    await tx.$executeRaw`SELECT pg_advisory_xact_lock(${ALERT_CREATE_LOCK})`;
+    const again = await tx.floodAlert.findFirst({ orderBy: { createdAt: 'desc' } });
+    if (again) return again;
+    return tx.floodAlert.create({
+      data: {
+        warningLevelTwo: false,
+        rainfallExceeds100mm: false,
+        streetFloodingReport: false,
+        activated: false,
+        phase: 0,
+      },
+    });
   });
 }
 
 // ─── SUBMIT TRIGGER CONDITION ─────────────────────────────────────────────────
+// Two steps, each a single atomic statement:
+//   1. set the condition true (and log who confirmed it)
+//   2. activate only if still inactive AND at least 2 of 3 conditions are true
+// Step 2 re-reads the row under its own lock, so two coordinators confirming
+// different conditions at the same time can neither both activate nor both
+// miss the activation (which a read-then-compute approach allowed).
 
-export async function submitTrigger(condition: TriggerCondition) {
+const TWO_OF_THREE = [
+  { warningLevelTwo: true, rainfallExceeds100mm: true },
+  { warningLevelTwo: true, streetFloodingReport: true },
+  { rainfallExceeds100mm: true, streetFloodingReport: true },
+];
+
+export async function submitTrigger(condition: TriggerCondition, reportedById: string) {
   const alert = await getOrCreateActiveAlert();
 
-  const update: Record<string, boolean | string | Date | number> = {
-    [condition]: true,
-  };
+  await prisma.$transaction([
+    prisma.floodAlert.update({
+      where: { id: alert.id },
+      data: { [condition]: true },
+    }),
+    prisma.alertConditionReport.create({
+      data: { alertId: alert.id, condition, reportedById },
+    }),
+  ]);
 
-  const current = {
-    warningLevelTwo: alert.warningLevelTwo,
-    rainfallExceeds100mm: alert.rainfallExceeds100mm,
-    streetFloodingReport: alert.streetFloodingReport,
-    [condition]: true,
-  };
-
-  const trueCount = [
-    current.warningLevelTwo,
-    current.rainfallExceeds100mm,
-    current.streetFloodingReport,
-  ].filter(Boolean).length;
-
-  let justActivated = false;
-
-  if (!alert.activated && trueCount >= 2) {
-    update.activated = true;
-    update.activatedAt = new Date();
-    update.phase = 1;
-    justActivated = true;
-    invalidateCache();
-  }
-
-  const updated = await prisma.floodAlert.update({
-    where: { id: alert.id },
-    data: update,
+  const { count } = await prisma.floodAlert.updateMany({
+    where: { id: alert.id, activated: false, OR: TWO_OF_THREE },
+    data: { activated: true, activatedAt: new Date(), phase: 1 },
   });
+  const justActivated = count === 1;
+
+  invalidateCache();
 
   // Notify all hub managers and coordinators when REMA activates
   if (justActivated) {
@@ -106,13 +113,24 @@ export async function submitTrigger(condition: TriggerCondition) {
     );
   }
 
-  return updated;
+  return prisma.floodAlert.findUniqueOrThrow({ where: { id: alert.id } });
 }
 
 // ─── GET CURRENT STATUS ───────────────────────────────────────────────────────
 
 export async function getAlertStatus() {
-  return getOrCreateActiveAlert();
+  const alert = await getOrCreateActiveAlert();
+  const conditionReports = await prisma.alertConditionReport.findMany({
+    where: { alertId: alert.id },
+    orderBy: { createdAt: 'desc' },
+    take: 20,
+    select: {
+      condition: true,
+      createdAt: true,
+      reportedBy: { select: { name: true, role: true } },
+    },
+  });
+  return { ...alert, conditionReports };
 }
 
 // ─── ADVANCE PHASE ────────────────────────────────────────────────────────────

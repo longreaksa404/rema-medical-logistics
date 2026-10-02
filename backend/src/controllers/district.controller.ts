@@ -1,5 +1,6 @@
 import { Request, Response } from 'express';
 import { listDistricts, getDistrict, getDistrictSummary } from '../services/district.service';
+import { sendError } from '../middleware/error-handler';
 
 // ─── GET /api/districts ───────────────────────────────────────────────────────
 
@@ -8,8 +9,7 @@ export async function list(_req: Request, res: Response): Promise<void> {
     const districts = await listDistricts();
     res.json(districts);
   } catch (err) {
-    const message = err instanceof Error ? err.message : 'Error fetching districts';
-    res.status(500).json({ error: message });
+    sendError(res, err, 500);
   }
 }
 
@@ -20,8 +20,7 @@ export async function getOne(req: Request, res: Response): Promise<void> {
     const district = await getDistrict(req.params.id);
     res.json(district);
   } catch (err) {
-    const message = err instanceof Error ? err.message : 'District not found';
-    res.status(404).json({ error: message });
+    sendError(res, err, 404);
   }
 }
 
@@ -32,7 +31,6 @@ export async function summary(req: Request, res: Response): Promise<void> {
     const data = await getDistrictSummary(req.params.id);
     res.json(data);
   } catch (err) {
-    const message = err instanceof Error ? err.message : 'District not found';
-    res.status(404).json({ error: message });
+    sendError(res, err, 404);
   }
 }

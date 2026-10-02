@@ -1,6 +1,7 @@
 import { createContext, useContext, useState, useEffect, useCallback, useRef } from 'react';
 import { io as socketIo, Socket } from 'socket.io-client';
 import { authApi } from '../api/auth';
+import { refreshAccessToken } from '../api/client';
 import type { UserProfile } from '../api/auth';
 
 const BACKEND_URL = import.meta.env.VITE_API_URL || 'http://localhost:3000';
@@ -31,17 +32,32 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [mustChangePassword, setMustChange] = useState(false);
   const socketRef = useRef<Socket | null>(null);
 
-  const connectSocket = useCallback((authToken: string) => {
-    if (socketRef.current?.connected) return;
+  const connectSocket = useCallback(() => {
+    if (socketRef.current) return;
 
     const socket = socketIo(BACKEND_URL, {
-      auth: { token: authToken },
+      // function form: re-read the latest token on every (re)connect attempt
+      auth: (cb) => cb({ token: localStorage.getItem('rema_token') }),
       transports: ['websocket', 'polling'],
       reconnectionAttempts: 5,
       reconnectionDelay: 2000,
     });
 
-    socket.on('connect_error', () => {});
+    // The server rejects expired tokens at handshake. Refresh once and retry;
+    // socket.io does not auto-retry after a middleware rejection.
+    let refreshAttempts = 0;
+    socket.on('connect', () => { refreshAttempts = 0; });
+    socket.on('connect_error', async (err) => {
+      if (err.message !== 'unauthorized' || refreshAttempts >= 2) return;
+      refreshAttempts += 1;
+      try {
+        await refreshAccessToken();
+        socket.connect();
+      } catch {
+        // refresh token is gone too — the API client will send the user to /login
+      }
+    });
+
     socketRef.current = socket;
   }, []);
 
@@ -62,7 +78,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         setToken(storedToken);
         setUser(JSON.parse(storedUser));
         setMustChange(storedMustChange === 'true');
-        connectSocket(storedToken);
+        connectSocket();
       } catch {
         localStorage.removeItem('rema_token');
         localStorage.removeItem('rema_user');
@@ -82,7 +98,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     setToken(data.token);
     setUser(data.user);
     setMustChange(mustChange);
-    connectSocket(data.token);
+    connectSocket();
     return mustChange;
   }, [connectSocket]);
 

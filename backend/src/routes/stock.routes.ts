@@ -1,5 +1,6 @@
 import { Router } from 'express';
 import { requireAuth, requireRole } from '../middleware/auth';
+import { requireDistrictAccess, district } from '../middleware/district-access';
 import {
   getCentral,
   getCentralMovementsHandler,
@@ -14,6 +15,10 @@ import {
   adjustCentral,
   setAllocation,
 } from '../controllers/stock.controller';
+import { validate } from '../middleware/validate';
+import {
+  dispatchBody, reallocateBody, adjustBody, replenishCentralBody, adjustCentralBody, allocationBody,
+} from '../schemas/stock.schemas';
 
 const router = Router();
 
@@ -22,11 +27,11 @@ const router = Router();
 // Central warehouse
 router.get('/central',           requireAuth, getCentral);
 router.get('/central/movements', requireAuth, getCentralMovementsHandler);
-router.post('/central/replenish', requireAuth, requireRole('SUPER_ADMIN'), replenishCentral);
-router.patch('/central',          requireAuth, requireRole('SUPER_ADMIN'), adjustCentral);
+router.post('/central/replenish', requireAuth, requireRole('SUPER_ADMIN'), validate({ body: replenishCentralBody }), replenishCentral);
+router.patch('/central',          requireAuth, requireRole('SUPER_ADMIN'), validate({ body: adjustCentralBody }), adjustCentral);
 
 // Allocation management
-router.patch('/allocation', requireAuth, requireRole('SUPER_ADMIN'), setAllocation);
+router.patch('/allocation', requireAuth, requireRole('SUPER_ADMIN'), validate({ body: allocationBody }), setAllocation);
 
 // Sub-warehouse aggregate
 router.get('/status', requireAuth, getStatus);
@@ -36,9 +41,14 @@ router.get('/movements',              requireAuth, getMovements);
 router.get('/movements/:districtId',  requireAuth, getMovementsByDistrictHandler);
 
 // Write operations
-router.post('/dispatch',   requireAuth, dispatch);
-router.post('/reallocate', requireAuth, requireRole('HUB_MANAGER'), reallocate);
-router.post('/adjust',     requireAuth, requireRole('HUB_MANAGER'), adjust);
+// Hub Managers act on their own sub-warehouse only; EC+ on any.
+// Reallocation: a Hub Manager may send surplus FROM their district, never pull from another.
+router.post('/dispatch',   requireAuth, requireRole('HUB_MANAGER'), validate({ body: dispatchBody }),
+  requireDistrictAccess(district.ofSubWarehouse('subWarehouseId')), dispatch);
+router.post('/reallocate', requireAuth, requireRole('HUB_MANAGER'), validate({ body: reallocateBody }),
+  requireDistrictAccess(district.ofSubWarehouse('fromSubWarehouseId')), reallocate);
+router.post('/adjust',     requireAuth, requireRole('HUB_MANAGER'), validate({ body: adjustBody }),
+  requireDistrictAccess(district.ofSubWarehouse('subWarehouseId')), adjust);
 
 // District stock — LAST
 router.get('/:districtId', requireAuth, getByDistrict);

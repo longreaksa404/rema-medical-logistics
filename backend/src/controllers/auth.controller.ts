@@ -1,21 +1,7 @@
 import { Request, Response } from 'express';
 import { loginUser, refreshAccessToken, logoutUser, getCurrentUser } from '../services/auth.service';
+import { setRefreshCookie, clearRefreshCookie, readRefreshCookie } from '../lib/session-cookie';
 
-// cross-domain cookie config — frontend (Vercel) and backend (Render) are different domains
-// sameSite 'none' + secure true is required for cross-site cookies
-const COOKIE_OPTS = {
-  httpOnly: true,
-  secure:   true,
-  sameSite: 'none' as const,
-  maxAge:   7 * 24 * 60 * 60 * 1000,
-  path:     '/api/auth',
-};
-
-const CLEAR_OPTS = {
-  path:     '/api/auth',
-  secure:   true,
-  sameSite: 'none' as const,
-};
 
 // ─── POST /api/auth/login ─────────────────────────────────────────────────────
 
@@ -29,7 +15,7 @@ export async function login(req: Request, res: Response): Promise<void> {
 
   try {
     const result = await loginUser(email, password);
-    res.cookie('rema_refresh', result.refreshToken, COOKIE_OPTS);
+    setRefreshCookie(res, result.refreshToken, result.refreshExpiresAt);
     res.json({
       token: result.accessToken,
       user:  result.user,
@@ -42,7 +28,7 @@ export async function login(req: Request, res: Response): Promise<void> {
 // ─── POST /api/auth/refresh ───────────────────────────────────────────────────
 
 export async function refresh(req: Request, res: Response): Promise<void> {
-  const rawToken = req.cookies?.rema_refresh;
+  const rawToken = readRefreshCookie(req.cookies);
 
   if (!rawToken) {
     res.status(401).json({ error: 'No refresh token' });
@@ -51,9 +37,10 @@ export async function refresh(req: Request, res: Response): Promise<void> {
 
   try {
     const result = await refreshAccessToken(rawToken);
+    if (result.refreshToken) setRefreshCookie(res, result.refreshToken, result.refreshExpiresAt);
     res.json({ token: result.accessToken });
   } catch {
-    res.clearCookie('rema_refresh', CLEAR_OPTS);
+    clearRefreshCookie(res);
     res.status(401).json({ error: 'Session expired - please log in again' });
   }
 }
@@ -61,9 +48,8 @@ export async function refresh(req: Request, res: Response): Promise<void> {
 // ─── POST /api/auth/logout ────────────────────────────────────────────────────
 
 export async function logout(req: Request, res: Response): Promise<void> {
-  const rawToken = req.cookies?.rema_refresh;
-  await logoutUser(rawToken);
-  res.clearCookie('rema_refresh', CLEAR_OPTS);
+  await logoutUser(readRefreshCookie(req.cookies));
+  clearRefreshCookie(res);
   res.json({ message: 'Logged out successfully' });
 }
 

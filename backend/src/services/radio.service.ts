@@ -1,7 +1,6 @@
-import { PrismaClient, RadioCheckTime, RadioStatus } from '@prisma/client';
+import { RadioCheckTime, RadioStatus } from '@prisma/client';
+import { prisma } from '../lib/prisma';
 import { getCached, setCached, deleteCached } from '../utils/cache';
-
-const prisma = new PrismaClient();
 
 const KEY_COMPLIANCE = 'radio:compliance:today';
 const TTL_COMPLIANCE = 20_000;

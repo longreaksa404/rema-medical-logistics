@@ -27,3 +27,5 @@ npm-debug.log*
 
 # Render
 .render/
+# TypeScript incremental build info
+*.tsbuildinfo

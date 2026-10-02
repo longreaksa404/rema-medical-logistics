@@ -24,6 +24,11 @@ import notificationRoutes from './routes/notification.routes';
 import dashboardRoutes from './routes/dashboard.routes';
 import aiRoutes from './routes/ai.routes';
 import cookieParser from 'cookie-parser';
+import helmet from 'helmet';
+import { config } from './config';
+import { verifyAccessToken } from './middleware/auth';
+import { errorHandler, notFoundHandler } from './middleware/error-handler';
+import { JwtPayload } from './types/auth';
 
 const app = express();
 
@@ -34,21 +39,50 @@ export const httpServer = createServer(app);
 
 export const io = new Server(httpServer, {
   cors: {
-    origin: true,
+    origin: config.corsOrigins,
     credentials: true,
   },
   // path stays default (/socket.io) — no conflict with /api routes
 });
 
+// Only clients with a valid access token may connect. The token is checked at
+// handshake time; the client re-sends a fresh one on every reconnect.
+io.use((socket, next) => {
+  const token = socket.handshake.auth?.token;
+  if (typeof token !== 'string' || token.length === 0) {
+    return next(new Error('unauthorized'));
+  }
+  try {
+    socket.data.user = verifyAccessToken(token);
+    next();
+  } catch {
+    next(new Error('unauthorized'));
+  }
+});
+
 io.on('connection', (socket) => {
-  // client sends their JWT role on connect so we can scope events if needed
-  // for now all authenticated clients receive all broadcast events
-  socket.on('disconnect', () => {});
+  // All authenticated clients receive all broadcast events for now.
+  // Rooms are joined so events can later be scoped per district / role.
+  const user = socket.data.user as JwtPayload;
+  socket.join(`role:${user.role}`);
+  if (user.districtId) socket.join(`district:${user.districtId}`);
 });
 
 // ─── MIDDLEWARE ───────────────────────────────────────────────────────────────
+app.set('trust proxy', config.trustProxy);
+app.disable('x-powered-by');
+
+app.use(helmet({
+  contentSecurityPolicy: {
+    // local Swagger is served over plain http — only force https in production
+    directives: { upgradeInsecureRequests: config.isProduction ? [] : null },
+  },
+}));
+
+// Only the known frontend origins may make credentialed (cookie) requests.
+// Requests with no Origin header (curl, server-to-server, health checks) pass.
 app.use(cors({
-  origin: true,
+  origin: config.corsOrigins,
   credentials: true,
 }));
 app.use(express.json());
@@ -88,9 +122,8 @@ app.use('/api/notifications', notificationRoutes);
 app.use('/api/dashboard', dashboardRoutes);
 app.use('/api/ai', aiRoutes);
 
-// ─── 404 FALLBACK ─────────────────────────────────────────────────────────────
-app.use((_req, res) => {
-  res.status(404).json({ error: 'Route not found' });
-});
+// ─── 404 + ERROR FALLBACKS ────────────────────────────────────────────────────
+app.use(notFoundHandler);
+app.use(errorHandler);
 
 export default app;
