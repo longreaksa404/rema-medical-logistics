@@ -71,6 +71,30 @@ AI:         Anthropic Claude API - server-side AI Brief (advisory only, no PII)
 
 ---
 
+## Database Migrations
+
+Schema changes go through Prisma migrations in `backend/prisma/migrations`.
+
+```bash
+cd backend
+npx prisma migrate dev --name <change>   # local: create + apply a migration
+npm run migrate:deploy                   # apply pending migrations (what Render runs)
+```
+
+- Render runs `prisma migrate deploy` as the last build step. If a migration fails, the build fails and the previous version stays live.
+- CI applies every migration to an empty Postgres and fails if `schema.prisma` and the migrations disagree.
+- Never edit a migration that has already been applied to production — add a new one.
+
+**Before the first deploy with this pipeline**, check production is tracked by Prisma:
+
+```bash
+DATABASE_URL=<supabase> DIRECT_URL=<supabase-direct> npx prisma migrate status
+```
+
+If it reports the database is not managed by Migrate (schema created with `db push`), baseline it once with `npx prisma migrate resolve --applied <migration>` for each migration that already matches production.
+
+---
+
 ## Key Decisions
 
 | Decision | Why |

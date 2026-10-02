@@ -20,7 +20,7 @@ jobs:
         with:
           node-version: '20'
           cache: 'npm'
-          cache-dependency-path: backend/package-lock.json
+          cache-dependency-path: package-lock.json   # root lockfile — backend is an npm workspace
 
       - name: Install backend dependencies
         working-directory: backend
@@ -32,10 +32,65 @@ jobs:
         env:
           NODE_ENV: test
 
+  migrations:
+    name: Check database migrations
+    runs-on: ubuntu-latest
+
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: rema_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+
+    env:
+      DATABASE_URL: postgresql://postgres:postgres@localhost:5432/rema_test
+      DIRECT_URL: postgresql://postgres:postgres@localhost:5432/rema_test
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js 20
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+          cache-dependency-path: package-lock.json
+
+      - name: Install backend dependencies
+        working-directory: backend
+        run: npm ci
+
+      # Every migration must apply cleanly to an empty database —
+      # the same command Render runs at deploy time
+      - name: Apply all migrations to a fresh database
+        working-directory: backend
+        run: npx prisma migrate deploy
+
+      # schema.prisma and the migrations folder must describe the same schema;
+      # fails if someone edited the schema without creating a migration
+      - name: Check schema.prisma matches migrations
+        working-directory: backend
+        run: |
+          PGPASSWORD=postgres psql -h localhost -U postgres -c 'CREATE DATABASE rema_shadow'
+          npx prisma migrate diff \
+            --from-migrations prisma/migrations \
+            --to-schema-datamodel prisma/schema.prisma \
+            --shadow-database-url postgresql://postgres:postgres@localhost:5432/rema_shadow \
+            --exit-code
+
   deploy:
     name: Deploy to Render
     runs-on: ubuntu-latest
-    needs: test
+    needs: [test, migrations]
     # Only deploy when tests pass AND this is a push to main (not a PR)
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
 

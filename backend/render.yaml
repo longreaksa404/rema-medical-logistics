@@ -3,7 +3,9 @@ services:
     name: rema-backend
     runtime: node
     rootDir: backend
-    buildCommand: npm install && npx prisma generate && npm run build
+    # migrate deploy applies any pending migrations (DIRECT_URL) before the new
+    # code goes live; if it fails the build fails and the previous deploy keeps running
+    buildCommand: npm install && npx prisma generate && npm run build && npx prisma migrate deploy
     startCommand: node dist/index.js
     envVars:
       - key: NODE_ENV
