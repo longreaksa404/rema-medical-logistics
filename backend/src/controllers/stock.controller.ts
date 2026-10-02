@@ -1,5 +1,4 @@
 import { Request, Response } from 'express';
-import { EmkType } from '@prisma/client';
 import {
   getCentralStock,
   getCentralMovements,
@@ -14,8 +13,9 @@ import {
   getAllMovements,
   getMovementsByDistrict,
 } from '../services/stock.service';
+import { sendError } from '../middleware/error-handler';
 
-const VALID_EMK: EmkType[] = ['EMK1', 'EMK2', 'EMK3'];
+// Request bodies are validated by schemas/stock.schemas.ts before these run
 
 // ─── GET /api/stock/central ───────────────────────────────────────────────────
 
@@ -23,7 +23,7 @@ export async function getCentral(_req: Request, res: Response): Promise<void> {
   try {
     res.json(await getCentralStock());
   } catch (err) {
-    res.status(500).json({ error: err instanceof Error ? err.message : 'Error fetching central stock' });
+    sendError(res, err, 500);
   }
 }
 
@@ -35,7 +35,7 @@ export async function getCentralMovementsHandler(req: Request, res: Response): P
     const pageSize = Math.min(100, Math.max(1, parseInt(req.query.pageSize as string) || 10));
     res.json(await getCentralMovements(page, pageSize));
   } catch (err) {
-    res.status(500).json({ error: err instanceof Error ? err.message : 'Error fetching central movements' });
+    sendError(res, err, 500);
   }
 }
 
@@ -45,7 +45,7 @@ export async function getStatus(_req: Request, res: Response): Promise<void> {
   try {
     res.json(await getAllStock());
   } catch (err) {
-    res.status(500).json({ error: err instanceof Error ? err.message : 'Error fetching stock' });
+    sendError(res, err, 500);
   }
 }
 
@@ -55,7 +55,7 @@ export async function getByDistrict(req: Request, res: Response): Promise<void> 
   try {
     res.json(await getStockByDistrict(req.params.districtId));
   } catch (err) {
-    res.status(404).json({ error: err instanceof Error ? err.message : 'Not found' });
+    sendError(res, err, 404);
   }
 }
 
@@ -64,27 +64,17 @@ export async function getByDistrict(req: Request, res: Response): Promise<void> 
 export async function dispatch(req: Request, res: Response): Promise<void> {
   const { subWarehouseId, emkType, quantity, reason } = req.body;
 
-  if (!subWarehouseId || !emkType || quantity === undefined) {
-    res.status(400).json({ error: 'subWarehouseId, emkType, and quantity are required' });
-    return;
-  }
-  if (!VALID_EMK.includes(emkType)) {
-    res.status(400).json({ error: 'emkType must be EMK1, EMK2, or EMK3' });
-    return;
-  }
-
   try {
     const result = await dispatchStock({
       subWarehouseId,
-      emkType: emkType as EmkType,
-      quantity: Number(quantity),
+      emkType,
+      quantity,
       reason,
       performedById: req.user!.userId,
     });
     res.json(result);
   } catch (err) {
-    const message = err instanceof Error ? err.message : 'Dispatch failed';
-    res.status(message.includes('Insufficient') ? 422 : 400).json({ error: message });
+    sendError(res, err, 400);
   }
 }
 
@@ -93,23 +83,17 @@ export async function dispatch(req: Request, res: Response): Promise<void> {
 export async function reallocate(req: Request, res: Response): Promise<void> {
   const { fromSubWarehouseId, toSubWarehouseId, emkType, quantity, reason } = req.body;
 
-  if (!fromSubWarehouseId || !toSubWarehouseId || !emkType || quantity === undefined) {
-    res.status(400).json({ error: 'fromSubWarehouseId, toSubWarehouseId, emkType, and quantity are required' });
-    return;
-  }
-
   try {
     const result = await reallocateStock({
       fromSubWarehouseId, toSubWarehouseId,
-      emkType: emkType as EmkType,
-      quantity: Number(quantity),
+      emkType,
+      quantity,
       reason,
       performedById: req.user!.userId,
     });
     res.json(result);
   } catch (err) {
-    const message = err instanceof Error ? err.message : 'Reallocation failed';
-    res.status(message.includes('Insufficient') ? 422 : 400).json({ error: message });
+    sendError(res, err, 400);
   }
 }
 
@@ -118,23 +102,17 @@ export async function reallocate(req: Request, res: Response): Promise<void> {
 export async function adjust(req: Request, res: Response): Promise<void> {
   const { subWarehouseId, emkType, quantity, reason } = req.body;
 
-  if (!subWarehouseId || !emkType || quantity === undefined || !reason) {
-    res.status(400).json({ error: 'subWarehouseId, emkType, quantity, and reason are required' });
-    return;
-  }
-
   try {
     const result = await adjustStock({
       subWarehouseId,
-      emkType: emkType as EmkType,
-      quantity: Number(quantity),
+      emkType,
+      quantity,
       reason,
       performedById: req.user!.userId,
     });
     res.json(result);
   } catch (err) {
-    const message = err instanceof Error ? err.message : 'Adjustment failed';
-    res.status(message.includes('negative') ? 422 : 400).json({ error: message });
+    sendError(res, err, 400);
   }
 }
 
@@ -146,7 +124,7 @@ export async function getMovements(req: Request, res: Response): Promise<void> {
     const pageSize = Math.min(100, Math.max(1, parseInt(req.query.pageSize as string) || 10));
     res.json(await getAllMovements(page, pageSize));
   } catch (err) {
-    res.status(500).json({ error: err instanceof Error ? err.message : 'Error fetching movements' });
+    sendError(res, err, 500);
   }
 }
 
@@ -158,7 +136,7 @@ export async function getMovementsByDistrictHandler(req: Request, res: Response)
     const pageSize = Math.min(100, Math.max(1, parseInt(req.query.pageSize as string) || 20));
     res.json(await getMovementsByDistrict(req.params.districtId, page, pageSize));
   } catch (err) {
-    res.status(404).json({ error: err instanceof Error ? err.message : 'Not found' });
+    sendError(res, err, 404);
   }
 }
 
@@ -167,25 +145,16 @@ export async function getMovementsByDistrictHandler(req: Request, res: Response)
 export async function replenishCentral(req: Request, res: Response): Promise<void> {
   const { emkType, quantity, reason } = req.body;
 
-  if (!emkType || quantity === undefined || !reason) {
-    res.status(400).json({ error: 'emkType, quantity, and reason are required' });
-    return;
-  }
-  if (!VALID_EMK.includes(emkType)) {
-    res.status(400).json({ error: 'emkType must be EMK1, EMK2, or EMK3' });
-    return;
-  }
-
   try {
     const result = await replenishCentralStock({
-      emkType: emkType as EmkType,
-      quantity: Number(quantity),
+      emkType,
+      quantity,
       reason,
       performedById: req.user!.userId,
     });
     res.json(result);
   } catch (err) {
-    res.status(400).json({ error: err instanceof Error ? err.message : 'Replenishment failed' });
+    sendError(res, err, 400);
   }
 }
 
@@ -194,22 +163,16 @@ export async function replenishCentral(req: Request, res: Response): Promise<voi
 export async function adjustCentral(req: Request, res: Response): Promise<void> {
   const { emkType, quantity, reason } = req.body;
 
-  if (!emkType || quantity === undefined || !reason) {
-    res.status(400).json({ error: 'emkType, quantity, and reason are required' });
-    return;
-  }
-
   try {
     const result = await adjustCentralStock({
-      emkType: emkType as EmkType,
-      quantity: Number(quantity),
+      emkType,
+      quantity,
       reason,
       performedById: req.user!.userId,
     });
     res.json(result);
   } catch (err) {
-    const message = err instanceof Error ? err.message : 'Adjustment failed';
-    res.status(message.includes('negative') ? 422 : 400).json({ error: message });
+    sendError(res, err, 400);
   }
 }
 
@@ -218,33 +181,16 @@ export async function adjustCentral(req: Request, res: Response): Promise<void> 
 export async function setAllocation(req: Request, res: Response): Promise<void> {
   const { target, subWarehouseId, emkType, newTotal, reason } = req.body;
 
-  if (!target || !emkType || newTotal === undefined || !reason) {
-    res.status(400).json({ error: 'target, emkType, newTotal, and reason are required' });
-    return;
-  }
-  if (!['central', 'subWarehouse'].includes(target)) {
-    res.status(400).json({ error: 'target must be "central" or "subWarehouse"' });
-    return;
-  }
-  if (target === 'subWarehouse' && !subWarehouseId) {
-    res.status(400).json({ error: 'subWarehouseId is required when target is "subWarehouse"' });
-    return;
-  }
-  if (!VALID_EMK.includes(emkType)) {
-    res.status(400).json({ error: 'emkType must be EMK1, EMK2, or EMK3' });
-    return;
-  }
-
   try {
     const result = await setAllocationStock({
       target, subWarehouseId,
-      emkType: emkType as EmkType,
-      newTotal: Number(newTotal),
+      emkType,
+      newTotal,
       reason,
       performedById: req.user!.userId,
     });
     res.json(result);
   } catch (err) {
-    res.status(400).json({ error: err instanceof Error ? err.message : 'Failed to set allocation' });
+    sendError(res, err, 400);
   }
 }

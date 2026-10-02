@@ -50,7 +50,7 @@ Auth:       JWT (15m) + httpOnly refresh token (7d) + bcrypt
 Realtime:   socket.io - phase changes, scarcity alerts, incidents
 Frontend:   React (Vite) + TypeScript + Tailwind CSS + Recharts + Leaflet.js
 Hosting:    Render + Supabase + Vercel
-Testing:    Jest + ts-jest - 125 unit tests
+Testing:    Jest + ts-jest - unit tests + Postgres integration tests (supertest)
 CI/CD:      GitHub Actions - tests gate every deploy
 AI:         Anthropic Claude API - server-side AI Brief (advisory only, no PII)
 ```
@@ -59,8 +59,9 @@ AI:         Anthropic Claude API - server-side AI Brief (advisory only, no PII)
 
 ## Engineering Highlights
 
-- **125 unit tests** - scoring, stock scarcity, activation trigger, routing tiers
-- **CI/CD** - GitHub Actions blocks any PR that fails tests before deploy
+- **Unit tests** - scoring, stock scarcity, activation trigger, routing tiers, config, error mapping
+- **Integration tests** against real Postgres - concurrent stock/delivery writes, role + district permissions, auth hardening, request validation
+- **CI/CD** - GitHub Actions runs typecheck, unit + integration tests, migration checks and the frontend build before any deploy
 - **WebSocket realtime** - phase changes, scarcity alerts, and incidents push instantly to all clients
 - **Server-side pagination** - stock movements, households, delivery history, resolved incidents (20/page, Prisma `$transaction` count). Active runs and open incidents always returned in full - operational roles need complete in-progress visibility.
 - **Refresh tokens** - SHA-256 hashed, revocable, 7-day httpOnly cookie
@@ -68,6 +69,19 @@ AI:         Anthropic Claude API - server-side AI Brief (advisory only, no PII)
 - **mustChangePassword** - admin-created accounts forced to change password on first login
 - **Per-zone routing map** - 9 real zone polygons clipped from OSM district boundaries, depth sliders wired to API
 - **UptimeRobot monitoring** - pings `/api/health` every 5 minutes to prevent Render cold starts; backend has maintained 100% uptime since deployment
+
+---
+
+## Running Tests
+
+```bash
+cd backend
+npm test                      # unit tests, no database needed
+
+# integration tests need a throwaway Postgres (the database name must contain "test")
+docker run -d --name rema-test-pg -p 5433:5432 -e POSTGRES_PASSWORD=postgres -e POSTGRES_DB=rema_test postgres:16-alpine
+TEST_DATABASE_URL=postgresql://postgres:postgres@localhost:5433/rema_test npm run test:integration
+```
 
 ---
 

@@ -2,11 +2,13 @@ import { Router } from 'express';
 import { requireAuth, requireRole } from '../middleware/auth';
 import { requireDistrictAccess, district } from '../middleware/district-access';
 import { report, list, resolve } from '../controllers/incident.controller';
+import { validate } from '../middleware/validate';
+import { reportIncidentBody } from '../schemas/operations.schemas';
 
 const router = Router();
 
 // POST /api/incidents — report an incident (VOLUNTEER+, own district)
-router.post('/', requireAuth, requireRole('VOLUNTEER'),
+router.post('/', requireAuth, requireRole('VOLUNTEER'), validate({ body: reportIncidentBody }),
   requireDistrictAccess(district.fromBody('districtId')), report);
 
 // GET /api/incidents — list incidents with filters

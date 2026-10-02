@@ -38,7 +38,8 @@
     "socket.io": "^4.8.3",
     "swagger-ui-express": "^5.0.0",
     "typescript": "^5.3.3",
-    "yamljs": "^0.3.0"
+    "yamljs": "^0.3.0",
+    "zod": "^4.6.5"
   },
   "devDependencies": {
     "@types/jest": "^30.0.0",

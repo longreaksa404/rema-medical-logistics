@@ -6,6 +6,7 @@ import {
   getRouteLogs,
   getDistrictRoutes,
 } from '../services/route.service';
+import { sendError } from '../middleware/error-handler';
 
 // ─── GET /api/route/recommend ─────────────────────────────────────────────────
 // With districtId: returns per-zone breakdown for that district.
@@ -20,8 +21,7 @@ export async function recommend(req: Request, res: Response): Promise<void> {
       const result = await recommendByDistrict(districtId as string);
       res.json(result);
     } catch (err) {
-      const message = err instanceof Error ? err.message : 'Error fetching route recommendation';
-      res.status(400).json({ error: message });
+      sendError(res, err, 400);
     }
     return;
   }
@@ -47,33 +47,16 @@ export async function recommend(req: Request, res: Response): Promise<void> {
 export async function update(req: Request, res: Response): Promise<void> {
   const { districtId, zone, waterDepthCm } = req.body;
 
-  if (!districtId || !zone || waterDepthCm === undefined) {
-    res.status(400).json({
-      error: 'districtId, zone, and waterDepthCm are required',
-    });
-    return;
-  }
-
-  const depth = Number(waterDepthCm);
-  if (isNaN(depth) || depth < 0) {
-    res.status(400).json({ error: 'waterDepthCm must be a non-negative number' });
-    return;
-  }
-
-  // role + own-district check is enforced in route.routes.ts
-  const user = req.user!;
-
   try {
     const result = await updateRouteDepth({
       districtId,
       zone,
-      waterDepthCm: depth,
-      reportedById: user.userId,
+      waterDepthCm,
+      reportedById: req.user!.userId,
     });
     res.json(result);
   } catch (err) {
-    const message = err instanceof Error ? err.message : 'Error updating route';
-    res.status(400).json({ error: message });
+    sendError(res, err, 400);
   }
 }
 
@@ -88,8 +71,7 @@ export async function logs(req: Request, res: Response): Promise<void> {
     });
     res.json(result);
   } catch (err) {
-    const message = err instanceof Error ? err.message : 'Error fetching route logs';
-    res.status(500).json({ error: message });
+    sendError(res, err, 500);
   }
 }
 
@@ -101,7 +83,6 @@ export async function districtRoutes(req: Request, res: Response): Promise<void>
     const routes = await getDistrictRoutes(req.params.districtId);
     res.json(routes);
   } catch (err) {
-    const message = err instanceof Error ? err.message : 'Error fetching routes';
-    res.status(500).json({ error: message });
+    sendError(res, err, 500);
   }
 }

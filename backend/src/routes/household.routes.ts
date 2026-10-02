@@ -9,12 +9,14 @@ import {
   getOne,
   update,
 } from '../controllers/household.controller';
+import { validate } from '../middleware/validate';
+import { scoreBody, createHouseholdBody, updateHouseholdBody } from '../schemas/household.schemas';
 
 // ─── SCORE ROUTER ─────────────────────────────────────────────────────────────
 export const scoreRouter = Router();
 
 // POST /api/score/household — score only, no DB write
-scoreRouter.post('/household', requireAuth, scoreOnly);
+scoreRouter.post('/household', requireAuth, validate({ body: scoreBody }), scoreOnly);
 
 // ─── HOUSEHOLD ROUTER ─────────────────────────────────────────────────────────
 export const householdRouter = Router();
@@ -26,8 +28,8 @@ householdRouter.get('/priority-queue', requireAuth, priorityQueue);
 
 householdRouter.get('/', requireAuth, list);
 // Assessments: VOLUNTEER+ in their own district (VIEWER is read-only)
-householdRouter.post('/', requireAuth, requireRole('VOLUNTEER'),
+householdRouter.post('/', requireAuth, requireRole('VOLUNTEER'), validate({ body: createHouseholdBody }),
   requireDistrictAccess(district.fromBody('districtId')), create);
 householdRouter.get('/:id', requireAuth, getOne);
-householdRouter.patch('/:id', requireAuth, requireRole('VOLUNTEER'),
+householdRouter.patch('/:id', requireAuth, requireRole('VOLUNTEER'), validate({ body: updateHouseholdBody }),
   requireDistrictAccess(district.ofHouseholdParam('id')), update);

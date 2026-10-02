@@ -8,19 +8,12 @@ import {
   getPriorityQueue,
 } from '../services/household.service';
 import { ScoreInput } from '../utils/scoring';
+import { sendError } from '../middleware/error-handler';
 
 // ─── POST /api/score/household ────────────────────────────────────────────────
 
 export async function scoreOnly(req: Request, res: Response): Promise<void> {
   const { cat1, cat2, cat3, cat4, cat5, householdSize, hasVulnerableMember } = req.body;
-
-  if (
-    cat1 === undefined || cat2 === undefined || cat3 === undefined ||
-    cat4 === undefined || cat5 === undefined
-  ) {
-    res.status(400).json({ error: 'cat1, cat2, cat3, cat4, cat5 are all required' });
-    return;
-  }
 
   try {
     const result = computeScore({
@@ -30,8 +23,7 @@ export async function scoreOnly(req: Request, res: Response): Promise<void> {
     });
     res.json(result);
   } catch (err) {
-    const message = err instanceof Error ? err.message : 'Scoring error';
-    res.status(400).json({ error: message });
+    sendError(res, err, 400);
   }
 }
 
@@ -44,19 +36,6 @@ export async function create(req: Request, res: Response): Promise<void> {
     householdSize, hasVulnerableMember, chronicIllCount,
     notes,
   } = req.body;
-
-  if (!address || !districtId) {
-    res.status(400).json({ error: 'address and districtId are required' });
-    return;
-  }
-
-  if (
-    cat1 === undefined || cat2 === undefined || cat3 === undefined ||
-    cat4 === undefined || cat5 === undefined
-  ) {
-    res.status(400).json({ error: 'cat1, cat2, cat3, cat4, cat5 are all required' });
-    return;
-  }
 
   try {
     const scoreInput: ScoreInput = {
@@ -74,8 +53,7 @@ export async function create(req: Request, res: Response): Promise<void> {
     });
     res.status(201).json(household);
   } catch (err) {
-    const message = err instanceof Error ? err.message : 'Error creating household';
-    res.status(400).json({ error: message });
+    sendError(res, err, 400);
   }
 }
 
@@ -98,8 +76,7 @@ export async function list(req: Request, res: Response): Promise<void> {
     );
     res.json(result);
   } catch (err) {
-    const message = err instanceof Error ? err.message : 'Error fetching households';
-    res.status(500).json({ error: message });
+    sendError(res, err, 500);
   }
 }
 
@@ -120,8 +97,7 @@ export async function priorityQueue(req: Request, res: Response): Promise<void> 
     const result = await getPriorityQueue(districtId as string, page, pageSize);
     res.json(result);
   } catch (err) {
-    const message = err instanceof Error ? err.message : 'Error fetching priority queue';
-    res.status(500).json({ error: message });
+    sendError(res, err, 500);
   }
 }
 
@@ -132,8 +108,7 @@ export async function getOne(req: Request, res: Response): Promise<void> {
     const household = await getHousehold(req.params.id);
     res.json(household);
   } catch (err) {
-    const message = err instanceof Error ? err.message : 'Not found';
-    res.status(404).json({ error: message });
+    sendError(res, err, 404);
   }
 }
 
@@ -163,7 +138,6 @@ export async function update(req: Request, res: Response): Promise<void> {
     });
     res.json(household);
   } catch (err) {
-    const message = err instanceof Error ? err.message : 'Error updating household';
-    res.status(400).json({ error: message });
+    sendError(res, err, 400);
   }
 }

@@ -27,6 +27,7 @@ import cookieParser from 'cookie-parser';
 import helmet from 'helmet';
 import { config } from './config';
 import { verifyAccessToken } from './middleware/auth';
+import { errorHandler, notFoundHandler } from './middleware/error-handler';
 import { JwtPayload } from './types/auth';
 
 const app = express();
@@ -121,9 +122,8 @@ app.use('/api/notifications', notificationRoutes);
 app.use('/api/dashboard', dashboardRoutes);
 app.use('/api/ai', aiRoutes);
 
-// ─── 404 FALLBACK ─────────────────────────────────────────────────────────────
-app.use((_req, res) => {
-  res.status(404).json({ error: 'Route not found' });
-});
+// ─── 404 + ERROR FALLBACKS ────────────────────────────────────────────────────
+app.use(notFoundHandler);
+app.use(errorHandler);
 
 export default app;

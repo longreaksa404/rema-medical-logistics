@@ -4,6 +4,7 @@ import {
   markRead,
   markAllRead,
 } from '../services/notification.service';
+import { sendError } from '../middleware/error-handler';
 
 // ─── GET /api/notifications ───────────────────────────────────────────────────
 
@@ -12,8 +13,7 @@ export async function list(req: Request, res: Response): Promise<void> {
     const notifications = await getUserNotifications(req.user!.userId);
     res.json(notifications);
   } catch (err) {
-    const message = err instanceof Error ? err.message : 'Error fetching notifications';
-    res.status(500).json({ error: message });
+    sendError(res, err, 500);
   }
 }
 
@@ -24,8 +24,7 @@ export async function markOneRead(req: Request, res: Response): Promise<void> {
     const notification = await markRead(req.params.id, req.user!.userId);
     res.json(notification);
   } catch (err) {
-    const message = err instanceof Error ? err.message : 'Error updating notification';
-    res.status(400).json({ error: message });
+    sendError(res, err, 400);
   }
 }
 
@@ -36,7 +35,6 @@ export async function markAllAsRead(req: Request, res: Response): Promise<void> 
     const result = await markAllRead(req.user!.userId);
     res.json(result);
   } catch (err) {
-    const message = err instanceof Error ? err.message : 'Error updating notifications';
-    res.status(500).json({ error: message });
+    sendError(res, err, 500);
   }
 }
