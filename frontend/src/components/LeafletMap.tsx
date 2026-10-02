@@ -5,6 +5,13 @@
 // Destroy-before-unmount lifecycle prevents sign-out freeze.
 
 import { useEffect, useRef } from 'react';
+import L from 'leaflet';
+import 'leaflet/dist/leaflet.css';
+import type { Feature, Polygon, Position } from 'geojson';
+
+function polygonFeature(ring: Position[]): Feature<Polygon> {
+  return { type: 'Feature', geometry: { type: 'Polygon', coordinates: [ring] }, properties: {} };
+}
 import type { DistrictCard } from '../api/dashboard.types';
 
 type DeliveryMode = 'MOTORBIKE' | 'BICYCLE_OR_FOOT' | 'BOAT' | 'SUSPENDED';
@@ -93,8 +100,6 @@ export function LeafletMap({
 
   useEffect(() => {
     if (!containerRef.current || mapRef.current) return;
-    const L = (window as any).L;
-    if (!L) return;
 
     const map = L.map(containerRef.current, {
       center: [11.52, 104.87],
@@ -133,7 +138,7 @@ export function LeafletMap({
         const fillColor = MODE_FILL[depthToMode(depth)];
 
         const layer = L.geoJSON(
-          { type: 'Feature', geometry: { type: 'Polygon', coordinates: [coords] }, properties: {} },
+          polygonFeature(coords),
           {
             style: {
               // thin white dashed line separates zones within a district
@@ -191,7 +196,7 @@ export function LeafletMap({
       // thick outer border outline — no fill, sits on top of zone polygons
       if (districtBorder) {
         const borderLayer = L.geoJSON(
-          { type: 'Feature', geometry: { type: 'Polygon', coordinates: [districtBorder] }, properties: {} },
+          polygonFeature(districtBorder),
           {
             style: {
               color: borderColor,
