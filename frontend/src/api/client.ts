@@ -19,14 +19,37 @@ api.interceptors.request.use((config) => {
   return config;
 });
 
-// track whether a refresh is already in flight to avoid parallel retries
-let isRefreshing = false;
-let refreshQueue: Array<(token: string) => void> = [];
+// ─── TOKEN REFRESH ────────────────────────────────────────────────────────────
+// Single-flight: however many requests (or the socket) hit an expired token at
+// once, only ONE /refresh call is made and everyone awaits the same promise.
+// This matters because the server rotates the refresh cookie on every use.
 
-function drainQueue(newToken: string) {
-  refreshQueue.forEach(fn => fn(newToken));
-  refreshQueue = [];
+let refreshPromise: Promise<string> | null = null;
+
+export function refreshAccessToken(): Promise<string> {
+  if (!refreshPromise) {
+    refreshPromise = axios
+      .post<{ token: string }>(`${API_URL}/api/auth/refresh`, {}, { withCredentials: true })
+      .then((res) => {
+        localStorage.setItem('rema_token', res.data.token);
+        return res.data.token;
+      })
+      .finally(() => {
+        refreshPromise = null;
+      });
+  }
+  return refreshPromise;
 }
+
+export function clearSessionAndRedirect(): void {
+  localStorage.removeItem('rema_token');
+  localStorage.removeItem('rema_user');
+  localStorage.removeItem('rema_must_change');
+  if (window.location.pathname !== '/login') window.location.href = '/login';
+}
+
+// A 401 from these means "wrong credentials", not "access token expired"
+const NO_REFRESH_PATHS = ['/api/auth/login', '/api/auth/refresh', '/api/auth/logout'];
 
 api.interceptors.response.use(
   (response) => response,
@@ -34,49 +57,25 @@ api.interceptors.response.use(
     const original = error.config;
 
     // only attempt refresh on 401, and only once per request
-    if (error.response?.status !== 401 || original._retried) {
+    if (
+      error.response?.status !== 401 ||
+      !original ||
+      original._retried ||
+      NO_REFRESH_PATHS.some((p) => original.url?.includes(p))
+    ) {
       return Promise.reject(error);
     }
 
-    // if a refresh is already running, queue this request until it resolves
-    if (isRefreshing) {
-      return new Promise((resolve) => {
-        refreshQueue.push((token) => {
-          original.headers.Authorization = `Bearer ${token}`;
-          resolve(api(original));
-        });
-      });
-    }
-
-    original._retried  = true;
-    isRefreshing       = true;
+    original._retried = true;
 
     try {
-      // cookie is sent automatically (withCredentials: true)
-      const res = await axios.post<{ token: string }>(
-        `${API_URL}/api/auth/refresh`,
-        {},
-        { withCredentials: true }
-      );
-
-      const newToken = res.data.token;
-      localStorage.setItem('rema_token', newToken);
-
-      // update auth header for the retried request and drain queue
+      const newToken = await refreshAccessToken();
       original.headers.Authorization = `Bearer ${newToken}`;
-      drainQueue(newToken);
-
       return api(original);
     } catch {
-      // refresh failed — clear everything and force re-login
-      refreshQueue = [];
-      localStorage.removeItem('rema_token');
-      localStorage.removeItem('rema_user');
-      localStorage.removeItem('rema_must_change');
-      window.location.href = '/login';
+      // refresh failed — session is over, force re-login
+      clearSessionAndRedirect();
       return Promise.reject(error);
-    } finally {
-      isRefreshing = false;
     }
   }
 );

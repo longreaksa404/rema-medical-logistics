@@ -20,7 +20,7 @@ export async function trigger(req: Request, res: Response): Promise<void> {
   }
 
   try {
-    const alert = await submitTrigger(condition);
+    const alert = await submitTrigger(condition, req.user!.userId);
     res.json(alert);
   } catch (err) {
     const message = err instanceof Error ? err.message : 'Unknown error';

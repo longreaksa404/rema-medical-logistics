@@ -60,14 +60,8 @@ export async function update(req: Request, res: Response): Promise<void> {
     return;
   }
 
-  // hub managers can only update their own district
+  // role + own-district check is enforced in route.routes.ts
   const user = req.user!;
-  if (user.role === 'HUB_MANAGER' && user.districtId !== districtId) {
-    res.status(403).json({
-      error: 'HUB_MANAGER can only update water depth for their own district',
-    });
-    return;
-  }
 
   try {
     const result = await updateRouteDepth({

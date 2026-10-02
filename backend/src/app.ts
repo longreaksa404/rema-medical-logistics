@@ -24,6 +24,8 @@ import notificationRoutes from './routes/notification.routes';
 import dashboardRoutes from './routes/dashboard.routes';
 import aiRoutes from './routes/ai.routes';
 import cookieParser from 'cookie-parser';
+import { verifyAccessToken } from './middleware/auth';
+import { JwtPayload } from './types/auth';
 
 const app = express();
 
@@ -40,10 +42,27 @@ export const io = new Server(httpServer, {
   // path stays default (/socket.io) — no conflict with /api routes
 });
 
+// Only clients with a valid access token may connect. The token is checked at
+// handshake time; the client re-sends a fresh one on every reconnect.
+io.use((socket, next) => {
+  const token = socket.handshake.auth?.token;
+  if (typeof token !== 'string' || token.length === 0) {
+    return next(new Error('unauthorized'));
+  }
+  try {
+    socket.data.user = verifyAccessToken(token);
+    next();
+  } catch {
+    next(new Error('unauthorized'));
+  }
+});
+
 io.on('connection', (socket) => {
-  // client sends their JWT role on connect so we can scope events if needed
-  // for now all authenticated clients receive all broadcast events
-  socket.on('disconnect', () => {});
+  // All authenticated clients receive all broadcast events for now.
+  // Rooms are joined so events can later be scoped per district / role.
+  const user = socket.data.user as JwtPayload;
+  socket.join(`role:${user.role}`);
+  if (user.districtId) socket.join(`district:${user.districtId}`);
 });
 
 // ─── MIDDLEWARE ───────────────────────────────────────────────────────────────

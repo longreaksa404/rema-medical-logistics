@@ -1,5 +1,6 @@
 import { Router } from 'express';
-import { requireAuth } from '../middleware/auth';
+import { requireAuth, requireRole } from '../middleware/auth';
+import { requireDistrictAccess, district } from '../middleware/district-access';
 import {
   scoreOnly,
   create,
@@ -24,6 +25,9 @@ export const householdRouter = Router();
 householdRouter.get('/priority-queue', requireAuth, priorityQueue);
 
 householdRouter.get('/', requireAuth, list);
-householdRouter.post('/', requireAuth, create);
+// Assessments: VOLUNTEER+ in their own district (VIEWER is read-only)
+householdRouter.post('/', requireAuth, requireRole('VOLUNTEER'),
+  requireDistrictAccess(district.fromBody('districtId')), create);
 householdRouter.get('/:id', requireAuth, getOne);
-householdRouter.patch('/:id', requireAuth, update);
+householdRouter.patch('/:id', requireAuth, requireRole('VOLUNTEER'),
+  requireDistrictAccess(district.ofHouseholdParam('id')), update);

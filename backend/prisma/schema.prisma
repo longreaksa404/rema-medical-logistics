@@ -35,6 +35,7 @@ model User {
   district              District?              @relation(fields: [districtId], references: [id])
   volunteer             Volunteer?
   refreshTokens         RefreshToken[]
+  alertConditionReports AlertConditionReport[]
 
   @@map("users")
 }
@@ -140,18 +141,33 @@ model StockMovement {
 }
 
 model FloodAlert {
-  id                   String                @id @default(cuid())
-  createdAt            DateTime              @default(now())
-  updatedAt            DateTime              @updatedAt
-  warningLevelTwo      Boolean               @default(false)
-  rainfallExceeds100mm Boolean               @default(false)
-  streetFloodingReport Boolean               @default(false)
-  activated            Boolean               @default(false)
+  id                   String                 @id @default(cuid())
+  createdAt            DateTime               @default(now())
+  updatedAt            DateTime               @updatedAt
+  warningLevelTwo      Boolean                @default(false)
+  rainfallExceeds100mm Boolean                @default(false)
+  streetFloodingReport Boolean                @default(false)
+  activated            Boolean                @default(false)
   activatedAt          DateTime?
-  phase                Int                   @default(0)
+  phase                Int                    @default(0)
   volunteerAssignments VolunteerAssignment[]
+  conditionReports     AlertConditionReport[]
 
   @@map("flood_alerts")
+}
+
+// Audit trail: who confirmed which activation condition, and when
+model AlertConditionReport {
+  id           String     @id @default(cuid())
+  createdAt    DateTime   @default(now())
+  alertId      String
+  condition    String
+  reportedById String
+  alert        FloodAlert @relation(fields: [alertId], references: [id])
+  reportedBy   User       @relation(fields: [reportedById], references: [id])
+
+  @@index([alertId, createdAt])
+  @@map("alert_condition_reports")
 }
 
 model Household {

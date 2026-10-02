@@ -1,5 +1,6 @@
 import { Router } from 'express';
 import { requireAuth, requireRole } from '../middleware/auth';
+import { requireDistrictAccess, district } from '../middleware/district-access';
 import {
   getCentral,
   getCentralMovementsHandler,
@@ -36,9 +37,14 @@ router.get('/movements',              requireAuth, getMovements);
 router.get('/movements/:districtId',  requireAuth, getMovementsByDistrictHandler);
 
 // Write operations
-router.post('/dispatch',   requireAuth, dispatch);
-router.post('/reallocate', requireAuth, requireRole('HUB_MANAGER'), reallocate);
-router.post('/adjust',     requireAuth, requireRole('HUB_MANAGER'), adjust);
+// Hub Managers act on their own sub-warehouse only; EC+ on any.
+// Reallocation: a Hub Manager may send surplus FROM their district, never pull from another.
+router.post('/dispatch',   requireAuth, requireRole('HUB_MANAGER'),
+  requireDistrictAccess(district.ofSubWarehouse('subWarehouseId')), dispatch);
+router.post('/reallocate', requireAuth, requireRole('HUB_MANAGER'),
+  requireDistrictAccess(district.ofSubWarehouse('fromSubWarehouseId')), reallocate);
+router.post('/adjust',     requireAuth, requireRole('HUB_MANAGER'),
+  requireDistrictAccess(district.ofSubWarehouse('subWarehouseId')), adjust);
 
 // District stock — LAST
 router.get('/:districtId', requireAuth, getByDistrict);

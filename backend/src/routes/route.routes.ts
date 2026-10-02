@@ -1,5 +1,6 @@
 import { Router } from 'express';
-import { requireAuth } from '../middleware/auth';
+import { requireAuth, requireRole } from '../middleware/auth';
+import { requireDistrictAccess, district } from '../middleware/district-access';
 import { recommend, update, logs, districtRoutes } from '../controllers/route.controller';
 
 const router = Router();
@@ -8,7 +9,8 @@ const router = Router();
 router.get('/recommend', requireAuth, recommend);
 
 // POST /api/route/update — update water depth for a zone (creates route_log)
-router.post('/update', requireAuth, update);
+router.post('/update', requireAuth, requireRole('HUB_MANAGER'),
+  requireDistrictAccess(district.fromBody('districtId')), update);
 
 // GET /api/route/logs — route status change history (filter by districtId)
 router.get('/logs', requireAuth, logs);

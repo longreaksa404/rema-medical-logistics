@@ -1,13 +1,12 @@
 import { Router } from 'express';
 import { trigger, status, phase, reset } from '../controllers/alert.controller';
-import { requireAuth } from '../middleware/auth';
-import { requireRole } from '../middleware/auth';
+import { requireAuth, requireRole } from '../middleware/auth';
 
 
 const router = Router();
 
-// Any authenticated user can submit a trigger condition
-router.post('/trigger', requireAuth, trigger);
+// Confirming a trigger condition activates REMA — Emergency Coordinator or above
+router.post('/trigger', requireAuth, requireRole('EMERGENCY_COORDINATOR'), trigger);
 
 // Any authenticated user can check status
 router.get('/status', requireAuth, status);
