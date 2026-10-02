@@ -316,10 +316,10 @@ export async function createDeliveryReceipt(data: {
 // IN_PROGRESS → COMPLETE | ABORTED. The conditional update means a run can only
 // leave IN_PROGRESS once, even if complete and abort arrive at the same time.
 
-async function closeRun(id: string, status: 'COMPLETE' | 'ABORTED') {
+async function closeRun(id: string, status: 'COMPLETE' | 'ABORTED', abortReason?: string) {
   const { count } = await prisma.deliveryRun.updateMany({
     where: { id, status: DeliveryRunStatus.IN_PROGRESS },
-    data:  { status, returnedAt: new Date() },
+    data:  { status, returnedAt: new Date(), abortReason: status === 'ABORTED' ? abortReason : null },
   });
 
   const run = await prisma.deliveryRun.findUnique({
@@ -361,8 +361,8 @@ export async function completeDeliveryRun(id: string, _performedById: string) {
 
 // ─── ABORT A DELIVERY RUN ─────────────────────────────────────────────────────
 
-export async function abortDeliveryRun(id: string, _reason: string) {
-  await closeRun(id, 'ABORTED');
+export async function abortDeliveryRun(id: string, reason: string) {
+  await closeRun(id, 'ABORTED', reason);
   return prisma.deliveryRun.findUniqueOrThrow({
     where: { id },
     include: {

@@ -1557,6 +1557,11 @@ function DeliveriesTab({ districtId, subWarehouseId }: { districtId: string; sub
                         {duration !== null ? ` · ${duration}m` : ''}
                         {' · '}{new Set(r.receipts?.map(rec => rec.householdId) ?? []).size} delivered
                       </p>
+                      {r.status === 'ABORTED' && r.abortReason && (
+                        <p className="font-mono text-[10px] text-accent-red mt-0.5 break-words">
+                          Reason: {r.abortReason}
+                        </p>
+                      )}
                     </div>
                   </div>
                 );

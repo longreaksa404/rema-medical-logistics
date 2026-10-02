@@ -262,6 +262,8 @@ model DeliveryRun {
   departedAt      DateTime
   returnedAt      DateTime?
   status          DeliveryRunStatus @default(IN_PROGRESS)
+  // why a Hub Manager stood the team down (required when status = ABORTED)
+  abortReason     String?
   leadVolunteerId String
   performedById   String
   receipts        DeliveryReceipt[]
