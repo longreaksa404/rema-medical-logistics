@@ -1,0 +1,21 @@
+# Normalise line endings — repo is edited from both Windows and Linux (WSL / dev container)
+* text=auto eol=lf
+
+# Windows-only scripts keep CRLF
+*.bat text eol=crlf
+*.cmd text eol=crlf
+
+# Binary assets — never convert
+*.pdf    binary
+*.png    binary
+*.jpg    binary
+*.jpeg   binary
+*.gif    binary
+*.ico    binary
+*.webp   binary
+*.drawio binary
+*.docx   binary
+*.xlsx   binary
+*.pptx   binary
+*.woff   binary
+*.woff2  binary
