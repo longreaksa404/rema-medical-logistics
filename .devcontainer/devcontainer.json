@@ -1,0 +1,50 @@
+{
+  "name": "${localWorkspaceFolderBasename}",
+  "image": "mcr.microsoft.com/devcontainers/base:ubuntu",
+
+  "workspaceMount": "source=${localWorkspaceFolder},target=/workspaces/${localWorkspaceFolderBasename},type=bind",
+  "workspaceFolder": "/workspaces/${localWorkspaceFolderBasename}",
+
+  // Node 20 matches the Dockerfile (node:20-alpine) and CI (setup-node 20).
+  // Docker-outside-of-docker lets you run `docker compose up` from inside the container.
+  "features": {
+    "ghcr.io/devcontainers/features/node:1": { "version": "20" },
+    "ghcr.io/devcontainers/features/docker-outside-of-docker:1": {},
+    "ghcr.io/devcontainers/features/github-cli:1": {}
+  },
+
+  // 3000 = Express API (backend), 5173 = Vite dev server (frontend, proxies /api to 3000)
+  "forwardPorts": [3000, 5173],
+  "portsAttributes": {
+    "3000": { "label": "Backend API" },
+    "5173": { "label": "Frontend (Vite)", "onAutoForward": "openBrowser" }
+  },
+
+  // Claude Code login, settings and history, shared by all projects and kept
+  // across container rebuilds.
+  "mounts": [
+    "source=claude-code-config,target=/home/vscode/.claude,type=volume"
+  ],
+  "containerEnv": {
+    "CLAUDE_CONFIG_DIR": "/home/vscode/.claude"
+  },
+  "onCreateCommand": "sudo chown -R vscode:vscode /home/vscode/.claude",
+
+  // Install backend + frontend deps and generate the Prisma client.
+  // The database is remote (Supabase) — copy backend/.env.example to backend/.env and fill it in.
+  "postCreateCommand": "cd backend && npm ci && npx prisma generate && cd ../frontend && npm ci",
+
+  "customizations": {
+    "vscode": {
+      "extensions": [
+        "anthropic.claude-code",
+        "Prisma.prisma",
+        "dbaeumer.vscode-eslint",
+        "bradlc.vscode-tailwindcss",
+        "Orta.vscode-jest"
+      ]
+    }
+  },
+
+  "remoteUser": "vscode"
+}
