@@ -1,6 +1,7 @@
 import { DeliveryRunStatus, EmkType } from '@prisma/client';
 import { prisma } from '../lib/prisma';
-import { recordDelivery } from './stock.service';
+import { recordDelivery, invalidateStockCache, TX_OPTIONS } from './stock.service';
+import { ConflictError, NotFoundError } from '../lib/errors';
 import { invalidateQueueCache } from './household.service';
 import { getCached, setCached, deleteCached } from '../utils/cache';
 
@@ -237,6 +238,9 @@ export async function getDeliveryRun(id: string) {
 }
 
 // ─── RECORD DELIVERY RECEIPT ──────────────────────────────────────────────────
+// Everything happens in ONE transaction: claim the household, deduct each kit
+// from stock, write the movement logs and receipts. If any kit is short, nothing
+// is deducted and the household stays undelivered.
 
 export async function createDeliveryReceipt(data: {
   deliveryRunId: string;
@@ -248,33 +252,44 @@ export async function createDeliveryReceipt(data: {
 }) {
   const { deliveryRunId, householdId, kits, deliveredAt, notes, performedById } = data;
 
-  const run = await prisma.deliveryRun.findUnique({ where: { id: deliveryRunId } });
-  if (!run) throw new Error('Delivery run not found');
-  if (run.status !== DeliveryRunStatus.IN_PROGRESS) {
-    throw new Error(`Cannot add receipts to a run with status: ${run.status}`);
-  }
-
-  const household = await prisma.household.findUnique({ where: { id: householdId } });
-  if (!household) throw new Error(`Household not found: ${householdId}`);
-  if (household.delivered) {
-    throw new Error(`Household ${householdId} has already been marked as delivered`);
-  }
-
-  // deduct each EMK type from stock separately — this is the core fix
-  for (const kit of kits) {
-    await recordDelivery({
-      subWarehouseId: run.subWarehouseId,
-      emkType: kit.emkType,
-      quantity: kit.quantity,
-      reason: `Delivery to ${household.address} - Team ${run.teamNumber} (${run.zone})`,
-      performedById,
+  const { receipts, districtId } = await prisma.$transaction(async (tx) => {
+    // Touch the run row while it is IN_PROGRESS — this takes a row lock, so a
+    // concurrent complete/abort waits for us instead of racing.
+    const lockedRun = await tx.deliveryRun.updateMany({
+      where: { id: deliveryRunId, status: DeliveryRunStatus.IN_PROGRESS },
+      data:  { updatedAt: new Date() },
     });
-  }
+    const run = await tx.deliveryRun.findUnique({ where: { id: deliveryRunId } });
+    if (!run) throw new NotFoundError('Delivery run not found');
+    if (lockedRun.count === 0) {
+      throw new ConflictError(`Cannot add receipts to a run with status: ${run.status}`);
+    }
 
-  // create one receipt row per kit type, mark household delivered once
-  const receipts = await prisma.$transaction([
-    ...kits.map(kit =>
-      prisma.deliveryReceipt.create({
+    const household = await tx.household.findUnique({ where: { id: householdId } });
+    if (!household) throw new NotFoundError(`Household not found: ${householdId}`);
+
+    // Claim the household — only one concurrent request can flip delivered false → true
+    const claimed = await tx.household.updateMany({
+      where: { id: householdId, delivered: false },
+      data:  { delivered: true, deliveredAt },
+    });
+    if (claimed.count === 0) {
+      throw new ConflictError(`Household ${householdId} has already been marked as delivered`);
+    }
+
+    for (const kit of kits) {
+      await recordDelivery(tx, {
+        subWarehouseId: run.subWarehouseId,
+        emkType: kit.emkType,
+        quantity: kit.quantity,
+        reason: `Delivery to ${household.address} - Team ${run.teamNumber} (${run.zone})`,
+        performedById,
+      });
+    }
+
+    const receipts = [];
+    for (const kit of kits) {
+      receipts.push(await tx.deliveryReceipt.create({
         data: {
           deliveryRunId,
           householdId,
@@ -283,39 +298,57 @@ export async function createDeliveryReceipt(data: {
           deliveredAt,
           notes: notes ?? null,
         },
-      })
-    ),
-    prisma.household.update({
-      where: { id: householdId },
-      data: { delivered: true, deliveredAt },
-    }),
-  ]);
+      }));
+    }
 
-  // last item in transaction is the household update — receipts are everything before it
-  const createdReceipts = receipts.slice(0, kits.length);
+    return { receipts, districtId: household.districtId };
+  }, TX_OPTIONS);
 
-  invalidateQueueCache(household.districtId);
-  const sw = await prisma.subWarehouse.findUnique({ where: { id: run.subWarehouseId } });
-  if (sw) invalidateRunsCache(sw.districtId);
+  invalidateQueueCache(districtId);
+  invalidateRunsCache(districtId);
+  invalidateStockCache(districtId);
 
-  return createdReceipts;
+  return receipts;
 }
 
 
-// ─── COMPLETE A DELIVERY RUN ──────────────────────────────────────────────────
+// ─── RUN STATUS TRANSITION ────────────────────────────────────────────────────
+// IN_PROGRESS → COMPLETE | ABORTED. The conditional update means a run can only
+// leave IN_PROGRESS once, even if complete and abort arrive at the same time.
 
-export async function completeDeliveryRun(id: string, performedById: string) {
+async function closeRun(id: string, status: 'COMPLETE' | 'ABORTED') {
+  const { count } = await prisma.deliveryRun.updateMany({
+    where: { id, status: DeliveryRunStatus.IN_PROGRESS },
+    data:  { status, returnedAt: new Date() },
+  });
+
   const run = await prisma.deliveryRun.findUnique({
     where: { id },
-    include: { receipts: true },
+    include: { subWarehouse: { select: { districtId: true } } },
   });
-  if (!run) throw new Error('Delivery run not found');
-  if (run.status === DeliveryRunStatus.COMPLETE) throw new Error('Delivery run is already complete');
-  if (run.status === DeliveryRunStatus.ABORTED) throw new Error('Cannot complete an aborted run');
+  if (!run) throw new NotFoundError('Delivery run not found');
 
-  const updated = await prisma.deliveryRun.update({
+  if (count === 0) {
+    if (status === 'COMPLETE' && run.status === DeliveryRunStatus.COMPLETE) {
+      throw new ConflictError('Delivery run is already complete');
+    }
+    if (status === 'COMPLETE' && run.status === DeliveryRunStatus.ABORTED) {
+      throw new ConflictError('Cannot complete an aborted run');
+    }
+    throw new ConflictError(`Cannot abort run with status: ${run.status}`);
+  }
+
+  // return team volunteers to AVAILABLE — run is over either way
+  await returnTeamToBase(run.subWarehouseId, run.teamNumber);
+  invalidateRunsCache(run.subWarehouse.districtId);
+}
+
+// ─── COMPLETE A DELIVERY RUN ──────────────────────────────────────────────────
+
+export async function completeDeliveryRun(id: string, _performedById: string) {
+  await closeRun(id, 'COMPLETE');
+  return prisma.deliveryRun.findUniqueOrThrow({
     where: { id },
-    data: { status: DeliveryRunStatus.COMPLETE, returnedAt: new Date() },
     include: {
       subWarehouse: { include: { district: { select: { name: true } } } },
       leadVolunteer: { select: { name: true, phone: true } },
@@ -324,38 +357,18 @@ export async function completeDeliveryRun(id: string, performedById: string) {
       },
     },
   });
-
-  // return team volunteers to AVAILABLE now that run is complete
-  await returnTeamToBase(run.subWarehouseId, run.teamNumber);
-
-  const sw = await prisma.subWarehouse.findUnique({ where: { id: run.subWarehouseId } });
-  if (sw) invalidateRunsCache(sw.districtId);
-  return updated;
 }
 
 // ─── ABORT A DELIVERY RUN ─────────────────────────────────────────────────────
 
-export async function abortDeliveryRun(id: string, reason: string) {
-  const run = await prisma.deliveryRun.findUnique({ where: { id } });
-  if (!run) throw new Error('Delivery run not found');
-  if (run.status !== DeliveryRunStatus.IN_PROGRESS) {
-    throw new Error(`Cannot abort run with status: ${run.status}`);
-  }
-
-  const updated = await prisma.deliveryRun.update({
+export async function abortDeliveryRun(id: string, _reason: string) {
+  await closeRun(id, 'ABORTED');
+  return prisma.deliveryRun.findUniqueOrThrow({
     where: { id },
-    data: { status: DeliveryRunStatus.ABORTED, returnedAt: new Date() },
     include: {
       subWarehouse: { include: { district: { select: { name: true } } } },
       leadVolunteer: { select: { name: true } },
       receipts: true,
     },
   });
-
-  // return team volunteers to AVAILABLE — aborted run means team stood down
-  await returnTeamToBase(run.subWarehouseId, run.teamNumber);
-
-  const sw = await prisma.subWarehouse.findUnique({ where: { id: run.subWarehouseId } });
-  if (sw) invalidateRunsCache(sw.districtId);
-  return updated;
 }

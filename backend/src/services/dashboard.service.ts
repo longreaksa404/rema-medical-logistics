@@ -1,8 +1,6 @@
-import { PrismaClient } from '@prisma/client';
+import { prisma } from '../lib/prisma';
 import { isInScarcity } from '../utils/stock.utils';
 import { getCached, setCached, deleteCached } from '../utils/cache';
-
-const prisma = new PrismaClient();
 
 const KEY_SUMMARY         = 'dashboard:summary';
 const KEY_DISTRICT_PREFIX = 'dashboard:district:';

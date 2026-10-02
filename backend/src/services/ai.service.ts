@@ -1,7 +1,5 @@
-import { PrismaClient } from '@prisma/client';
+import { prisma } from '../lib/prisma';
 import { isInScarcity } from '../utils/stock.utils';
-
-const prisma = new PrismaClient();
 
 // ─── TYPES ────────────────────────────────────────────────────────────────────
 

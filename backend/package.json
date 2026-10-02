@@ -10,6 +10,7 @@
     "generate": "prisma generate",
     "seed": "npx ts-node --transpile-only src/seed.ts",
     "test": "jest",
+    "test:integration": "jest -c jest.integration.config.ts",
     "test:coverage": "jest --coverage"
   },
   "dependencies": {

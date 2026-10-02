@@ -1,8 +1,7 @@
-import { PrismaClient, PriorityBand, EmkType } from '@prisma/client';
+import { PriorityBand, EmkType } from '@prisma/client';
+import { prisma } from '../lib/prisma';
 import { scoreHousehold, ScoreInput } from '../utils/scoring';
 import { getCached, setCached, deleteCached } from '../utils/cache';
-
-const prisma = new PrismaClient();
 
 // ─── CACHE KEYS ───────────────────────────────────────────────────────────────
 
