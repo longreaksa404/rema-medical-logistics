@@ -1,6 +1,8 @@
 import { DeliveryRunStatus, EmkType } from '@prisma/client';
 import { prisma } from '../lib/prisma';
 import { recordDelivery, invalidateStockCache, TX_OPTIONS } from './stock.service';
+import { announceScarcity } from './scarcity.service';
+import { levelsBefore, EmkKey } from '../utils/stock.utils';
 import { ConflictError, NotFoundError } from '../lib/errors';
 import { invalidateQueueCache } from './household.service';
 import { getCached, setCached, deleteCached } from '../utils/cache';
@@ -252,7 +254,7 @@ export async function createDeliveryReceipt(data: {
 }) {
   const { deliveryRunId, householdId, kits, deliveredAt, notes, performedById } = data;
 
-  const { receipts, districtId } = await prisma.$transaction(async (tx) => {
+  const { receipts, districtId, stockAfter } = await prisma.$transaction(async (tx) => {
     // Touch the run row while it is IN_PROGRESS — this takes a row lock, so a
     // concurrent complete/abort waits for us instead of racing.
     const lockedRun = await tx.deliveryRun.updateMany({
@@ -301,12 +303,26 @@ export async function createDeliveryReceipt(data: {
       }));
     }
 
-    return { receipts, districtId: household.districtId };
+    const stockAfter = await tx.stock.findUniqueOrThrow({
+      where: { subWarehouseId: run.subWarehouseId },
+      include: { subWarehouse: { select: { districtId: true, district: { select: { name: true } } } } },
+    });
+
+    return { receipts, districtId: household.districtId, stockAfter };
   }, TX_OPTIONS);
 
   invalidateQueueCache(districtId);
   invalidateRunsCache(districtId);
-  invalidateStockCache(districtId);
+  invalidateStockCache(districtId, stockAfter.subWarehouse.districtId);
+
+  // stock left the sub-warehouse — did any EMK type just drop below 30%?
+  const deltas: Partial<Record<EmkKey, number>> = {};
+  for (const kit of kits) deltas[kit.emkType] = (deltas[kit.emkType] ?? 0) - kit.quantity;
+  await announceScarcity(
+    { districtId: stockAfter.subWarehouse.districtId, districtName: stockAfter.subWarehouse.district.name },
+    levelsBefore(stockAfter, deltas),
+    stockAfter,
+  );
 
   return receipts;
 }
