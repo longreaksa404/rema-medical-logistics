@@ -24,6 +24,8 @@ import notificationRoutes from './routes/notification.routes';
 import dashboardRoutes from './routes/dashboard.routes';
 import aiRoutes from './routes/ai.routes';
 import cookieParser from 'cookie-parser';
+import helmet from 'helmet';
+import { config } from './config';
 import { verifyAccessToken } from './middleware/auth';
 import { JwtPayload } from './types/auth';
 
@@ -36,7 +38,7 @@ export const httpServer = createServer(app);
 
 export const io = new Server(httpServer, {
   cors: {
-    origin: true,
+    origin: config.corsOrigins,
     credentials: true,
   },
   // path stays default (/socket.io) — no conflict with /api routes
@@ -66,8 +68,20 @@ io.on('connection', (socket) => {
 });
 
 // ─── MIDDLEWARE ───────────────────────────────────────────────────────────────
+app.set('trust proxy', config.trustProxy);
+app.disable('x-powered-by');
+
+app.use(helmet({
+  contentSecurityPolicy: {
+    // local Swagger is served over plain http — only force https in production
+    directives: { upgradeInsecureRequests: config.isProduction ? [] : null },
+  },
+}));
+
+// Only the known frontend origins may make credentialed (cookie) requests.
+// Requests with no Origin header (curl, server-to-server, health checks) pass.
 app.use(cors({
-  origin: true,
+  origin: config.corsOrigins,
   credentials: true,
 }));
 app.use(express.json());

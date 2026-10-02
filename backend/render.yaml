@@ -14,6 +14,8 @@ services:
         sync: false   # Set in Render dashboard — Supabase direct connection
       - key: JWT_SECRET
         generateValue: true   # Render generates a secure random value
+      - key: CORS_ORIGINS
+        value: https://rema-system.vercel.app
       - key: PORT
         value: 3000
     healthCheckPath: /api/health

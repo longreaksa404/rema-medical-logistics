@@ -1,12 +1,11 @@
 import { Request, Response, NextFunction } from 'express';
 import jwt from 'jsonwebtoken';
 import { JwtPayload } from '../types/auth';
-
-const JWT_SECRET = process.env.JWT_SECRET || 'rema-dev-secret-change-in-production';
+import { config } from '../config';
 
 // Throws if the token is missing, malformed, expired or signed with another key
 export function verifyAccessToken(token: string): JwtPayload {
-  return jwt.verify(token, JWT_SECRET) as JwtPayload;
+  return jwt.verify(token, config.jwtSecret) as JwtPayload;
 }
 
 // ─── REQUIRE AUTH ─────────────────────────────────────────────────────────────

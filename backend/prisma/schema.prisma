@@ -365,13 +365,16 @@ model Notification {
 }
 
 model RefreshToken {
-  id        String   @id @default(cuid())
-  createdAt DateTime @default(now())
-  tokenHash String   @unique
+  id        String    @id @default(cuid())
+  createdAt DateTime  @default(now())
+  tokenHash String    @unique
   userId    String
   expiresAt DateTime
-  revoked   Boolean  @default(false)
-  user      User     @relation(fields: [userId], references: [id])
+  revoked   Boolean   @default(false)
+  // set when this token was exchanged for a new one (rotation); a later replay
+  // of a rotated token means it was stolen
+  rotatedAt DateTime?
+  user      User      @relation(fields: [userId], references: [id])
 
   @@index([userId])
   @@map("refresh_tokens")

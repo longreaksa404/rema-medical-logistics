@@ -1,5 +1,7 @@
 import { Request, Response } from 'express';
 import { Role } from '@prisma/client';
+import { revokeAllRefreshTokens, issueRefreshToken } from '../services/auth.service';
+import { setRefreshCookie } from '../lib/session-cookie';
 import {
   createUser,
   listUsers,
@@ -109,6 +111,8 @@ export async function update(req: Request, res: Response): Promise<void> {
     const user = await updateUser(req.params.id, req.user!.userId, {
       name, email, role: role as Role | undefined, districtId, phone, active,
     });
+    // deactivated users lose every session immediately
+    if (active === false) await revokeAllRefreshTokens(user.id);
     res.json(user);
   } catch (err) {
     const message = err instanceof Error ? err.message : 'Error updating user';
@@ -147,6 +151,10 @@ export async function changePassword(req: Request, res: Response): Promise<void>
 
   try {
     const result = await changeOwnPassword(req.user!.userId, currentPassword, newPassword);
+    // sign out every other session, keep this one alive with a fresh cookie
+    await revokeAllRefreshTokens(req.user!.userId);
+    const session = await issueRefreshToken(req.user!.userId);
+    setRefreshCookie(res, session.refreshToken, session.refreshExpiresAt);
     res.json(result);
   } catch (err) {
     const message = err instanceof Error ? err.message : 'Error changing password';
@@ -166,6 +174,7 @@ export async function resetPassword(req: Request, res: Response): Promise<void> 
 
   try {
     const result = await resetUserPassword(req.params.id, temporaryPassword);
+    await revokeAllRefreshTokens(req.params.id);
     res.json(result);
   } catch (err) {
     const message = err instanceof Error ? err.message : 'Error resetting password';
