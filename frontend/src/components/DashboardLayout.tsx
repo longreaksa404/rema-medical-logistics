@@ -1,4 +1,5 @@
 import { type ReactNode } from 'react';
+import { ArrowUpCircle, RefreshCw, RotateCcw, Sparkles, type LucideIcon } from 'lucide-react';
 
 // ─── PROPS ────────────────────────────────────────────────────────────────────
 
@@ -12,7 +13,7 @@ interface DashboardLayoutProps {
   onAiBrief?: () => void;
   aiBriefLoading?: boolean;
   showAiBrief?: boolean;
-  // Phase advance  ← ADD THESE THREE
+  // Phase advance
   onAdvancePhase?: () => void;
   advancePhaseLoading?: boolean;
   showAdvancePhase?: boolean;
@@ -21,6 +22,51 @@ interface DashboardLayoutProps {
   onReset?: () => void;
   resetLoading?: boolean;
   showReset?: boolean;
+}
+
+// ─── HEADER BUTTON ────────────────────────────────────────────────────────────
+
+type Tone = 'blue' | 'orange' | 'red' | 'neutral';
+
+const TONE: Record<Tone, string> = {
+  blue:    'border-accent-blue/40 text-accent-blue bg-accent-blue/10 hover:bg-accent-blue/20 hover:border-accent-blue/70',
+  orange:  'border-accent-orange/40 text-accent-orange bg-accent-orange/10 hover:bg-accent-orange/20 hover:border-accent-orange/70',
+  red:     'border-accent-red/30 text-accent-red bg-transparent hover:bg-accent-red/10 hover:border-accent-red/60',
+  neutral: 'border-bg-border text-text-secondary hover:text-text-primary hover:bg-bg-hover',
+};
+
+function HeaderButton({
+  onClick, loading, tone, Icon, label, loadingLabel, title, iconOnlyOnMobile = true,
+}: {
+  onClick: () => void;
+  loading: boolean;
+  tone: Tone;
+  Icon: LucideIcon;
+  label: string;
+  loadingLabel: string;
+  title: string;
+  iconOnlyOnMobile?: boolean;
+}) {
+  return (
+    <button
+      onClick={onClick}
+      disabled={loading}
+      title={title}
+      aria-label={label}
+      aria-busy={loading}
+      className={`
+        inline-flex items-center gap-1.5 h-8 px-3 rounded-md border font-sans text-xs font-medium whitespace-nowrap
+        transition-colors duration-150 active:scale-[0.98]
+        disabled:cursor-not-allowed disabled:opacity-60
+        ${TONE[tone]}
+      `}
+    >
+      {loading
+        ? <span className="w-3.5 h-3.5 border-2 border-current border-t-transparent rounded-full animate-spin flex-shrink-0" />
+        : <Icon size={14} strokeWidth={2} className="flex-shrink-0" />}
+      <span className={iconOnlyOnMobile ? 'hidden sm:inline' : ''}>{loading ? loadingLabel : label}</span>
+    </button>
+  );
 }
 
 // ─── LAYOUT ───────────────────────────────────────────────────────────────────
@@ -34,27 +80,29 @@ export function DashboardLayout({
   onAiBrief,
   aiBriefLoading = false,
   showAiBrief = false,
-  onAdvancePhase,                   // ← ADD
-  advancePhaseLoading = false,      // ← ADD
-  showAdvancePhase = false,         // ← ADD
-  advancePhaseLabel = 'Advance Phase', // ← ADD
+  onAdvancePhase,
+  advancePhaseLoading = false,
+  showAdvancePhase = false,
+  advancePhaseLabel = 'Advance Phase',
   onReset,
   resetLoading = false,
   showReset = false,
 }: DashboardLayoutProps) {
+  const hasPhaseControls = (showAdvancePhase && onAdvancePhase) || (showReset && onReset);
+
   return (
     <div className="flex-1 flex flex-col min-h-0">
 
       {/* ── HEADER ── */}
-      <div className="flex items-center justify-between px-6 py-3 border-b border-bg-border flex-shrink-0 gap-4">
+      <header className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2 px-4 md:px-6 py-3 border-b border-bg-border bg-bg-primary/95 backdrop-blur flex-shrink-0">
 
-        {/* Left — title + last updated stacked */}
-        <div className="flex flex-col min-w-0">
-          <h1 className="font-sans font-bold text-text-primary text-base leading-tight truncate">
+        {/* Left — title + last updated */}
+        <div className="flex items-baseline gap-3 min-w-0">
+          <h1 className="font-display font-bold text-text-primary text-lg leading-tight truncate">
             {title}
           </h1>
           {lastUpdated && (
-            <span className="font-mono text-[9px] text-text-muted mt-0.5 hidden sm:block">
+            <span className="font-mono text-[11px] text-text-muted hidden sm:inline whitespace-nowrap">
               updated {lastUpdated.toLocaleTimeString('en-GB', {
                 hour: '2-digit',
                 minute: '2-digit',
@@ -64,175 +112,69 @@ export function DashboardLayout({
           )}
         </div>
 
-        {/* Right — action buttons */}
+        {/* Right — actions. Destructive reset sits last, apart from the rest. */}
         <div className="flex items-center gap-2 flex-shrink-0">
 
-          {/* AI Brief button */}
-          {showAiBrief && onAiBrief && (
-            <button
-              onClick={onAiBrief}
-              disabled={aiBriefLoading}
-              title="Generate AI operational brief"
-              className={`
-                flex items-center gap-1.5 px-3 py-1.5 rounded border font-mono text-xs
-                transition-all duration-150
-                ${aiBriefLoading
-                  ? 'border-bg-border text-text-muted cursor-not-allowed bg-bg-elevated'
-                  : 'border-accent-blue/40 text-accent-blue bg-accent-blue/5 hover:bg-accent-blue/15 hover:border-accent-blue/60 active:scale-95'
-                }
-              `}
-            >
-              {aiBriefLoading ? (
-                <>
-                  <div className="w-3 h-3 border border-text-muted border-t-accent-blue rounded-full animate-spin flex-shrink-0" />
-                  <span className="hidden sm:inline">Generating...</span>
-                </>
-              ) : (
-                <>
-                  <span>🤖</span>
-                  <span className="hidden sm:inline">Generate AI Brief</span>
-                  <span className="sm:hidden">AI</span>
-                </>
-              )}
-            </button>
-          )}
-
-          {/* Divider between AI brief and phase controls */}
-          {showAiBrief && (showAdvancePhase || showReset) && (
-            <div className="h-5 w-px bg-bg-border flex-shrink-0" />
-          )}
-
-          {/* Advance Phase button — EC and SUPER_ADMIN, phases 1 only */}
-          {showAdvancePhase && onAdvancePhase && (
-            <button
-              onClick={onAdvancePhase}
-              disabled={advancePhaseLoading}
-              title={advancePhaseLabel}
-              className={`
-                flex items-center gap-1.5 px-3 py-1.5 rounded border font-mono text-xs
-                transition-all duration-150
-                ${advancePhaseLoading
-                  ? 'border-bg-border text-text-muted cursor-not-allowed bg-bg-elevated'
-                  : 'border-accent-orange/40 text-accent-orange bg-accent-orange/5 hover:bg-accent-orange/15 hover:border-accent-orange/60 active:scale-95'
-                }
-              `}
-            >
-              {advancePhaseLoading ? (
-                <>
-                  <div className="w-3 h-3 border border-text-muted border-t-accent-orange rounded-full animate-spin flex-shrink-0" />
-                  <span className="hidden sm:inline">Advancing...</span>
-                </>
-              ) : (
-                <>
-                  <svg width="11" height="11" viewBox="0 0 12 12" fill="none" className="flex-shrink-0">
-                    <path d="M6 1v10M6 1l4 4M6 1L2 5" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round"/>
-                  </svg>
-                  <span className="hidden sm:inline">{advancePhaseLabel}</span>
-                  <span className="sm:hidden">Ph2</span>
-                </>
-              )}
-            </button>
-          )}
-
-          {/* Divider between advance and reset */}
-          {showAdvancePhase && showReset && (
-            <div className="h-5 w-px bg-bg-border flex-shrink-0" />
-          )}
-
-          {/* Reset System button — SUPER_ADMIN only */}
-          {showReset && onReset && (
-            <button
-              onClick={onReset}
-              disabled={resetLoading}
-              title="Close and archive the flood event, return to Phase 0 (SUPER_ADMIN only)"
-              className={`
-                flex items-center gap-1.5 px-3 py-1.5 rounded border font-mono text-xs
-                transition-all duration-150
-                ${resetLoading
-                  ? 'border-bg-border text-text-muted cursor-not-allowed bg-bg-elevated'
-                  : 'border-accent-red/40 text-accent-red bg-accent-red/5 hover:bg-accent-red/15 hover:border-accent-red/60 active:scale-95'
-                }
-              `}
-            >
-              {resetLoading ? (
-                <>
-                  <div className="w-3 h-3 border border-text-muted border-t-accent-red rounded-full animate-spin flex-shrink-0" />
-                  <span className="hidden sm:inline">Resetting...</span>
-                </>
-              ) : (
-                <>
-                  {/* Reset icon */}
-                  <svg width="11" height="11" viewBox="0 0 12 12" fill="none" className="flex-shrink-0">
-                    <path
-                      d="M1 6a5 5 0 1 0 1.5-3.54"
-                      stroke="currentColor"
-                      strokeWidth="1.3"
-                      strokeLinecap="round"
-                    />
-                    <path
-                      d="M1 2v2.5H3.5"
-                      stroke="currentColor"
-                      strokeWidth="1.3"
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                    />
-                  </svg>
-                  <span className="hidden sm:inline">Reset System</span>
-                  <span className="sm:hidden">Reset</span>
-                </>
-              )}
-            </button>
-          )}
-
-          {/* Divider before refresh */}
-          {onRefresh && (showAiBrief || showReset) && (
-            <div className="h-5 w-px bg-bg-border flex-shrink-0" />
-          )}
-
-          {/* Refresh button */}
           {onRefresh && (
             <button
               onClick={onRefresh}
               disabled={isRefreshing}
-              title="Refresh dashboard data"
-              className={`
-                flex items-center gap-1.5 px-2.5 py-1.5 rounded border font-mono text-xs
-                transition-all duration-150
-                ${isRefreshing
-                  ? 'border-bg-border text-text-muted cursor-not-allowed'
-                  : 'border-bg-border text-text-muted hover:text-text-primary hover:border-text-muted/40 active:scale-95'
-                }
-              `}
+              title="Refresh data"
+              aria-label="Refresh data"
+              className="inline-flex items-center justify-center w-8 h-8 rounded-md border border-bg-border text-text-secondary hover:text-text-primary hover:bg-bg-hover transition-colors duration-150 disabled:cursor-not-allowed disabled:opacity-60"
             >
-              {isRefreshing ? (
-                <div className="w-3 h-3 border border-text-muted border-t-text-primary rounded-full animate-spin" />
-              ) : (
-                <svg width="12" height="12" viewBox="0 0 12 12" fill="none">
-                  <path
-                    d="M10 6A4 4 0 1 1 6 2a4 4 0 0 1 2.83 1.17L10 4.5"
-                    stroke="currentColor"
-                    strokeWidth="1.2"
-                    strokeLinecap="round"
-                  />
-                  <path
-                    d="M8 4.5h2V2.5"
-                    stroke="currentColor"
-                    strokeWidth="1.2"
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                  />
-                </svg>
-              )}
-              <span className="hidden sm:inline">refresh</span>
+              <RefreshCw size={14} className={isRefreshing ? 'animate-spin' : ''} />
             </button>
           )}
 
+          {showAiBrief && onAiBrief && (
+            <HeaderButton
+              onClick={onAiBrief}
+              loading={aiBriefLoading}
+              tone="blue"
+              Icon={Sparkles}
+              label="AI Brief"
+              loadingLabel="Generating…"
+              title="Generate AI operational brief"
+            />
+          )}
+
+          {hasPhaseControls && (showAiBrief || onRefresh) && (
+            <div className="h-5 w-px bg-bg-border flex-shrink-0 mx-0.5" aria-hidden="true" />
+          )}
+
+          {showAdvancePhase && onAdvancePhase && (
+            <HeaderButton
+              onClick={onAdvancePhase}
+              loading={advancePhaseLoading}
+              tone="orange"
+              Icon={ArrowUpCircle}
+              label={advancePhaseLabel}
+              loadingLabel="Advancing…"
+              title={advancePhaseLabel}
+            />
+          )}
+
+          {showReset && onReset && (
+            <HeaderButton
+              onClick={onReset}
+              loading={resetLoading}
+              tone="red"
+              Icon={RotateCcw}
+              label="Close Event"
+              loadingLabel="Closing…"
+              title="Close and archive the flood event, return to Phase 0 (SUPER_ADMIN only)"
+            />
+          )}
+
         </div>
-      </div>
+      </header>
 
       {/* ── CONTENT ── */}
-      <div className="flex-1 overflow-y-auto p-6">
-        {children}
+      <div className="flex-1 overflow-y-auto">
+        <div className="p-4 md:p-6 max-w-[1600px] mx-auto w-full">
+          {children}
+        </div>
       </div>
 
     </div>

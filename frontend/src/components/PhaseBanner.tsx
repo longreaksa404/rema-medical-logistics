@@ -89,7 +89,7 @@ export function PhaseBanner({ phase, activated, activatedAt, triggerConditions }
               .map(([key, value]) => (
                 <span
                   key={key}
-                  className={`font-mono text-[10px] px-2 py-0.5 rounded border ${
+                  className={`font-mono text-[11px] px-2 py-0.5 rounded border ${
                     value
                       ? phase === 2
                         ? 'text-accent-red border-accent-red/40 bg-accent-red/10'
@@ -105,7 +105,7 @@ export function PhaseBanner({ phase, activated, activatedAt, triggerConditions }
 
         {formattedActivatedAt && (
           <div className="text-right">
-            <p className="font-mono text-[10px] text-text-muted">Activated</p>
+            <p className="font-mono text-[11px] text-text-muted">Activated</p>
             <p className="font-mono text-xs text-text-secondary">{formattedActivatedAt}</p>
           </div>
         )}

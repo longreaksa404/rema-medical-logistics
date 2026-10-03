@@ -64,8 +64,8 @@ export function RadioCompliancePanel() {
       {/* Header */}
       <div className="flex items-start justify-between mb-4">
         <div>
-          <h2 className="font-sans font-bold uppercase text-text-primary">Radio Check-ins</h2>
-          <p className="font-mono text-[10px] text-text-muted mt-0.5">
+          <h2 className="font-display font-bold text-text-primary">Radio Check-ins</h2>
+          <p className="font-mono text-[11px] text-text-muted mt-0.5">
             08:00 · 12:00 · 16:00 · 20:00
           </p>
         </div>
@@ -73,17 +73,17 @@ export function RadioCompliancePanel() {
           <p className={`font-mono text-lg font-semibold tabular-nums ${overallColor}`}>
             {completedSlots}/{data.length * 4}
           </p>
-          <p className="font-mono text-[9px] text-text-muted">slots filled</p>
+          <p className="font-mono text-[10px] text-text-muted">slots filled</p>
         </div>
       </div>
 
       {/* Compliance progress bar */}
       <div className="mb-4">
         <div className="flex justify-between items-baseline mb-1.5">
-          <span className="font-mono text-[10px] text-text-muted uppercase tracking-widest">
+          <span className="font-mono text-[11px] text-text-muted uppercase tracking-widest">
             Today's Compliance
           </span>
-          <span className={`font-mono text-[10px] font-semibold tabular-nums ${overallColor}`}>
+          <span className={`font-mono text-[11px] font-semibold tabular-nums ${overallColor}`}>
             {completedSlots} of {data.length * 4} slots
           </span>
         </div>
@@ -103,7 +103,7 @@ export function RadioCompliancePanel() {
       {hasCritical && (
         <div className="mb-4 flex items-start gap-2 bg-accent-red/10 border border-accent-red/25 rounded-lg px-3 py-2.5">
           <span className="w-1.5 h-1.5 rounded-full bg-accent-red animate-pulse-slow flex-shrink-0 mt-0.5" />
-          <p className="font-mono text-[10px] text-accent-red leading-snug">
+          <p className="font-mono text-[11px] text-accent-red leading-snug">
             Missed 2+ check-ins — contact Hub Manager immediately
           </p>
         </div>
@@ -111,7 +111,7 @@ export function RadioCompliancePanel() {
       {!hasCritical && hasIssues && (
         <div className="mb-4 flex items-start gap-2 bg-accent-orange/10 border border-accent-orange/20 rounded-lg px-3 py-2.5">
           <span className="w-1.5 h-1.5 rounded-full bg-accent-orange flex-shrink-0 mt-0.5" />
-          <p className="font-mono text-[10px] text-accent-orange leading-snug">
+          <p className="font-mono text-[11px] text-accent-orange leading-snug">
             Issues reported in one or more check-ins today
           </p>
         </div>
@@ -119,13 +119,13 @@ export function RadioCompliancePanel() {
 
       {/* Column headers */}
       <div className="grid grid-cols-[1fr_auto_auto_auto_auto_auto] items-center gap-x-5 mb-1 px-1">
-        <span className="font-mono text-[9px] text-text-muted uppercase tracking-widest">District</span>
+        <span className="font-mono text-[10px] text-text-muted uppercase tracking-widest">District</span>
         {ALL_SLOTS.map((slot) => (
-          <span key={slot} className="font-mono text-[9px] text-text-muted text-center w-10">
+          <span key={slot} className="font-mono text-[10px] text-text-muted text-center w-10">
             {SLOT_LABELS[slot]}
           </span>
         ))}
-        <span className="font-mono text-[9px] text-text-muted text-right w-8">Fill</span>
+        <span className="font-mono text-[10px] text-text-muted text-right w-8">Fill</span>
       </div>
 
       {/* District rows */}
@@ -150,12 +150,12 @@ export function RadioCompliancePanel() {
                   {entry.districtName}
                 </span>
                 {isCritical && (
-                  <span className="font-mono text-[8px] text-accent-red bg-accent-red/15 border border-accent-red/25 px-1.5 py-0.5 rounded flex-shrink-0">
+                  <span className="font-mono text-[10px] text-accent-red bg-accent-red/15 border border-accent-red/25 px-1.5 py-0.5 rounded flex-shrink-0">
                     {missed} MISSED
                   </span>
                 )}
                 {!isCritical && entry.issuesReported && (
-                  <span className="font-mono text-[8px] text-accent-orange bg-accent-orange/15 border border-accent-orange/25 px-1.5 py-0.5 rounded flex-shrink-0">
+                  <span className="font-mono text-[10px] text-accent-orange bg-accent-orange/15 border border-accent-orange/25 px-1.5 py-0.5 rounded flex-shrink-0">
                     ISSUE
                   </span>
                 )}
@@ -185,7 +185,7 @@ export function RadioCompliancePanel() {
               })}
 
               {/* Fill fraction */}
-              <span className={`font-mono text-[10px] font-semibold text-right w-8 tabular-nums ${
+              <span className={`font-mono text-[11px] font-semibold text-right w-8 tabular-nums ${
                 entry.completedSlots.length === 4 ? 'text-accent-green' :
                 isCritical                        ? 'text-accent-red'   :
                 entry.completedSlots.length > 0   ? 'text-accent-yellow' :

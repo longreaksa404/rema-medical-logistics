@@ -1,4 +1,5 @@
 import { useEffect, useRef } from 'react';
+import { Sparkles } from 'lucide-react';
 import type { AiBriefResponse } from '../api/ai';
 
 // ─── PROPS ────────────────────────────────────────────────────────────────────
@@ -28,7 +29,7 @@ function BriefSection({
 }) {
   return (
     <div className={`rounded border ${borderColor} bg-bg-elevated p-4`}>
-      <p className="font-mono text-[10px] uppercase tracking-widest text-text-muted mb-1.5">
+      <p className="font-mono text-[11px] uppercase tracking-widest text-text-muted mb-1.5">
         {icon} {label}
       </p>
       <p className={`font-sans text-sm leading-relaxed ${color}`}>{text}</p>
@@ -41,7 +42,7 @@ function BriefSection({
 function SnapshotRow({ label, value }: { label: string; value: string | number }) {
   return (
     <div className="flex justify-between items-center py-1 border-b border-bg-border last:border-0">
-      <span className="font-mono text-[10px] text-text-muted uppercase tracking-wide">{label}</span>
+      <span className="font-mono text-[11px] text-text-muted uppercase tracking-wide">{label}</span>
       <span className="font-mono text-xs text-text-secondary">{value}</span>
     </div>
   );
@@ -77,18 +78,18 @@ export function AiBriefModal({ isOpen, isLoading, result, error, onClose }: AiBr
       className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4"
       onClick={handleBackdropClick}
     >
-      <div className="w-full max-w-2xl bg-bg-base border border-bg-border rounded-lg shadow-2xl animate-fade-in flex flex-col max-h-[90vh]">
+      <div role="dialog" aria-modal="true" aria-label="REMA AI Brief" className="w-full max-w-2xl bg-bg-secondary border border-bg-border rounded-xl shadow-2xl animate-fade-in flex flex-col max-h-[90vh]">
 
         {/* ── HEADER ── */}
         <div className="flex items-start justify-between px-6 pt-5 pb-4 border-b border-bg-border flex-shrink-0">
           <div>
             <div className="flex items-center gap-2 mb-1">
-              <span className="text-base">🤖</span>
+              <Sparkles size={15} className="text-accent-blue" aria-hidden="true" />
               <h2 className="font-mono text-sm font-semibold text-text-primary uppercase tracking-widest">
                 REMA AI Brief
               </h2>
             </div>
-            <p className="font-mono text-[10px] text-text-muted">
+            <p className="font-mono text-[11px] text-text-muted">
               Operational summary · Advisory only · Human decision required
             </p>
           </div>
@@ -108,7 +109,7 @@ export function AiBriefModal({ isOpen, isLoading, result, error, onClose }: AiBr
           <p className="font-mono text-xs text-accent-red font-semibold">
             ⚠ Advisory only — all decisions require human judgment and authority
           </p>
-          <p className="font-mono text-[10px] text-accent-red/70 mt-0.5">
+          <p className="font-mono text-[11px] text-accent-red/70 mt-0.5">
             This brief cannot trigger any system action. The Emergency Coordinator retains full decision authority.
           </p>
         </div>
@@ -121,7 +122,7 @@ export function AiBriefModal({ isOpen, isLoading, result, error, onClose }: AiBr
             <div className="flex flex-col items-center justify-center py-12 gap-3">
               <div className="w-6 h-6 border-2 border-text-muted border-t-accent-blue rounded-full animate-spin" />
               <p className="font-mono text-xs text-text-muted">Generating operational brief...</p>
-              <p className="font-mono text-[10px] text-text-muted">Reading live dashboard data · Calling AI model</p>
+              <p className="font-mono text-[11px] text-text-muted">Reading live dashboard data · Calling AI model</p>
             </div>
           )}
 
@@ -131,10 +132,10 @@ export function AiBriefModal({ isOpen, isLoading, result, error, onClose }: AiBr
               <p className="font-mono text-xs text-accent-orange font-semibold mb-1">
                 AI Brief temporarily unavailable
               </p>
-              <p className="font-mono text-[10px] text-accent-orange/80">
+              <p className="font-mono text-[11px] text-accent-orange/80">
                 {error}
               </p>
-              <p className="font-mono text-[10px] text-text-muted mt-2">
+              <p className="font-mono text-[11px] text-text-muted mt-2">
                 Use the dashboard directly to assess the current situation.
               </p>
             </div>
@@ -167,7 +168,7 @@ export function AiBriefModal({ isOpen, isLoading, result, error, onClose }: AiBr
               {/* Data snapshot — transparency section */}
               {snap && (
                 <div className="rounded border border-bg-border bg-bg-elevated p-4">
-                  <p className="font-mono text-[10px] uppercase tracking-widest text-text-muted mb-3">
+                  <p className="font-mono text-[11px] uppercase tracking-widest text-text-muted mb-3">
                     📋 Data used to generate this brief
                   </p>
                   <div>
@@ -190,7 +191,7 @@ export function AiBriefModal({ isOpen, isLoading, result, error, onClose }: AiBr
 
         {/* ── FOOTER ── */}
         <div className="px-6 py-4 border-t border-bg-border flex items-center justify-between flex-shrink-0">
-          <p className="font-mono text-[10px] text-text-muted">
+          <p className="font-mono text-[11px] text-text-muted">
             {result
               ? `Generated at ${new Date(result.generatedAt).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit', second: '2-digit' })} from live dashboard data`
               : 'REMA AI · Powered by Claude · Anthropic'}

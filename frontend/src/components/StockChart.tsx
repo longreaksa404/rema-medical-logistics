@@ -116,8 +116,8 @@ export const StockChart = memo(function StockChart({ districts, centralWarehouse
       {/* Header */}
       <div className="flex items-center justify-between mb-4">
         <div>
-          <h2 className="font-sans font-bold uppercase text-text-primary">Stock Levels</h2>
-          <p className="font-mono text-[10px] text-text-muted mt-0.5">
+          <h2 className="font-display font-bold text-text-primary">Stock Levels</h2>
+          <p className="font-mono text-[11px] text-text-muted mt-0.5">
             % remaining per EMK type — red bars below 30% scarcity threshold
           </p>
         </div>
@@ -126,7 +126,7 @@ export const StockChart = memo(function StockChart({ districts, centralWarehouse
             <>
               <div className="flex items-center gap-1.5">
                 <span className="w-1.5 h-3 rounded-sm inline-block bg-accent-orange opacity-85" />
-                <span className="font-mono text-[10px] text-accent-orange">Central</span>
+                <span className="font-mono text-[11px] text-accent-orange">Central</span>
               </div>
               <span className="text-bg-border text-xs">|</span>
             </>
@@ -138,7 +138,7 @@ export const StockChart = memo(function StockChart({ districts, centralWarehouse
           ].map(({ color, label }) => (
             <div key={label} className="flex items-center gap-1.5">
               <span className="w-1.5 h-3 rounded-sm inline-block" style={{ background: color }} />
-              <span className="font-mono text-[10px] text-text-muted">{label}</span>
+              <span className="font-mono text-[11px] text-text-muted">{label}</span>
             </div>
           ))}
         </div>
@@ -206,7 +206,7 @@ export const StockChart = memo(function StockChart({ districts, centralWarehouse
       {/* Scarcity label */}
       <div className="flex items-center gap-2 mt-1 mb-3">
         <div className="h-px flex-1" style={{ backgroundImage: 'repeating-linear-gradient(90deg, #f85149 0, #f85149 6px, transparent 6px, transparent 8px)' }} />
-        <span className="font-mono text-[9px] text-accent-red/60 flex-shrink-0">30% scarcity threshold</span>
+        <span className="font-mono text-[10px] text-accent-red/60 flex-shrink-0">30% scarcity threshold</span>
         <div className="h-px flex-1" style={{ backgroundImage: 'repeating-linear-gradient(90deg, #f85149 0, #f85149 6px, transparent 6px, transparent 8px)' }} />
       </div>
 
@@ -224,7 +224,7 @@ export const StockChart = memo(function StockChart({ districts, centralWarehouse
                 : 'bg-bg-elevated'
             }`}
           >
-            <p className={`font-mono text-[9px] uppercase tracking-wide mb-1.5 ${
+            <p className={`font-mono text-[10px] uppercase tracking-wide mb-1.5 ${
               d.isCentral ? 'text-accent-orange' : 'text-text-muted'
             }`}>
               {d.name}
@@ -240,12 +240,12 @@ export const StockChart = memo(function StockChart({ districts, centralWarehouse
                 const mohHeld = label === 'EMK3' && tot === 0 && d.isCentral;
                 return (
                   <div key={label} className="flex justify-between items-center">
-                    <span className={`font-mono text-[10px] ${
+                    <span className={`font-mono text-[11px] ${
                       scarce ? 'text-accent-red' : d.isCentral ? 'text-accent-orange/60' : 'text-text-muted'
                     }`}>
                       {label}
                     </span>
-                    <span className={`font-mono text-[10px] font-semibold ${
+                    <span className={`font-mono text-[11px] font-semibold ${
                       scarce ? 'text-accent-red' : d.isCentral ? 'text-accent-orange' : 'text-text-secondary'
                     }`}>
                       {mohHeld

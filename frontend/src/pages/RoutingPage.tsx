@@ -73,8 +73,8 @@ function DepthSlider({ label, value, onChange }: {
   return (
     <div className="card px-4 py-3">
       <div className="flex items-center justify-between mb-2">
-        <p className="font-mono text-[10px] text-text-muted uppercase tracking-widest">{label}</p>
-        <span className={`font-mono text-[10px] font-semibold ${cfg.color} flex items-center gap-1`}>
+        <p className="font-mono text-[11px] text-text-muted uppercase tracking-widest">{label}</p>
+        <span className={`font-mono text-[11px] font-semibold ${cfg.color} flex items-center gap-1`}>
           {cfg.icon} {cfg.label}
         </span>
       </div>
@@ -86,11 +86,11 @@ function DepthSlider({ label, value, onChange }: {
           style={{ accentColor: cfg.fillColor }}
         />
         <span className="font-mono text-sm font-semibold text-text-primary w-14 text-right tabular-nums">
-          {value}<span className="text-[10px] text-text-muted">cm</span>
+          {value}<span className="text-[11px] text-text-muted">cm</span>
         </span>
       </div>
       {value > 80 && (
-        <p className="mt-2 font-mono text-[10px] text-accent-red flex items-center gap-1.5">
+        <p className="mt-2 font-mono text-[11px] text-accent-red flex items-center gap-1.5">
           <span className="w-1.5 h-1.5 rounded-full bg-accent-red animate-pulse-slow inline-block flex-shrink-0" />
           Delivery suspended above 80 cm (Section A.4)
         </p>
@@ -107,18 +107,18 @@ function RouteLogRow({ log }: { log: RouteLog }) {
   return (
     <div className="px-4 py-3 flex items-start justify-between gap-4 hover:bg-bg-elevated/40 transition-colors duration-100">
       <div className="min-w-0">
-        <p className="font-mono text-[10px] text-text-muted mb-0.5">
+        <p className="font-mono text-[11px] text-text-muted mb-0.5">
           {log.route?.district?.name ?? '-'} &bull; {log.route?.zone ?? '-'}
         </p>
         <div className="flex items-center gap-2 flex-wrap">
           <span className={`font-mono text-xs ${prevCfg.color}`}>{prevCfg.icon} {log.previousDepth}cm</span>
-          <span className="text-text-muted font-mono text-[10px]">-&gt;</span>
+          <span className="text-text-muted font-mono text-[11px]">-&gt;</span>
           <span className={`font-mono text-xs font-semibold ${newCfg.color}`}>
             {newCfg.icon} {log.newDepth}cm - {newCfg.label}
           </span>
         </div>
       </div>
-      <span className="font-mono text-[10px] text-text-muted flex-shrink-0">
+      <span className="font-mono text-[11px] text-text-muted flex-shrink-0">
         {new Date(log.createdAt).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' })}
       </span>
     </div>
@@ -147,13 +147,13 @@ function DistrictSummaryCard({ district, depths, isSelected, onClick }: {
       {/* header row */}
       <div className="flex items-start justify-between gap-2 mb-3">
         <div>
-          <p className="font-sans font-bold text-text-primary">{district.name}</p>
-          <p className="font-mono text-[10px] text-text-muted mt-0.5">
+          <p className="font-display font-bold text-text-primary">{district.name}</p>
+          <p className="font-mono text-[11px] text-text-muted mt-0.5">
             {district.householdsAssessed} assessed
           </p>
         </div>
         {hasSuspended && (
-          <span className="flex items-center gap-1 font-mono text-[10px] font-semibold text-accent-red bg-accent-red/10 border border-accent-red/30 px-2 py-0.5 rounded flex-shrink-0 mt-0.5">
+          <span className="flex items-center gap-1 font-mono text-[11px] font-semibold text-accent-red bg-accent-red/10 border border-accent-red/30 px-2 py-0.5 rounded flex-shrink-0 mt-0.5">
             <span className="w-1.5 h-1.5 rounded-full bg-accent-red animate-pulse-slow inline-block" />
             {suspendedCount} suspended
           </span>
@@ -177,7 +177,7 @@ function DistrictSummaryCard({ district, depths, isSelected, onClick }: {
               {/* left: icon + zone name */}
               <div className="flex items-center gap-2">
                 <span className="text-sm leading-none w-5 text-center">{cfg.icon}</span>
-                <span className="font-mono text-[10px] text-text-muted uppercase tracking-widest">
+                <span className="font-mono text-[11px] text-text-muted uppercase tracking-widest">
                   {zone}
                 </span>
               </div>
@@ -186,7 +186,7 @@ function DistrictSummaryCard({ district, depths, isSelected, onClick }: {
                 <span className={`font-mono text-xs font-semibold tabular-nums ${cfg.color}`}>
                   {dep}cm
                 </span>
-                <span className={`font-mono text-[9px] ${cfg.color} ${
+                <span className={`font-mono text-[10px] ${cfg.color} ${
                   isSuspended ? 'font-bold' : 'text-text-muted'
                 }`}>
                   {isSuspended ? 'SUSPENDED' : cfg.label}
@@ -199,23 +199,23 @@ function DistrictSummaryCard({ district, depths, isSelected, onClick }: {
 
       {/* household stats footer — real data from API */}
       <div className="flex items-center justify-between pt-2.5 flex-wrap gap-x-3 gap-y-1">
-        <span className="font-mono text-[10px] text-text-muted">
+        <span className="font-mono text-[11px] text-text-muted">
           <span className="text-accent-green font-semibold">{district.deliveredCount}</span> delivered
         </span>
         {pendingDelivery > 0 && (
-          <span className="font-mono text-[10px] text-text-muted">
+          <span className="font-mono text-[11px] text-text-muted">
             <span className="text-accent-yellow font-semibold">{pendingDelivery}</span> pending
           </span>
         )}
         {district.openIncidents > 0 && (
-          <span className="font-mono text-[10px] text-text-muted">
+          <span className="font-mono text-[11px] text-text-muted">
             <span className="text-accent-red font-semibold">{district.openIncidents}</span> incidents
           </span>
         )}
       </div>
 
       {isSelected && (
-        <p className="font-mono text-[9px] text-accent-blue mt-2 animate-pulse-slow">
+        <p className="font-mono text-[10px] text-accent-blue mt-2 animate-pulse-slow">
           Adjusting in sidebar -&gt;
         </p>
       )}
@@ -349,7 +349,7 @@ export function RoutingPage() {
 
         {anySuspended && (
           <div className="bg-accent-red/10 border border-accent-red/30 rounded px-4 py-3 animate-slide-in flex items-center gap-3">
-            <span className="font-mono text-[10px] font-semibold text-accent-red uppercase tracking-widest px-2 py-0.5 bg-accent-red/20 rounded flex-shrink-0">
+            <span className="font-mono text-[11px] font-semibold text-accent-red uppercase tracking-widest px-2 py-0.5 bg-accent-red/20 rounded flex-shrink-0">
               SUSPENDED
             </span>
             <p className="font-mono text-xs text-accent-red">
@@ -371,8 +371,8 @@ export function RoutingPage() {
                   {Object.values(MODE_CONFIG).map(cfg => (
                     <div key={cfg.label} className="flex items-center gap-1.5">
                       <div className="w-2.5 h-2.5 rounded-full flex-shrink-0" style={{ backgroundColor: cfg.fillColor }} />
-                      <span className="font-mono text-[10px] text-text-muted">{cfg.depth}</span>
-                      <span className="font-mono text-[10px] text-text-secondary">{cfg.icon} {cfg.label}</span>
+                      <span className="font-mono text-[11px] text-text-muted">{cfg.depth}</span>
+                      <span className="font-mono text-[11px] text-text-secondary">{cfg.icon} {cfg.label}</span>
                     </div>
                   ))}
                 </div>
@@ -420,16 +420,16 @@ export function RoutingPage() {
               </h2>
               {!selectedDistrictName ? (
                 <div className="card px-4 py-8 text-center">
-                  <p className="font-mono text-[10px] text-text-muted uppercase tracking-widest">
+                  <p className="font-mono text-[11px] text-text-muted uppercase tracking-widest">
                     Select a district on the map
                   </p>
                 </div>
               ) : !canEditSelected ? (
                 <div className="card px-4 py-8 text-center space-y-2">
-                  <p className="font-mono text-[10px] text-text-muted uppercase tracking-widest">
+                  <p className="font-mono text-[11px] text-text-muted uppercase tracking-widest">
                     Read-only
                   </p>
-                  <p className="font-mono text-[10px] text-text-muted">
+                  <p className="font-mono text-[11px] text-text-muted">
                     You can only adjust water depth for your own district
                   </p>
                 </div>
@@ -450,7 +450,7 @@ export function RoutingPage() {
                           <button
                             onClick={() => handleSaveDepth(selectedDistrictId!, selectedDistrictName!, zone, depth)}
                             disabled={status === 'saving'}
-                            className={`font-mono text-[10px] px-3 py-1 rounded border transition-all duration-150 ${
+                            className={`font-mono text-[11px] px-3 py-1 rounded border transition-all duration-150 ${
                               status === 'saved'  ? 'bg-accent-green/10 border-accent-green/30 text-accent-green' :
                               status === 'error'  ? 'bg-accent-red/10 border-accent-red/30 text-accent-red' :
                               status === 'saving' ? 'bg-bg-elevated border-bg-border text-text-muted cursor-not-allowed' :
@@ -478,7 +478,7 @@ export function RoutingPage() {
                       <span>{cfg.icon}</span>
                       <span className={`font-mono text-xs font-semibold ${cfg.color}`}>{cfg.label}</span>
                     </div>
-                    <span className="font-mono text-[10px] text-text-muted">{cfg.depth}</span>
+                    <span className="font-mono text-[11px] text-text-muted">{cfg.depth}</span>
                   </div>
                 ))}
               </div>
@@ -491,7 +491,7 @@ export function RoutingPage() {
               <div className="card overflow-hidden">
                 {logs.length === 0 ? (
                   <div className="px-4 py-8 text-center">
-                    <p className="font-mono text-[10px] text-text-muted uppercase tracking-widest">
+                    <p className="font-mono text-[11px] text-text-muted uppercase tracking-widest">
                       No route changes recorded
                     </p>
                   </div>

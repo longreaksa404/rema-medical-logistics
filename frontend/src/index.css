@@ -1,4 +1,4 @@
-@import url('https://fonts.googleapis.com/css2?family=Syne:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Syne:wght@600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap');
 
 @tailwind base;
 @tailwind components;
@@ -12,82 +12,131 @@
   html {
     background-color: #0a0c0f;
     color: #e6edf3;
+    color-scheme: dark;
   }
 
   body {
     margin: 0;
-    font-family: 'Syne', system-ui, sans-serif;
+    font-family: 'Inter', system-ui, -apple-system, 'Segoe UI', sans-serif;
+    font-feature-settings: 'cv11', 'ss01';
     background-color: #0a0c0f;
     color: #e6edf3;
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
+    -webkit-tap-highlight-color: transparent;
+  }
+
+  h1, h2, h3 {
+    font-family: 'Syne', 'Inter', system-ui, sans-serif;
+    letter-spacing: -0.01em;
+  }
+
+  /* Numbers line up in tables, counters and stock figures */
+  .font-mono, table {
+    font-variant-numeric: tabular-nums;
+  }
+
+  ::selection {
+    background: rgba(88, 166, 255, 0.3);
+  }
+
+  /* Keyboard focus is always visible; mouse clicks stay clean */
+  :focus-visible {
+    outline: 2px solid #58a6ff;
+    outline-offset: 2px;
+    border-radius: 4px;
+  }
+  input:focus-visible,
+  textarea:focus-visible,
+  select:focus-visible {
+    outline: none;
   }
 
   /* Scrollbar styling */
   ::-webkit-scrollbar {
-    width: 6px;
-    height: 6px;
+    width: 8px;
+    height: 8px;
   }
   ::-webkit-scrollbar-track {
-    background: #111418;
+    background: transparent;
   }
   ::-webkit-scrollbar-thumb {
-    background: #21262d;
-    border-radius: 3px;
+    background: #262c36;
+    border-radius: 4px;
+    border: 2px solid transparent;
+    background-clip: padding-box;
   }
   ::-webkit-scrollbar-thumb:hover {
-    background: #30363d;
+    background: #3a414c;
+    background-clip: padding-box;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    *, *::before, *::after {
+      animation-duration: 0.01ms !important;
+      animation-iteration-count: 1 !important;
+      transition-duration: 0.01ms !important;
+      scroll-behavior: auto !important;
+    }
   }
 }
 
 @layer components {
   /* Card */
   .card {
-    @apply bg-bg-secondary border border-bg-border rounded-lg;
+    @apply bg-bg-secondary border border-bg-border rounded-xl;
   }
 
   /* Input */
   .input {
-    @apply w-full bg-bg-elevated border border-bg-border rounded px-3 py-2
-           text-text-primary font-mono text-sm
+    @apply w-full bg-bg-elevated border border-bg-border rounded-md px-3 py-2
+           text-text-primary font-mono text-sm min-h-[38px]
            placeholder:text-text-muted
-           focus:outline-none focus:border-accent-blue
-           transition-colors duration-150;
+           hover:border-[#3a414c]
+           focus:outline-none focus:border-accent-blue focus:ring-2 focus:ring-accent-blue/25
+           disabled:opacity-50 disabled:cursor-not-allowed
+           transition-[border-color,box-shadow] duration-150;
   }
 
-  /* Button variants */
+  /* Button variants — disabled state is neutral grey so it never reads as an
+     active control (previously a dimmed blue that looked clickable). */
   .btn-primary {
-    @apply bg-accent-blue text-bg-primary font-sans font-semibold text-sm
-           px-4 py-2 rounded
-           hover:opacity-90 active:opacity-80
-           disabled:opacity-40 disabled:cursor-not-allowed
-           transition-opacity duration-150;
+    @apply inline-flex items-center justify-center gap-2
+           bg-accent-blue text-bg-primary font-sans font-semibold text-sm
+           px-4 py-2 min-h-[38px] rounded-md border border-accent-blue
+           hover:bg-[#79b8ff] hover:border-[#79b8ff] active:scale-[0.99]
+           disabled:bg-bg-elevated disabled:border-bg-border disabled:text-text-muted
+           disabled:cursor-not-allowed disabled:active:scale-100
+           transition-[background-color,border-color,transform] duration-150;
   }
 
   .btn-ghost {
-    @apply bg-transparent border border-bg-border text-text-secondary font-sans text-sm
-           px-4 py-2 rounded
-           hover:border-text-muted hover:text-text-primary
-           disabled:opacity-40 disabled:cursor-not-allowed
+    @apply inline-flex items-center justify-center gap-2
+           bg-transparent border border-bg-border text-text-secondary font-sans text-sm
+           px-4 py-2 min-h-[38px] rounded-md
+           hover:border-[#3a414c] hover:bg-bg-hover hover:text-text-primary
+           disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:bg-transparent
            transition-colors duration-150;
   }
 
   .btn-danger {
-    @apply bg-accent-red text-white font-sans font-semibold text-sm
-           px-4 py-2 rounded
-           hover:opacity-90 active:opacity-80
-           disabled:opacity-40 disabled:cursor-not-allowed
-           transition-opacity duration-150;
+    @apply inline-flex items-center justify-center gap-2
+           bg-accent-red text-white font-sans font-semibold text-sm
+           px-4 py-2 min-h-[38px] rounded-md border border-accent-red
+           hover:bg-[#ff6a63] hover:border-[#ff6a63] active:scale-[0.99]
+           disabled:bg-bg-elevated disabled:border-bg-border disabled:text-text-muted
+           disabled:cursor-not-allowed disabled:active:scale-100
+           transition-[background-color,border-color,transform] duration-150;
   }
 
   /* Label */
   .label {
-    @apply block text-xs font-mono text-text-secondary uppercase tracking-widest mb-1;
+    @apply block text-[11px] font-mono text-text-secondary uppercase tracking-wider mb-1.5;
   }
 
   /* Phase badge */
   .phase-badge {
-    @apply inline-flex items-center gap-1.5 px-2.5 py-1 rounded text-xs font-mono font-500;
+    @apply inline-flex items-center gap-1.5 px-2.5 py-1 rounded text-xs font-mono font-medium;
   }
 
   /* Monospace data value */

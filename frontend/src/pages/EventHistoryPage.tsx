@@ -44,7 +44,7 @@ export function EventHistoryPage() {
   return (
     <DashboardLayout title="Event History" onRefresh={() => refetch()} isRefreshing={isFetching}>
       <div className="space-y-4 max-w-5xl">
-        <p className="font-mono text-[10px] text-text-muted uppercase tracking-widest">
+        <p className="font-mono text-[11px] text-text-muted uppercase tracking-widest">
           One record per flood event · archived when a Super Admin closes the event · activity counted from opening to close
         </p>
 
@@ -83,13 +83,13 @@ function EventCard({ event }: { event: FloodEvent }) {
       <div className="flex flex-wrap items-start justify-between gap-3 mb-4">
         <div className="min-w-0">
           <p className="font-sans text-sm font-semibold text-text-primary">{eventTitle(event)}</p>
-          <p className="font-mono text-[10px] text-text-muted mt-0.5">
+          <p className="font-mono text-[11px] text-text-muted mt-0.5">
             Phase reached: {event.phaseReached}
             {event.activatedAt && ` · active for ${fmtDuration(event.activatedAt, event.closedAt)}`}
             {event.closedBy && ` · closed by ${event.closedBy.name}`}
           </p>
         </div>
-        <span className={`font-mono text-[9px] px-1.5 py-0.5 rounded border flex-shrink-0 ${
+        <span className={`font-mono text-[10px] px-1.5 py-0.5 rounded border flex-shrink-0 ${
           isOpen
             ? 'text-accent-green border-accent-green/30 bg-accent-green/5'
             : 'text-text-muted border-bg-border bg-bg-elevated'
@@ -102,7 +102,7 @@ function EventCard({ event }: { event: FloodEvent }) {
       <div className="flex flex-wrap gap-x-6 gap-y-2 mb-4">
         {timeline.map(step => (
           <div key={step.label}>
-            <p className="font-mono text-[9px] text-text-muted uppercase tracking-widest">{step.label}</p>
+            <p className="font-mono text-[10px] text-text-muted uppercase tracking-widest">{step.label}</p>
             <p className={`font-mono text-xs ${step.at ? 'text-text-primary' : 'text-text-muted'}`}>
               {step.at ? fmtDateTime(step.at) : '—'}
             </p>
@@ -137,13 +137,13 @@ function EventCard({ event }: { event: FloodEvent }) {
       {/* triggers + incidents breakdown */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         <div>
-          <p className="font-mono text-[9px] text-text-muted uppercase tracking-widest mb-1.5">Activation conditions</p>
+          <p className="font-mono text-[10px] text-text-muted uppercase tracking-widest mb-1.5">Activation conditions</p>
           {event.conditionReports.length === 0 ? (
-            <p className="font-mono text-[10px] text-text-muted">None confirmed.</p>
+            <p className="font-mono text-[11px] text-text-muted">None confirmed.</p>
           ) : (
             <ul className="space-y-1">
               {event.conditionReports.map((r, i) => (
-                <li key={i} className="font-mono text-[10px] text-text-secondary">
+                <li key={i} className="font-mono text-[11px] text-text-secondary">
                   <span className="text-text-primary">{CONDITION_LABELS[r.condition] ?? r.condition}</span>
                   {' · '}{r.reportedBy.name} ({r.reportedBy.role.replace(/_/g, ' ').toLowerCase()})
                   {' · '}{fmtDateTime(r.createdAt)}
@@ -153,19 +153,19 @@ function EventCard({ event }: { event: FloodEvent }) {
           )}
         </div>
         <div>
-          <p className="font-mono text-[9px] text-text-muted uppercase tracking-widest mb-1.5">Incidents by type</p>
+          <p className="font-mono text-[10px] text-text-muted uppercase tracking-widest mb-1.5">Incidents by type</p>
           {stats.incidents.total === 0 ? (
-            <p className="font-mono text-[10px] text-text-muted">No incidents.</p>
+            <p className="font-mono text-[11px] text-text-muted">No incidents.</p>
           ) : (
             <ul className="space-y-1">
               {Object.entries(stats.incidents.byType).map(([type, count]) => (
-                <li key={type} className="font-mono text-[10px] text-text-secondary">
+                <li key={type} className="font-mono text-[11px] text-text-secondary">
                   {type.replace(/_/g, ' ').toLowerCase()} · <span className="text-text-primary">{count}</span>
                 </li>
               ))}
             </ul>
           )}
-          <p className="font-mono text-[10px] text-text-muted mt-2">
+          <p className="font-mono text-[11px] text-text-muted mt-2">
             Radio check-ins: {stats.radioCheckins.total}
             {stats.radioCheckins.issuesReported > 0 && ` (${stats.radioCheckins.issuesReported} with issues)`}
           </p>
@@ -178,11 +178,11 @@ function EventCard({ event }: { event: FloodEvent }) {
 function Stat({ label, value, sub, warn = false }: { label: string; value: number; sub?: string; warn?: boolean }) {
   return (
     <div className="bg-bg-elevated border border-bg-border rounded px-3 py-2 min-w-0">
-      <p className="font-mono text-[9px] text-text-muted uppercase tracking-widest truncate">{label}</p>
+      <p className="font-mono text-[10px] text-text-muted uppercase tracking-widest truncate">{label}</p>
       <p className={`font-sans text-lg font-semibold ${warn ? 'text-accent-orange' : 'text-text-primary'}`}>
         {value.toLocaleString()}
       </p>
-      {sub && <p className="font-mono text-[9px] text-text-muted truncate" title={sub}>{sub}</p>}
+      {sub && <p className="font-mono text-[10px] text-text-muted truncate" title={sub}>{sub}</p>}
     </div>
   );
 }

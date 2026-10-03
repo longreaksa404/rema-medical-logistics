@@ -116,7 +116,7 @@ function EditableField({
     <div className="group border-b border-bg-border last:border-0">
       <div className="flex items-center gap-4 py-3.5 px-6">
         <span className="text-text-muted text-sm w-4 shrink-0 text-center select-none">{icon}</span>
-        <span className="font-mono text-[9px] uppercase tracking-widest text-text-muted w-14 shrink-0">
+        <span className="font-mono text-[10px] uppercase tracking-widest text-text-muted w-14 shrink-0">
           {label}
         </span>
         {editing ? (
@@ -135,28 +135,28 @@ function EditableField({
           {editing ? (
             <>
               <button onClick={save} disabled={saving}
-                className="font-mono text-[9px] text-accent-green px-2 py-1 rounded bg-accent-green/10 border border-accent-green/20">
+                className="font-mono text-[10px] text-accent-green px-2 py-1 rounded bg-accent-green/10 border border-accent-green/20">
                 {saving ? '...' : 'save'}
               </button>
               <button onClick={cancel} disabled={saving}
-                className="font-mono text-[9px] text-text-muted px-2 py-1 rounded bg-bg-secondary border border-bg-border">
+                className="font-mono text-[10px] text-text-muted px-2 py-1 rounded bg-bg-secondary border border-bg-border">
                 cancel
               </button>
             </>
           ) : locked ? (
-            <span className="font-mono text-[9px] text-text-muted opacity-0 group-hover:opacity-50 transition-opacity text-right leading-tight">
+            <span className="font-mono text-[10px] text-text-muted opacity-0 group-hover:opacity-50 transition-opacity text-right leading-tight">
               {lockedReason || 'admin only'}
             </span>
           ) : (
             <button onClick={startEdit}
-              className="font-mono text-[9px] text-text-muted hover:text-accent-blue opacity-0 group-hover:opacity-100 px-2 py-1 rounded hover:bg-accent-blue/10 transition-all">
+              className="font-mono text-[10px] text-text-muted hover:text-accent-blue opacity-0 group-hover:opacity-100 px-2 py-1 rounded hover:bg-accent-blue/10 transition-all">
               edit
             </button>
           )}
         </div>
       </div>
-      {error   && <p className="font-mono text-[9px] text-accent-red   pb-2 px-6 ml-[84px]">{error}</p>}
-      {success && !editing && <p className="font-mono text-[9px] text-accent-green pb-2 px-6 ml-[84px]">saved</p>}
+      {error   && <p className="font-mono text-[10px] text-accent-red   pb-2 px-6 ml-[84px]">{error}</p>}
+      {success && !editing && <p className="font-mono text-[10px] text-accent-green pb-2 px-6 ml-[84px]">saved</p>}
     </div>
   );
 }
@@ -167,7 +167,7 @@ function SectionHeader({ label }: { label: string }) {
   return (
     <div className="px-6 py-3 border-b border-bg-border bg-bg-secondary/60 flex items-center gap-2">
       <div className="w-0.5 h-3 bg-accent-blue rounded-full shrink-0" />
-      <span className="font-mono text-[9px] uppercase tracking-widest text-text-muted">{label}</span>
+      <span className="font-mono text-[10px] uppercase tracking-widest text-text-muted">{label}</span>
     </div>
   );
 }
@@ -268,7 +268,7 @@ export function ProfilePage() {
                   <path d="M5 7h1a2 2 0 0 0 2 -2a1 1 0 0 1 1 -1h6a1 1 0 0 1 1 1a2 2 0 0 0 2 2h1a2 2 0 0 1 2 2v9a2 2 0 0 1 -2 2h-14a2 2 0 0 1 -2 -2v-9a2 2 0 0 1 2 -2" />
                   <path d="M9 13a3 3 0 1 0 6 0a3 3 0 0 0 -6 0" />
                 </svg>
-                <span className="font-mono text-[9px] text-white/80">
+                <span className="font-mono text-[10px] text-white/80">
                   {avatarLoading ? 'uploading...' : 'change photo'}
                 </span>
               </div>
@@ -286,32 +286,32 @@ export function ProfilePage() {
                 </p>
                 <p className="font-mono text-xs text-text-muted mt-1 truncate">{user?.email}</p>
                 <div className="mt-2.5 flex items-center gap-2 flex-wrap">
-                  <span className={`font-mono text-[10px] px-2.5 py-0.5 rounded border ${roleColor}`}>
+                  <span className={`font-mono text-[11px] px-2.5 py-0.5 rounded border ${roleColor}`}>
                     {roleLabel}
                   </span>
                   {user?.districtId && (
-                    <span className="font-mono text-[10px] text-text-muted bg-bg-secondary border border-bg-border px-2.5 py-0.5 rounded">
+                    <span className="font-mono text-[11px] text-text-muted bg-bg-secondary border border-bg-border px-2.5 py-0.5 rounded">
                       {user.districtId}
                     </span>
                   )}
                 </div>
-                {avatarError   && <p className="font-mono text-[10px] text-accent-red   mt-2">{avatarError}</p>}
-                {avatarSuccess && <p className="font-mono text-[10px] text-accent-green mt-2">{avatarSuccess}</p>}
+                {avatarError   && <p className="font-mono text-[11px] text-accent-red   mt-2">{avatarError}</p>}
+                {avatarSuccess && <p className="font-mono text-[11px] text-accent-green mt-2">{avatarSuccess}</p>}
               </div>
 
               {/* stats row — inline with identity */}
               <div className="grid grid-cols-3 divide-x divide-bg-border border border-bg-border rounded-lg overflow-hidden">
                 <div className="px-4 py-3 flex flex-col">
-                  <p className="font-mono text-[9px] uppercase tracking-wider text-text-muted mb-1">Member since</p>
+                  <p className="font-mono text-[10px] uppercase tracking-wider text-text-muted mb-1">Member since</p>
                   <p className="font-mono text-xs text-text-primary">{formatDate(user?.createdAt)}</p>
                 </div>
                 <div className="px-4 py-3 flex flex-col">
-                  <p className="font-mono text-[9px] uppercase tracking-wider text-text-muted mb-1">Last login</p>
+                  <p className="font-mono text-[10px] uppercase tracking-wider text-text-muted mb-1">Last login</p>
                   <p className="font-mono text-xs text-text-primary">{formatDateTime(user?.lastLoginAt)}</p>
                 </div>
                 <div className="px-4 py-3 flex flex-col">
-                  <p className="font-mono text-[9px] uppercase tracking-wider text-text-muted mb-1">Status</p>
-                  <span className="inline-flex items-center gap-1.5 font-mono text-[10px] text-accent-green bg-accent-green/10 border border-accent-green/20 px-2 py-0.5 rounded-full self-start">
+                  <p className="font-mono text-[10px] uppercase tracking-wider text-text-muted mb-1">Status</p>
+                  <span className="inline-flex items-center gap-1.5 font-mono text-[11px] text-accent-green bg-accent-green/10 border border-accent-green/20 px-2 py-0.5 rounded-full self-start">
                     <span className="w-1.5 h-1.5 rounded-full bg-accent-green animate-pulse shrink-0" />
                     Active
                   </span>
@@ -340,7 +340,7 @@ export function ProfilePage() {
           />
 
           <div className="px-6 py-2.5 bg-bg-secondary/40 border-t border-bg-border">
-            <p className="font-mono text-[9px] text-text-muted">
+            <p className="font-mono text-[10px] text-text-muted">
               Hover a field and click <span className="text-text-secondary">edit</span> to update.
               Role and district are managed by Super Admin.
             </p>
@@ -353,7 +353,7 @@ export function ProfilePage() {
           <form onSubmit={handlePasswordSubmit} className="px-8 py-6">
 
             {/* all 3 password fields in one row */}
-            <div className="grid grid-cols-3 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
               <div>
                 <label className="label" htmlFor="current">Current Password</label>
                 <input id="current" type="password" className="input" placeholder="••••••••"
@@ -385,7 +385,7 @@ export function ProfilePage() {
                   <path d="M11 16a1 1 0 1 0 2 0a1 1 0 0 0 -2 0" />
                   <path d="M8 11v-4a4 4 0 1 1 8 0v4" />
                 </svg>
-                <p className="font-mono text-[10px] text-text-muted leading-relaxed">
+                <p className="font-mono text-[11px] text-text-muted leading-relaxed">
                   Min. 8 characters, different from current password.
                 </p>
               </div>
@@ -400,12 +400,12 @@ export function ProfilePage() {
 
             {pwError && (
               <div className="bg-accent-red/10 border border-accent-red/30 rounded px-4 py-2.5 mt-3">
-                <p className="font-mono text-[10px] text-accent-red">{pwError}</p>
+                <p className="font-mono text-[11px] text-accent-red">{pwError}</p>
               </div>
             )}
             {pwSuccess && (
               <div className="bg-accent-green/10 border border-accent-green/30 rounded px-4 py-2.5 mt-3">
-                <p className="font-mono text-[10px] text-accent-green">{pwSuccess}</p>
+                <p className="font-mono text-[11px] text-accent-green">{pwSuccess}</p>
               </div>
             )}
 

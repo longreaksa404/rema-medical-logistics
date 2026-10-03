@@ -69,7 +69,7 @@ export function LoginPage() {
             />
           </div>
 
-          <h1 className="text-3xl font-sans font-extrabold text-text-primary tracking-tight mb-1">
+          <h1 className="text-3xl font-display font-extrabold text-text-primary tracking-tight mb-1">
             REMA
           </h1>
           <p className="font-mono text-xs text-text-muted">

@@ -4,8 +4,11 @@ export default {
   theme: {
     extend: {
       fontFamily: {
-        mono: ['JetBrains Mono', 'Fira Code', 'monospace'],
-        sans: ['Syne', 'system-ui', 'sans-serif'],
+        mono: ['JetBrains Mono', 'Fira Code', 'ui-monospace', 'monospace'],
+        // Inter for body/UI text (legible at small sizes, tabular figures);
+        // Syne kept as the display face for page and card titles.
+        sans: ['Inter', 'system-ui', '-apple-system', 'Segoe UI', 'sans-serif'],
+        display: ['Syne', 'Inter', 'system-ui', 'sans-serif'],
       },
       colors: {
         // REMA design system — dark ops theme
@@ -13,7 +16,8 @@ export default {
           primary: '#0a0c0f',
           secondary: '#111418',
           elevated: '#161b22',
-          border: '#21262d',
+          border: '#262c36',
+          hover: '#1c2129',
         },
         accent: {
           red: '#f85149',
@@ -25,8 +29,9 @@ export default {
         },
         text: {
           primary: '#e6edf3',
-          secondary: '#8b949e',
-          muted: '#484f58',
+          secondary: '#9da7b3',
+          // was #484f58 (~2.3:1 on bg-primary, failed WCAG); now ~4.2:1
+          muted: '#6e7681',
         },
         phase: {
           0: '#484f58',   // standby — muted
