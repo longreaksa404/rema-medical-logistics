@@ -1,4 +1,5 @@
 import axios from 'axios';
+import { clearPersistedQueryCache } from '../offline/keys';
 
 const API_URL = (import.meta as unknown as { env: { VITE_API_URL?: string } }).env.VITE_API_URL || '';
 
@@ -45,6 +46,9 @@ export function clearSessionAndRedirect(): void {
   localStorage.removeItem('rema_token');
   localStorage.removeItem('rema_user');
   localStorage.removeItem('rema_must_change');
+  // cached household data must not outlive the session; queued offline work
+  // (the outbox) is kept and sent next time this user signs in
+  clearPersistedQueryCache();
   if (window.location.pathname !== '/login') window.location.href = '/login';
 }
 

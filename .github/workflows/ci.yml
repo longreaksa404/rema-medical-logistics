@@ -100,7 +100,7 @@ jobs:
           TEST_DATABASE_URL: postgresql://postgres:postgres@localhost:5432/rema_test
 
   frontend:
-    name: Frontend typecheck + build
+    name: Frontend tests + typecheck + build
     runs-on: ubuntu-latest
 
     steps:
@@ -117,6 +117,10 @@ jobs:
       - name: Install frontend dependencies
         working-directory: frontend
         run: npm ci
+
+      - name: Unit tests (offline outbox)
+        working-directory: frontend
+        run: npm test
 
       - name: Typecheck and build
         working-directory: frontend

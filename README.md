@@ -72,6 +72,19 @@ AI:         Anthropic Claude API - server-side AI Brief (advisory only, no PII)
 
 ---
 
+## Offline Mode (volunteers)
+
+Volunteers often lose signal in flooded streets, so the app keeps working without a connection:
+
+- **App opens offline** — a service worker (`frontend/public/sw.js`, production builds only) caches the app shell.
+- **Last data stays visible** — the priority queue, active delivery runs and district info are saved on the device (cleared on logout).
+- **Field actions queue up** — deliveries, assessments and incident reports made offline are kept in an on-device outbox and sent automatically on reconnect. The banner at the top shows what is waiting.
+- **Retries are safe** — assessments and incidents carry a `clientRef` the server de-duplicates on; a household can only be delivered once.
+- **Rejections are shown** — if the server refuses a queued item (e.g. no stock left, run closed), the volunteer sees why.
+- **Safety reports** made offline warn the volunteer that nobody has received them yet and to use radio or phone.
+
+---
+
 ## Running Tests
 
 ```bash

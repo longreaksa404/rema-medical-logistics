@@ -1,14 +1,16 @@
 // RoutingPage.tsx — V2 Routing Map
 
-import { useState, useEffect, useCallback, useMemo } from 'react';
+import { useState, useEffect, useCallback, useMemo, lazy, Suspense } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { DashboardLayout } from '../components/DashboardLayout';
-import { LeafletMap } from '../components/LeafletMap';
 import { routesApi } from '../api/routes';
 import { queryKeys } from '../api/queryKeys';
 import type { RouteLog, DeliveryMode } from '../api/routes';
 import type { DistrictCard } from '../api/dashboard.types';
 import { useAuth } from '../context/AuthContext';
+
+// Leaflet is bundled from npm (no CDN at runtime) but only loaded with this page
+const LeafletMap = lazy(() => import('../components/LeafletMap').then(m => ({ default: m.LeafletMap })));
 
 // ─── CONSTANTS ────────────────────────────────────────────────────────────────
 
@@ -227,7 +229,6 @@ export function RoutingPage() {
   const queryClient = useQueryClient();
   const [selectedDistrictId, setSelectedDistrictId] = useState<string | null>(null);
   const [selectedDistrictName, setSelectedDistrictName] = useState<string | null>(null);
-  const [leafletLoaded, setLeafletLoaded] = useState(false);
 
   const [zoneDepths, setZoneDepths] = useState<Record<string, Record<string, number>>>({});
   const [loadedDistricts, setLoadedDistricts] = useState<Set<string>>(new Set());
@@ -235,18 +236,6 @@ export function RoutingPage() {
   const isHubManager = user?.role === 'HUB_MANAGER';
   // hub managers can only edit their own district — districtId from JWT
   const canEditSelected = !isHubManager || selectedDistrictId === user?.districtId;
-
-  useEffect(() => {
-    if ((window as any).L) { setLeafletLoaded(true); return; }
-    const link = document.createElement('link');
-    link.rel = 'stylesheet';
-    link.href = 'https://unpkg.com/leaflet@1.9.4/dist/leaflet.css';
-    document.head.appendChild(link);
-    const script = document.createElement('script');
-    script.src = 'https://unpkg.com/leaflet@1.9.4/dist/leaflet.js';
-    script.onload = () => setLeafletLoaded(true);
-    document.head.appendChild(script);
-  }, []);
 
   const { data: summaryData, isLoading } = useQuery({
     queryKey: queryKeys.dashboard.summary(),
@@ -388,18 +377,18 @@ export function RoutingPage() {
                   ))}
                 </div>
                 <div style={{ height: 460 }}>
-                  {leafletLoaded ? (
+                  <Suspense fallback={
+                    <div className="h-full flex items-center justify-center bg-bg-elevated">
+                      <p className="font-mono text-xs text-text-muted">Loading map...</p>
+                    </div>
+                  }>
                     <LeafletMap
                       districts={districts}
                       zoneDepths={zoneDepths}
                       selectedDistrictId={selectedDistrictId}
                       onDistrictClick={handleDistrictClick}
                     />
-                  ) : (
-                    <div className="h-full flex items-center justify-center bg-bg-elevated">
-                      <p className="font-mono text-xs text-text-muted">Loading map...</p>
-                    </div>
-                  )}
+                  </Suspense>
                 </div>
               </div>
             </div>

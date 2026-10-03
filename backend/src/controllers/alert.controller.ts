@@ -5,6 +5,7 @@ import {
   advancePhase,
   resetSystem,
 } from '../services/alert.service';
+import { getEventHistory } from '../services/event-history.service';
 import { sendError } from '../middleware/error-handler';
 
 // ───   /api/alert/trigger ──────────────────────────────────────────────────
@@ -47,10 +48,25 @@ export async function phase(req: Request, res: Response): Promise<void> {
 
 // ─── POST /api/alert/reset ────────────────────────────────────────────────────
 // SUPER_ADMIN only (enforced by route middleware)
-export async function reset(_req: Request, res: Response): Promise<void> {
+export async function reset(req: Request, res: Response): Promise<void> {
   try {
-    const alert = await resetSystem();
-    res.json({ message: 'System reset to Phase 0', alert });
+    const result = await resetSystem(req.user!.userId);
+    res.json({
+      message: result.archivedEventId
+        ? 'Flood event closed and archived. System reset to Phase 0.'
+        : 'System is already on standby (Phase 0).',
+      ...result,
+    });
+  } catch (err) {
+    sendError(res, err, 400);
+  }
+}
+
+// ─── GET /api/alert/history ───────────────────────────────────────────────────
+
+export async function history(_req: Request, res: Response): Promise<void> {
+  try {
+    res.json(await getEventHistory());
   } catch (err) {
     sendError(res, err, 500);
   }

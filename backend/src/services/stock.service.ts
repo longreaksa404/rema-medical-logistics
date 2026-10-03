@@ -2,7 +2,8 @@ import { EmkType, MovementType, Prisma } from '@prisma/client';
 import { prisma } from '../lib/prisma';
 import { NotFoundError, UnprocessableError, BadRequestError } from '../lib/errors';
 import { invalidateCache } from './dashboard.service';
-import { isInScarcity } from '../utils/stock.utils';
+import { isInScarcity, levelsBefore } from '../utils/stock.utils';
+import { announceScarcity } from './scarcity.service';
 import { getCached, setCached, deleteCached } from '../utils/cache';
 
 export { isInScarcity } from '../utils/stock.utils';
@@ -35,6 +36,10 @@ function getFields(emkType: EmkType) {
 const STOCK_INCLUDE = {
   subWarehouse: { include: { district: { select: { name: true } } } },
 } as const;
+
+function locationOf(stock: { subWarehouse: { districtId: string; district: { name: string } } }) {
+  return { districtId: stock.subWarehouse.districtId, districtName: stock.subWarehouse.district.name };
+}
 
 // Interactive transactions default to 5s — Supabase round-trips from Render can be slow
 export const TX_OPTIONS = { timeout: 15_000, maxWait: 10_000 };
@@ -320,11 +325,15 @@ export async function dispatchStock(data: {
       },
     });
 
-    return tx.stock.findUniqueOrThrow({ where: { subWarehouseId }, include: STOCK_INCLUDE });
+    const stock = await tx.stock.findUniqueOrThrow({ where: { subWarehouseId }, include: STOCK_INCLUDE });
+    const central = await tx.centralWarehouse.findUniqueOrThrow({ where: { id: centralId } });
+    return { stock, central };
   }, TX_OPTIONS);
 
-  invalidateStockCache(updatedStock.subWarehouse.districtId);
-  return { stock: enrichStock(updatedStock) };
+  invalidateStockCache(updatedStock.stock.subWarehouse.districtId);
+  const { central } = updatedStock;
+  await announceScarcity(null, levelsBefore(central, { [emkType]: -quantity }), central);
+  return { stock: enrichStock(updatedStock.stock) };
 }
 
 // ─── REALLOCATE — Sub-Warehouse → Sub-Warehouse ───────────────────────────────
@@ -391,6 +400,7 @@ export async function reallocateStock(data: {
   }, TX_OPTIONS);
 
   invalidateStockCache(updatedFrom.subWarehouse.districtId, updatedTo.subWarehouse.districtId);
+  await announceScarcity(locationOf(updatedFrom), levelsBefore(updatedFrom, { [emkType]: -quantity }), updatedFrom);
   return { from: enrichStock(updatedFrom), to: enrichStock(updatedTo) };
 }
 
@@ -419,6 +429,7 @@ export async function adjustStock(data: {
   }, TX_OPTIONS);
 
   invalidateStockCache(updatedStock.subWarehouse.districtId);
+  await announceScarcity(locationOf(updatedStock), levelsBefore(updatedStock, { [emkType]: quantity }), updatedStock);
   return { stock: enrichStock(updatedStock), movement };
 }
 
@@ -484,6 +495,7 @@ export async function adjustCentral(data: {
   }, TX_OPTIONS);
 
   invalidateStockCache();
+  await announceScarcity(null, levelsBefore(updated, { [emkType]: quantity }), updated);
   return { emkType, quantity, reason, updatedStock: centralSnapshot(updated) };
 }
 
@@ -505,7 +517,7 @@ export async function setAllocation(data: {
   const { totalField } = getFields(emkType);
 
   if (target === 'central') {
-    const updated = await prisma.$transaction(async (tx) => {
+    const [updated, before] = await prisma.$transaction(async (tx) => {
       const central = await tx.centralWarehouse.findFirst();
       if (!central) throw new NotFoundError('Central warehouse not found. Run seed.');
 
@@ -523,16 +535,17 @@ export async function setAllocation(data: {
           performedById,
         },
       });
-      return updated;
+      return [updated, central] as const;
     }, TX_OPTIONS);
 
     invalidateStockCache();
+    await announceScarcity(null, before, updated);
     return { target: 'central', emkType, newTotal, reason, updatedStock: centralSnapshot(updated) };
   }
 
   if (!subWarehouseId) throw new BadRequestError('subWarehouseId is required for sub-warehouse allocation');
 
-  const updated = await prisma.$transaction(async (tx) => {
+  const [updated, before] = await prisma.$transaction(async (tx) => {
     const central = await tx.centralWarehouse.findFirst();
     if (!central) throw new NotFoundError('Central warehouse not found. Run seed.');
 
@@ -564,10 +577,11 @@ export async function setAllocation(data: {
         performedById,
       },
     });
-    return updated;
+    return [updated, exists] as const;
   }, TX_OPTIONS);
 
   invalidateStockCache(updated.subWarehouse.districtId);
+  await announceScarcity(locationOf(updated), before, updated);
   return {
     target: 'subWarehouse', subWarehouseId, emkType, newTotal, reason,
     updatedStock: enrichStock(updated),

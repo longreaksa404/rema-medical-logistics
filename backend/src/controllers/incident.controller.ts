@@ -6,7 +6,7 @@ import { sendError } from '../middleware/error-handler';
 // ─── POST /api/incidents ──────────────────────────────────────────────────────
 
 export async function report(req: Request, res: Response): Promise<void> {
-  const { districtId, type, description } = req.body;
+  const { districtId, type, description, clientRef } = req.body;
 
   try {
     const incident = await reportIncident({
@@ -14,8 +14,10 @@ export async function report(req: Request, res: Response): Promise<void> {
       type,
       description,
       reportedById: req.user!.userId,
+      clientRef,
     });
-    res.status(201).json(incident);
+    // 200 = an earlier attempt of this same (offline) report already created it
+    res.status('replayed' in incident ? 200 : 201).json(incident);
   } catch (err) {
     sendError(res, err, 400);
   }

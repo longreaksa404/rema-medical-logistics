@@ -2,6 +2,7 @@ import { PriorityBand, EmkType } from '@prisma/client';
 import { prisma } from '../lib/prisma';
 import { scoreHousehold, ScoreInput } from '../utils/scoring';
 import { getCached, setCached, deleteCached } from '../utils/cache';
+import { ConflictError, isUniqueViolation } from '../lib/errors';
 
 // ─── CACHE KEYS ───────────────────────────────────────────────────────────────
 
@@ -19,12 +20,10 @@ export interface PaginatedResult<T> {
 const DEFAULT_PAGE_SIZE = 10;
 
 export function invalidateQueueCache(districtId: string): void {
-  // pattern-delete all cached pages for this district
-  // cache utility stores by exact key, so we delete the prefix match manually
-  // simplest approach: delete the first 10 pages — covers any realistic dataset
-  for (let p = 1; p <= 10; p++) {
-    deleteCached(`${KEY_QUEUE_PREFIX}${districtId}:${p}:20`);
-  }
+  // every cached page/page-size for this district (deleteCached matches by prefix).
+  // Previously only pageSize=20 keys were cleared, so the volunteer app — which
+  // fetches 200 at a time — kept seeing delivered households for up to 15s.
+  deleteCached(`${KEY_QUEUE_PREFIX}${districtId}:`);
 }
 
 // ─── SCORE ONLY (no DB write) ─────────────────────────────────────────────────
@@ -42,48 +41,79 @@ export async function createHousehold(data: {
   chronicIllCount?: number;
   notes?: string;
   assessedById?: string;
+  clientRef?: string;
 }) {
   const result = scoreHousehold(data.scoreInput);
+
+  // An offline assessment retried after its first attempt actually reached the
+  // server carries the same clientRef — return the original, don't duplicate it.
+  const findReplayed = async () => {
+    if (!data.clientRef) return null;
+    const existing = await prisma.household.findUnique({ where: { clientRef: data.clientRef } });
+    if (!existing) return null;
+    if (existing.assessedById !== (data.assessedById ?? null)) {
+      throw new ConflictError('This submission reference was already used by another user');
+    }
+    return { ...existing, scoreResult: result, replayed: true };
+  };
+
+  const replayed = await findReplayed();
+  if (replayed) return replayed;
 
   const householdSize   = data.scoreInput.householdSize ?? 4;
   const chronicIllCount = data.chronicIllCount ?? 0;
 
-  const household = await prisma.household.create({
-    data: {
-      address:              data.address,
-      districtId:           data.districtId,
-      medicalUrgencyScore:  result.cat1,
-      vulnerabilityScore:   result.cat2,
-      floodExposureScore:   result.cat3,
-      selfSufficiencyScore: result.cat4,
-      isolationScore:       result.cat5,
-      totalScore:           result.totalScore,
-      priorityBand:         result.priorityBand as PriorityBand,
-      recommendedEmk:       result.recommendedEmk as EmkType,
-      householdSize,
-      chronicIllCount,
-      emk1Quantity:         result.emkQuantity.emk1,
-      emk2Quantity:         result.emkQuantity.emk2,
-      emk3Quantity:         result.emkQuantity.emk3,
-      totalEmkQuantity:     result.emkQuantity.total,
-      assessedById:         data.assessedById ?? null,
-    },
-  });
+  let household;
+  try {
+    // household + its first assessment record are written together
+    household = await prisma.$transaction(async (tx) => {
+      const created = await tx.household.create({
+        data: {
+          address:              data.address,
+          districtId:           data.districtId,
+          medicalUrgencyScore:  result.cat1,
+          vulnerabilityScore:   result.cat2,
+          floodExposureScore:   result.cat3,
+          selfSufficiencyScore: result.cat4,
+          isolationScore:       result.cat5,
+          totalScore:           result.totalScore,
+          priorityBand:         result.priorityBand as PriorityBand,
+          recommendedEmk:       result.recommendedEmk as EmkType,
+          householdSize,
+          chronicIllCount,
+          emk1Quantity:         result.emkQuantity.emk1,
+          emk2Quantity:         result.emkQuantity.emk2,
+          emk3Quantity:         result.emkQuantity.emk3,
+          totalEmkQuantity:     result.emkQuantity.total,
+          assessedById:         data.assessedById ?? null,
+          clientRef:            data.clientRef ?? null,
+        },
+      });
 
-  if (data.assessedById) {
-    await prisma.householdAssessment.create({
-      data: {
-        householdId:   household.id,
-        submittedById: data.assessedById,
-        cat1Score:     result.cat1,
-        cat2Score:     result.cat2,
-        cat3Score:     result.cat3,
-        cat4Score:     result.cat4,
-        cat5Score:     result.cat5,
-        totalScore:    result.totalScore,
-        notes:         data.notes ?? null,
-      },
+      if (data.assessedById) {
+        await tx.householdAssessment.create({
+          data: {
+            householdId:   created.id,
+            submittedById: data.assessedById,
+            cat1Score:     result.cat1,
+            cat2Score:     result.cat2,
+            cat3Score:     result.cat3,
+            cat4Score:     result.cat4,
+            cat5Score:     result.cat5,
+            totalScore:    result.totalScore,
+            notes:         data.notes ?? null,
+          },
+        });
+      }
+      return created;
     });
+  } catch (err) {
+    // two retries of the same assessment racing each other
+    if (data.clientRef && isUniqueViolation(err)) {
+      const raced = await findReplayed();
+      if (raced) return raced;
+    }
+    throw err;
   }
 
   invalidateQueueCache(data.districtId);

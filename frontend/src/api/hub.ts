@@ -90,6 +90,7 @@ export interface DeliveryRun {
   departedAt: string;
   returnedAt: string | null;
   status: 'IN_PROGRESS' | 'COMPLETE' | 'ABORTED';
+  abortReason?: string | null;
   leadVolunteer: { name: string; phone: string };
   subWarehouse: { district: { name: string } };
   receipts: { id: string; emkType: string; quantity: number; deliveredAt: string; householdId: string }[];

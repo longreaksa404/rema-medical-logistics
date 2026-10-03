@@ -97,7 +97,7 @@ export async function generateAiBrief(): Promise<AiBriefResult> {
     incidentCount,
     todayCheckins,
   ] = await Promise.all([
-    prisma.floodAlert.findFirst({ orderBy: { createdAt: 'desc' } }),
+    prisma.floodAlert.findFirst({ where: { closedAt: null }, orderBy: { createdAt: 'desc' } }),
 
     prisma.district.findMany({
       orderBy: { name: 'asc' },
@@ -308,7 +308,7 @@ export async function generateAiBrief(): Promise<AiBriefResult> {
 //     incidentCount,
 //     todayCheckins,
 //   ] = await Promise.all([
-//     prisma.floodAlert.findFirst({ orderBy: { createdAt: 'desc' } }),
+//     prisma.floodAlert.findFirst({ where: { closedAt: null }, orderBy: { createdAt: 'desc' } }),
 
 //     prisma.district.findMany({
 //       orderBy: { name: 'asc' },

@@ -190,8 +190,9 @@ export async function assignTeam(data: {
   if (teamNumber < 1) {
     throw new Error('teamNumber must be 1 or greater');
   }
+  // team numbers are per sub-warehouse (every district has its own Team 1, 2, 3...)
   const existingAssignment = await prisma.volunteerAssignment.findFirst({
-    where: { alertId, teamNumber },
+    where: { alertId, teamNumber, subWarehouseId },
   });
   if (existingAssignment) {
     throw new Error(
@@ -306,9 +307,14 @@ export async function deleteTeamAssignments(data: {
 }) {
   const { districtId, alertId, teamNumber } = data;
 
+  // team numbers are per sub-warehouse — only touch this district's team
+  const sw = await prisma.subWarehouse.findFirst({ where: { districtId } });
+  if (!sw) throw new Error('Sub-warehouse not found for this district');
+  const teamWhere = { alertId, teamNumber, subWarehouseId: sw.id };
+
   // find all assignments for this team in this alert
   const assignments = await prisma.volunteerAssignment.findMany({
-    where: { alertId, teamNumber },
+    where: teamWhere,
     include: { volunteer: true },
   });
 
@@ -317,14 +323,11 @@ export async function deleteTeamAssignments(data: {
   }
 
   // block delete if team has an active run
-  const sw = await prisma.subWarehouse.findFirst({ where: { districtId } });
-  if (sw) {
-    const activeRun = await prisma.deliveryRun.findFirst({
-      where: { subWarehouseId: sw.id, teamNumber, status: 'IN_PROGRESS' },
-    });
-    if (activeRun) {
-      throw new Error(`Team ${teamNumber} has an active delivery run. Complete or abort it first.`);
-    }
+  const activeRun = await prisma.deliveryRun.findFirst({
+    where: { subWarehouseId: sw.id, teamNumber, status: 'IN_PROGRESS' },
+  });
+  if (activeRun) {
+    throw new Error(`Team ${teamNumber} has an active delivery run. Complete or abort it first.`);
   }
 
   const volunteerIds = assignments.map(a => a.volunteerId);
@@ -332,7 +335,7 @@ export async function deleteTeamAssignments(data: {
   await prisma.$transaction(async (tx) => {
     // delete all assignments for this team
     await tx.volunteerAssignment.deleteMany({
-      where: { alertId, teamNumber },
+      where: teamWhere,
     });
 
     // return volunteers to AVAILABLE — only if not assigned to another team
