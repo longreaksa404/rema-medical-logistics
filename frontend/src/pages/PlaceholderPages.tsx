@@ -4,37 +4,41 @@
 
 import { useState } from 'react';
 import { DashboardLayout } from '../components/DashboardLayout';
+import { usePageTitle } from '../hooks/usePageTitle';
+import { useI18n, type MessageKey } from '../i18n';
 
 export function WarehouseLayoutPage() {
+  const { t } = useI18n();
+  usePageTitle(t('nav.warehouse'));
   return (
-    <DashboardLayout title="Warehouse Layout (V3)">
+    <DashboardLayout title={t('warehouse.title')}>
       <div className="space-y-5">
         <div className="card px-5 py-3">
           <p className="font-mono text-[11px] text-text-muted uppercase tracking-widest mb-1">
-            Static Diagram — draw.io
+            {t('warehouse.static')}
           </p>
           <p className="font-sans text-sm text-text-primary font-medium">
-            Central Warehouse + Sub-Warehouse Floor Plans
+            {t('warehouse.heading')}
           </p>
         </div>
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
           <div className="card p-4">
             <p className="font-mono text-[11px] text-text-muted uppercase tracking-widest mb-3">
-              Central Warehouse (~200–250 sqm)
+              {t('warehouse.central')}
             </p>
             <img
               src="/visuals/central-warehouse.drawio.png"
-              alt="Central Warehouse Floor Plan"
+              alt={t('warehouse.centralAlt')}
               className="w-full rounded border border-bg-border"
             />
           </div>
           <div className="card p-4">
             <p className="font-mono text-[11px] text-text-muted uppercase tracking-widest mb-3">
-              Sub-Warehouse (~40–60 sqm)
+              {t('warehouse.sub')}
             </p>
             <img
               src="/visuals/sub-warehouse.drawio.png"
-              alt="Sub-Warehouse Floor Plan"
+              alt={t('warehouse.subAlt')}
               className="w-full rounded border border-bg-border"
             />
           </div>
@@ -56,63 +60,65 @@ export function StakeholderFlowchartPage() {
   );
 }
 
-const PROTOCOL_SECTIONS = [
-  { label: 'Phase 1 Activation Checklist', desc: 'Hours 0–3 / 3–8 / 8–16 / 16–24' },
-  { label: 'Phase 2 Delivery Checklist',   desc: 'Adaptive last-mile operations' },
-  { label: 'Radio Check-In Script',        desc: '08:00 / 12:00 / 16:00 / 20:00' },
-  { label: 'Delivery Runsheet Template',   desc: '12-row household delivery log' },
-  { label: 'Incident Log Template',        desc: 'Type codes: RT/VS/SS/BF/OT' },
-  { label: 'Volunteer Assessment Form',    desc: 'Section C — 20-point scoring' },
+const PROTOCOL_SECTIONS: { label: MessageKey; desc: MessageKey }[] = [
+  { label: 'protocol.sec.p1',       desc: 'protocol.sec.p1.desc' },
+  { label: 'protocol.sec.p2',       desc: 'protocol.sec.p2.desc' },
+  { label: 'protocol.sec.radio',    desc: 'protocol.sec.radio.desc' },
+  { label: 'protocol.sec.runsheet', desc: 'protocol.sec.runsheet.desc' },
+  { label: 'protocol.sec.incident', desc: 'protocol.sec.incident.desc' },
+  { label: 'protocol.sec.assess',   desc: 'protocol.sec.assess.desc' },
 ];
 
-const RADIO_SLOTS = [
-  { time: '08:00', desc: 'Stock levels, overnight incidents, morning plan' },
-  { time: '12:00', desc: 'Delivery progress, new critical cases, route issues' },
-  { time: '16:00', desc: 'Afternoon delivery summary, resupply needs' },
-  { time: '20:00', desc: 'End-of-day stock count, next-day plan' },
+const RADIO_SLOTS: { time: string; desc: MessageKey }[] = [
+  { time: '08:00', desc: 'protocol.radio.0800' },
+  { time: '12:00', desc: 'protocol.radio.1200' },
+  { time: '16:00', desc: 'protocol.radio.1600' },
+  { time: '20:00', desc: 'protocol.radio.2000' },
 ];
 
-const DELIVERY_TIERS = [
-  { depth: '0–30 cm',  mode: 'Motorbike',       color: 'text-accent-green'  },
-  { depth: '30–60 cm', mode: 'Bicycle or foot',  color: 'text-accent-yellow' },
-  { depth: '60–80 cm', mode: 'Small boat',        color: 'text-accent-orange' },
-  { depth: '> 80 cm',  mode: 'SUSPENDED',         color: 'text-accent-red'    },
+const DELIVERY_TIERS: { depth: string; mode: MessageKey; color: string }[] = [
+  { depth: '0–30 cm',  mode: 'mode.MOTORBIKE',       color: 'text-accent-green'  },
+  { depth: '30–60 cm', mode: 'mode.BICYCLE_OR_FOOT', color: 'text-accent-yellow' },
+  { depth: '60–80 cm', mode: 'protocol.smallBoat',   color: 'text-accent-orange' },
+  { depth: '> 80 cm',  mode: 'mode.SUSPENDED',       color: 'text-accent-red'    },
 ];
 
-const FAILURE_PROTOCOLS = [
-  { code: 'F1', desc: 'Hub Manager unreachable > 2 hours' },
-  { code: 'F2', desc: 'Volunteer team overdue > 2 hours' },
-  { code: 'F3', desc: 'Local authority withdraws site access' },
-  { code: 'F4', desc: 'Logistics partner fails to deliver' },
+const FAILURE_PROTOCOLS: { code: string; desc: MessageKey }[] = [
+  { code: 'F1', desc: 'protocol.fail.f1' },
+  { code: 'F2', desc: 'protocol.fail.f2' },
+  { code: 'F3', desc: 'protocol.fail.f3' },
+  { code: 'F4', desc: 'protocol.fail.f4' },
 ];
 
-const TRIGGER_CONDITIONS = [
-  'City/provincial flood warning Level 2 or above',
-  'Rainfall forecast exceeds 100mm in 24 hours',
-  'Any target district reports street-level flooding',
+const TRIGGER_CONDITIONS: MessageKey[] = [
+  'trigger.warningLevelTwo.desc',
+  'trigger.rainfall.desc',
+  'trigger.streetFlooding.desc',
 ];
 
 export function OperatingProtocolPage() {
+  const { t } = useI18n();
+  usePageTitle(t('nav.protocol'));
   const [pdfError, setPdfError] = useState(false);
   const [activeView, setActiveView] = useState<'pdf' | 'guide'>('pdf');
 
   const PDF_PATH = '/visuals/operating-protocol.pdf';
 
   return (
-    <DashboardLayout title="Operating Protocol (V6)">
+    <DashboardLayout title={t('protocol.title')}>
       <div className="space-y-5">
 
         {/* ── Header info strip ── */}
         <div className="card px-5 py-3 flex items-start justify-between gap-4 flex-wrap">
           <div>
             <p className="font-mono text-[11px] text-text-muted uppercase tracking-widest mb-1">
-              Field Reference Document
+              {t('protocol.fieldRef')}
             </p>
             <p className="font-sans text-sm text-text-primary font-medium">
-              REMA Operating Protocol — 8 pages, A4, designed to print double-sided
+              {t('protocol.docDesc')}
             </p>
             <p className="font-mono text-[11px] text-text-muted mt-0.5">
-              Classification: REMA INTERNAL — Viet Nam Red Cross Operations Staff Only
+              {t('protocol.classification')}
             </p>
           </div>
           <div className="flex items-center gap-2 flex-shrink-0">
@@ -121,7 +127,7 @@ export function OperatingProtocolPage() {
               download="V6-operating-protocol.pdf"
               className="btn-primary text-xs py-1.5 px-4"
             >
-              ↓ Download PDF
+              ↓ {t('protocol.download')}
             </a>
             <a
               href={PDF_PATH}
@@ -129,7 +135,7 @@ export function OperatingProtocolPage() {
               rel="noopener noreferrer"
               className="btn-ghost text-xs py-1.5 px-4"
             >
-              Open in tab
+              {t('protocol.openTab')}
             </a>
           </div>
         </div>
@@ -146,7 +152,7 @@ export function OperatingProtocolPage() {
                   : 'text-text-muted hover:text-text-secondary'
               }`}
             >
-              {v === 'pdf' ? '⬡ Embedded PDF' : '◈ Section Guide'}
+              {v === 'pdf' ? `⬡ ${t('protocol.view.pdf')}` : `◈ ${t('protocol.view.guide')}`}
             </button>
           ))}
         </div>
@@ -166,10 +172,10 @@ export function OperatingProtocolPage() {
                 <div className="py-20 text-center space-y-4 px-6">
                   <p className="text-4xl">📄</p>
                   <p className="font-display font-bold text-text-primary">
-                    PDF preview unavailable in this browser
+                    {t('protocol.pdfUnavailable')}
                   </p>
                   <p className="font-mono text-[11px] text-text-muted max-w-sm mx-auto">
-                    Use the download or open-in-tab buttons above to view the document.
+                    {t('protocol.pdfUnavailableHint')}
                   </p>
                   <div className="flex justify-center gap-3 pt-2">
                     <a
@@ -177,7 +183,7 @@ export function OperatingProtocolPage() {
                       download="V6-operating-protocol.pdf"
                       className="btn-primary text-sm"
                     >
-                      ↓ Download PDF
+                      ↓ {t('protocol.download')}
                     </a>
                     <a
                       href={PDF_PATH}
@@ -185,7 +191,7 @@ export function OperatingProtocolPage() {
                       rel="noopener noreferrer"
                       className="btn-ghost text-sm"
                     >
-                      Open in new tab
+                      {t('protocol.openNewTab')}
                     </a>
                   </div>
                 </div>
@@ -194,10 +200,10 @@ export function OperatingProtocolPage() {
               <div className="py-20 text-center space-y-4 px-6">
                 <p className="text-4xl">📄</p>
                 <p className="font-display font-bold text-text-primary">
-                  PDF preview unavailable in this browser
+                  {t('protocol.pdfUnavailable')}
                 </p>
                 <p className="font-mono text-[11px] text-text-muted max-w-sm mx-auto">
-                  Use the download or open-in-tab buttons above to view the document.
+                  {t('protocol.pdfUnavailableHint')}
                 </p>
                 <div className="flex justify-center gap-3 pt-2">
                   <a
@@ -205,7 +211,7 @@ export function OperatingProtocolPage() {
                     download="V6-operating-protocol.pdf"
                     className="btn-primary text-sm"
                   >
-                    ↓ Download PDF
+                    ↓ {t('protocol.download')}
                   </a>
                   <a
                     href={PDF_PATH}
@@ -213,7 +219,7 @@ export function OperatingProtocolPage() {
                     rel="noopener noreferrer"
                     className="btn-ghost text-sm"
                   >
-                    Open in new tab
+                    {t('protocol.openNewTab')}
                   </a>
                 </div>
               </div>
@@ -226,7 +232,7 @@ export function OperatingProtocolPage() {
             {/* Document contents grid */}
             <div className="card px-5 py-4">
               <p className="font-mono text-[11px] text-text-muted uppercase tracking-widest mb-3">
-                Document Contents
+                {t('protocol.contents')}
               </p>
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
                 {PROTOCOL_SECTIONS.map((s, i) => (
@@ -235,12 +241,12 @@ export function OperatingProtocolPage() {
                     className="bg-bg-elevated rounded-lg border border-bg-border px-4 py-3"
                   >
                     <p className="font-mono text-[11px] text-text-muted mb-1">
-                      Section {i + 1}
+                      {t('protocol.sectionN', { n: i + 1 })}
                     </p>
                     <p className="font-sans text-sm font-semibold text-text-primary">
-                      {s.label}
+                      {t(s.label)}
                     </p>
-                    <p className="font-mono text-[11px] text-text-muted mt-0.5">{s.desc}</p>
+                    <p className="font-mono text-[11px] text-text-muted mt-0.5">{t(s.desc)}</p>
                   </div>
                 ))}
               </div>
@@ -252,7 +258,7 @@ export function OperatingProtocolPage() {
               {/* Activation trigger */}
               <div className="card p-5 border-accent-orange/30 bg-accent-orange/5">
                 <p className="font-mono text-[11px] text-accent-orange uppercase tracking-widest mb-2">
-                  Activation Trigger (locked — 2 of 3)
+                  {t('protocol.activationTrigger')}
                 </p>
                 <div className="space-y-2">
                   {TRIGGER_CONDITIONS.map((cond, i) => (
@@ -260,7 +266,7 @@ export function OperatingProtocolPage() {
                       <span className="font-mono text-[11px] text-accent-orange mt-0.5 flex-shrink-0">
                         {i + 1}.
                       </span>
-                      <p className="font-mono text-[11px] text-text-secondary">{cond}</p>
+                      <p className="font-mono text-[11px] text-text-secondary">{t(cond)}</p>
                     </div>
                   ))}
                 </div>
@@ -269,7 +275,7 @@ export function OperatingProtocolPage() {
               {/* Radio schedule */}
               <div className="card p-5">
                 <p className="font-mono text-[11px] text-text-muted uppercase tracking-widest mb-2">
-                  Radio Check-In Schedule (Section D.9)
+                  {t('protocol.radioSchedule')}
                 </p>
                 <div className="space-y-2">
                   {RADIO_SLOTS.map((slot) => (
@@ -277,7 +283,7 @@ export function OperatingProtocolPage() {
                       <span className="font-mono text-xs font-bold text-text-primary flex-shrink-0 w-12">
                         {slot.time}
                       </span>
-                      <p className="font-mono text-[11px] text-text-secondary">{slot.desc}</p>
+                      <p className="font-mono text-[11px] text-text-secondary">{t(slot.desc)}</p>
                     </div>
                   ))}
                 </div>
@@ -286,14 +292,14 @@ export function OperatingProtocolPage() {
               {/* Delivery tiers */}
               <div className="card p-5">
                 <p className="font-mono text-[11px] text-text-muted uppercase tracking-widest mb-2">
-                  Last-Mile Delivery Tiers (Section A.4)
+                  {t('protocol.tiers')}
                 </p>
                 <div className="space-y-2">
-                  {DELIVERY_TIERS.map((t) => (
-                    <div key={t.depth} className="flex items-center justify-between">
-                      <span className="font-mono text-[11px] text-text-muted">{t.depth}</span>
-                      <span className={`font-mono text-[11px] font-semibold ${t.color}`}>
-                        {t.mode}
+                  {DELIVERY_TIERS.map((tier) => (
+                    <div key={tier.depth} className="flex items-center justify-between">
+                      <span className="font-mono text-[11px] text-text-muted">{tier.depth}</span>
+                      <span className={`font-mono text-[11px] font-semibold ${tier.color}`}>
+                        {t(tier.mode)}
                       </span>
                     </div>
                   ))}
@@ -303,7 +309,7 @@ export function OperatingProtocolPage() {
               {/* Coordination failure protocols */}
               <div className="card p-5">
                 <p className="font-mono text-[11px] text-text-muted uppercase tracking-widest mb-2">
-                  Coordination Failure Protocols (Section D.10)
+                  {t('protocol.failures')}
                 </p>
                 <div className="space-y-2">
                   {FAILURE_PROTOCOLS.map((f) => (
@@ -311,7 +317,7 @@ export function OperatingProtocolPage() {
                       <span className="font-mono text-[11px] font-bold text-accent-orange flex-shrink-0">
                         {f.code}
                       </span>
-                      <p className="font-mono text-[11px] text-text-secondary">{f.desc}</p>
+                      <p className="font-mono text-[11px] text-text-secondary">{t(f.desc)}</p>
                     </div>
                   ))}
                 </div>

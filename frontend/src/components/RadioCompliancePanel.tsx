@@ -2,6 +2,7 @@ import { useQuery } from '@tanstack/react-query';
 import { radioApi } from '../api/radio';
 import { queryKeys } from '../api/queryKeys';
 import type { RadioComplianceEntry } from '../api/radio';
+import { useI18n, districtLabel } from '../i18n';
 
 const SLOT_LABELS: Record<string, string> = {
   T0800: '08:00', T1200: '12:00', T1600: '16:00', T2000: '20:00',
@@ -20,6 +21,7 @@ function isSlotPastDue(slot: string): boolean {
 }
 
 export function RadioCompliancePanel() {
+  const { t } = useI18n();
   const { data = [], isLoading } = useQuery({
     queryKey: queryKeys.radio.compliance(),
     queryFn:  () => radioApi.getCompliance(),
@@ -64,7 +66,7 @@ export function RadioCompliancePanel() {
       {/* Header */}
       <div className="flex items-start justify-between mb-4">
         <div>
-          <h2 className="font-display font-bold text-text-primary">Radio Check-ins</h2>
+          <h2 className="font-display font-bold text-text-primary">{t('radio.title')}</h2>
           <p className="font-mono text-[11px] text-text-muted mt-0.5">
             08:00 · 12:00 · 16:00 · 20:00
           </p>
@@ -73,7 +75,7 @@ export function RadioCompliancePanel() {
           <p className={`font-mono text-lg font-semibold tabular-nums ${overallColor}`}>
             {completedSlots}/{data.length * 4}
           </p>
-          <p className="font-mono text-[10px] text-text-muted">slots filled</p>
+          <p className="font-mono text-[10px] text-text-muted">{t('radio.slotsFilled')}</p>
         </div>
       </div>
 
@@ -81,10 +83,10 @@ export function RadioCompliancePanel() {
       <div className="mb-4">
         <div className="flex justify-between items-baseline mb-1.5">
           <span className="font-mono text-[11px] text-text-muted uppercase tracking-widest">
-            Today's Compliance
+            {t('radio.todayCompliance')}
           </span>
           <span className={`font-mono text-[11px] font-semibold tabular-nums ${overallColor}`}>
-            {completedSlots} of {data.length * 4} slots
+            {t('radio.slotsOf', { done: completedSlots, total: data.length * 4 })}
           </span>
         </div>
         <div className="h-1.5 w-full bg-bg-border rounded-full overflow-hidden">
@@ -104,7 +106,7 @@ export function RadioCompliancePanel() {
         <div className="mb-4 flex items-start gap-2 bg-accent-red/10 border border-accent-red/25 rounded-lg px-3 py-2.5">
           <span className="w-1.5 h-1.5 rounded-full bg-accent-red animate-pulse-slow flex-shrink-0 mt-0.5" />
           <p className="font-mono text-[11px] text-accent-red leading-snug">
-            Missed 2+ check-ins — contact Hub Manager immediately
+            {t('radio.missedCritical')}
           </p>
         </div>
       )}
@@ -112,20 +114,20 @@ export function RadioCompliancePanel() {
         <div className="mb-4 flex items-start gap-2 bg-accent-orange/10 border border-accent-orange/20 rounded-lg px-3 py-2.5">
           <span className="w-1.5 h-1.5 rounded-full bg-accent-orange flex-shrink-0 mt-0.5" />
           <p className="font-mono text-[11px] text-accent-orange leading-snug">
-            Issues reported in one or more check-ins today
+            {t('radio.issuesToday')}
           </p>
         </div>
       )}
 
       {/* Column headers */}
       <div className="grid grid-cols-[1fr_auto_auto_auto_auto_auto] items-center gap-x-5 mb-1 px-1">
-        <span className="font-mono text-[10px] text-text-muted uppercase tracking-widest">District</span>
+        <span className="font-mono text-[10px] text-text-muted uppercase tracking-widest">{t('common.district')}</span>
         {ALL_SLOTS.map((slot) => (
           <span key={slot} className="font-mono text-[10px] text-text-muted text-center w-10">
             {SLOT_LABELS[slot]}
           </span>
         ))}
-        <span className="font-mono text-[10px] text-text-muted text-right w-8">Fill</span>
+        <span className="font-mono text-[10px] text-text-muted text-right w-8">{t('radio.fill')}</span>
       </div>
 
       {/* District rows */}
@@ -147,16 +149,16 @@ export function RadioCompliancePanel() {
                 <span className={`font-sans text-sm font-medium truncate ${
                   isCritical ? 'text-text-primary' : 'text-text-secondary'
                 }`}>
-                  {entry.districtName}
+                  {districtLabel(t, entry.districtName)}
                 </span>
                 {isCritical && (
                   <span className="font-mono text-[10px] text-accent-red bg-accent-red/15 border border-accent-red/25 px-1.5 py-0.5 rounded flex-shrink-0">
-                    {missed} MISSED
+                    {t('radio.missedN', { count: missed })}
                   </span>
                 )}
                 {!isCritical && entry.issuesReported && (
                   <span className="font-mono text-[10px] text-accent-orange bg-accent-orange/15 border border-accent-orange/25 px-1.5 py-0.5 rounded flex-shrink-0">
-                    ISSUE
+                    {t('radio.issue')}
                   </span>
                 )}
               </div>
@@ -168,7 +170,7 @@ export function RadioCompliancePanel() {
                 return (
                   <div key={slot} className="flex items-center justify-center w-10">
                     <span
-                      title={`${SLOT_LABELS[slot]} — ${done ? 'checked in' : pastDue ? 'missed' : 'upcoming'}`}
+                      title={`${SLOT_LABELS[slot]} — ${done ? t('radio.slot.checkedIn') : pastDue ? t('radio.slot.missed') : t('radio.slot.upcoming')}`}
                       style={{ width: '1.375rem' }}
                       className={`h-2.5 rounded-full transition-colors ${
                         done
@@ -199,7 +201,7 @@ export function RadioCompliancePanel() {
 
         {data.length === 0 && (
           <p className="font-mono text-xs text-text-muted text-center py-6">
-            No check-in data available.
+            {t('radio.noData')}
           </p>
         )}
       </div>

@@ -1,6 +1,7 @@
 import { Navigate, Outlet } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import type { UserProfile } from '../api/auth';
+import { useI18n } from '../i18n';
 
 interface ProtectedRouteProps {
   // If provided, user must have one of these roles to access
@@ -9,12 +10,13 @@ interface ProtectedRouteProps {
 
 export function ProtectedRoute({ roles }: ProtectedRouteProps) {
   const { user, isLoading } = useAuth();
+  const { t } = useI18n();
 
   if (isLoading) {
     return (
       <div className="min-h-screen bg-bg-primary flex items-center justify-center">
         <span className="font-mono text-text-muted text-sm animate-pulse">
-          initializing...
+          {t('common.initializing')}
         </span>
       </div>
     );

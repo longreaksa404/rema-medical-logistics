@@ -17,6 +17,8 @@ import {
 } from '../utils/scoring';
 import type { ScoreInput, PriorityBand, Cat2FlagId } from '../utils/scoring';
 import { usePageTitle } from '../hooks/usePageTitle';
+import { useI18n, bandLabel, districtLabel, enumLabel, zoneLabel, type MessageKey, type Translate } from '../i18n';
+import { useThemeColors, type ThemeToken } from '../theme/ThemeContext';
 
 // ─── TYPES ────────────────────────────────────────────────────────────────────
 
@@ -33,11 +35,11 @@ interface DeliveryRun {
 
 // ─── CONSTANTS ────────────────────────────────────────────────────────────────
 
-const BAND_CONFIG: Record<PriorityBand, { label: string; color: string; bg: string; border: string; dot: string }> = {
-  CRITICAL: { label: 'CRITICAL', color: 'text-accent-red',    bg: 'bg-accent-red/10',    border: 'border-accent-red/40',    dot: 'bg-accent-red'    },
-  HIGH:     { label: 'HIGH',     color: 'text-accent-orange', bg: 'bg-accent-orange/10', border: 'border-accent-orange/40', dot: 'bg-accent-orange' },
-  MEDIUM:   { label: 'MEDIUM',   color: 'text-accent-yellow', bg: 'bg-accent-yellow/10', border: 'border-accent-yellow/40', dot: 'bg-accent-yellow' },
-  STANDARD: { label: 'STANDARD', color: 'text-accent-green',  bg: 'bg-accent-green/10',  border: 'border-accent-green/30',  dot: 'bg-accent-green'  },
+const BAND_CONFIG: Record<PriorityBand, { label: string; color: string; bg: string; border: string; dot: string; ring: ThemeToken }> = {
+  CRITICAL: { label: 'CRITICAL', color: 'text-accent-red',    bg: 'bg-accent-red/10',    border: 'border-accent-red/40',    dot: 'bg-accent-red',    ring: 'accent-red'    },
+  HIGH:     { label: 'HIGH',     color: 'text-accent-orange', bg: 'bg-accent-orange/10', border: 'border-accent-orange/40', dot: 'bg-accent-orange', ring: 'accent-orange' },
+  MEDIUM:   { label: 'MEDIUM',   color: 'text-accent-yellow', bg: 'bg-accent-yellow/10', border: 'border-accent-yellow/40', dot: 'bg-accent-yellow', ring: 'accent-yellow' },
+  STANDARD: { label: 'STANDARD', color: 'text-accent-green',  bg: 'bg-accent-green/10',  border: 'border-accent-green/30',  dot: 'bg-accent-green',  ring: 'accent-green'  },
 };
 
 const EMK_COLORS: Record<string, string> = {
@@ -45,25 +47,41 @@ const EMK_COLORS: Record<string, string> = {
 };
 
 const INCIDENT_TYPES = [
-  { value: 'ROUTE_BLOCKED',    label: 'Route Blocked',    icon: '🚧', autoEscalate: false },
-  { value: 'VOLUNTEER_SAFETY', label: 'Volunteer Safety', icon: '⚠️', autoEscalate: true  },
-  { value: 'STOCK_SCARCITY',   label: 'Stock Scarcity',   icon: '📦', autoEscalate: false },
-  { value: 'BUILDING_FLOODED', label: 'Building Flooded', icon: '🌊', autoEscalate: false },
-  { value: 'OTHER',            label: 'Other',            icon: '📋', autoEscalate: false },
+  { value: 'ROUTE_BLOCKED',    icon: '🚧', autoEscalate: false },
+  { value: 'VOLUNTEER_SAFETY', icon: '⚠️', autoEscalate: true  },
+  { value: 'STOCK_SCARCITY',   icon: '📦', autoEscalate: false },
+  { value: 'BUILDING_FLOODED', icon: '🌊', autoEscalate: false },
+  { value: 'OTHER',            icon: '📋', autoEscalate: false },
 ] as const;
+
+// Scoring options keep their English labels in utils/scoring.ts (shared rules);
+// the UI shows these translations, keyed by option value / flag id.
+const CAT1_LABELS: Record<number, MessageKey> = { 8: 'score.cat1.8', 5: 'score.cat1.5', 2: 'score.cat1.2', 0: 'score.cat1.0' };
+const CAT3_LABELS: Record<number, MessageKey> = { 4: 'score.cat3.4', 3: 'score.cat3.3', 1: 'score.cat3.1', 0: 'score.cat3.0' };
+const CAT4_LABELS: Record<number, MessageKey> = { 2: 'score.cat4.2', 1: 'score.cat4.1', 0: 'score.cat4.0' };
+const CAT2_LABELS: Record<Cat2FlagId, MessageKey> = {
+  infant: 'score.cat2.infant', pregnant: 'score.cat2.pregnant', elderly: 'score.cat2.elderly', disabled: 'score.cat2.disabled',
+};
+
+const BAND_GUIDANCE: Record<PriorityBand, MessageKey> = {
+  CRITICAL: 'vol.guide.CRITICAL', HIGH: 'vol.guide.HIGH', MEDIUM: 'vol.guide.MEDIUM', STANDARD: 'vol.guide.STANDARD',
+};
+const BAND_GUIDANCE_SHORT: Record<PriorityBand, MessageKey> = {
+  CRITICAL: 'dash.deliverCurrentRun', HIGH: 'vol.guideShort.HIGH', MEDIUM: 'vol.guideShort.MEDIUM', STANDARD: 'vol.guideShort.STANDARD',
+};
 
 const BAND_ORDER: Record<PriorityBand, number> = { CRITICAL: 0, HIGH: 1, MEDIUM: 2, STANDARD: 3 };
 
 // ─── HELPERS ──────────────────────────────────────────────────────────────────
 
-function timeAgo(iso: string) {
+function timeAgo(t: Translate, iso: string) {
   const diff = Date.now() - new Date(iso).getTime();
   const m = Math.floor(diff / 60000);
-  if (m < 1) return 'just now';
-  if (m < 60) return `${m}m ago`;
+  if (m < 1) return t('time.justNow');
+  if (m < 60) return t('time.minutesAgo', { n: m });
   const h = Math.floor(m / 60);
-  if (h < 24) return `${h}h ago`;
-  return `${Math.floor(h / 24)}d ago`;
+  if (h < 24) return t('time.hoursAgo', { n: h });
+  return t('time.daysAgo', { n: Math.floor(h / 24) });
 }
 
 // ─── SKELETON ─────────────────────────────────────────────────────────────────
@@ -142,19 +160,20 @@ function OptionButton({ selected, onClick, children, danger = false }: {
 // ─── EMK QUANTITY BADGE ───────────────────────────────────────────────────────
 
 function EmkQuantityBadge({ emk3, emk2, emk1, total }: { emk3: number; emk2: number; emk1: number; total: number }) {
+  const { t } = useI18n();
   const parts: string[] = [];
   if (emk3 > 0) parts.push(`${emk3}x EMK3`);
   if (emk2 > 0) parts.push(`${emk2}x EMK2`);
   if (emk1 > 0) parts.push(`${emk1}x EMK1`);
   return (
     <div className="flex items-center gap-1.5 flex-wrap">
-      <span className="font-mono text-[11px] text-text-muted">Kits:</span>
+      <span className="font-mono text-[11px] text-text-muted">{t('vol.kits')}</span>
       {parts.map((p, i) => (
         <span key={i} className={`font-mono text-[11px] font-bold ${
           p.includes('EMK3') ? 'text-accent-red' : p.includes('EMK2') ? 'text-accent-green' : 'text-accent-blue'
         }`}>{p}</span>
       ))}
-      <span className="font-mono text-[11px] text-text-muted">= {total} total</span>
+      <span className="font-mono text-[11px] text-text-muted">= {t('vol.kitsTotal', { total })}</span>
     </div>
   );
 }
@@ -163,6 +182,7 @@ function EmkQuantityBadge({ emk3, emk2, emk1, total }: { emk3: number; emk2: num
 // Shows last 10 assessed households for this district — placed below live score
 
 function AssessAuditLog({ districtId }: { districtId: string }) {
+  const { t } = useI18n();
   const { data: historyResult, isLoading } = useQuery({
     queryKey: [...queryKeys.households.queue(districtId), 'all'],
     queryFn: () => householdsApi.list({ districtId }, 1, 100),
@@ -182,7 +202,7 @@ function AssessAuditLog({ districtId }: { districtId: string }) {
   if (isLoading) {
     return (
       <div className="card p-4 space-y-2">
-        <p className="font-mono text-[11px] text-text-muted uppercase tracking-widest mb-3">Assessment History</p>
+        <p className="font-mono text-[11px] text-text-muted uppercase tracking-widest mb-3">{t('vol.history')}</p>
         {[...Array(3)].map((_, i) => <Skeleton key={i} className="h-10" />)}
       </div>
     );
@@ -191,10 +211,10 @@ function AssessAuditLog({ districtId }: { districtId: string }) {
   return (
     <div className="card p-4">
       <p className="font-mono text-[11px] text-text-muted uppercase tracking-widest mb-3">
-        Assessment History
+        {t('vol.history')}
       </p>
       {recent.length === 0 ? (
-        <p className="font-mono text-[11px] text-text-muted text-center py-4">No assessments yet this session.</p>
+        <p className="font-mono text-[11px] text-text-muted text-center py-4">{t('vol.noHistory')}</p>
       ) : (
         <div className="space-y-2">
           {recent.map(h => {
@@ -204,7 +224,7 @@ function AssessAuditLog({ districtId }: { districtId: string }) {
                 <div className={`w-1.5 h-1.5 rounded-full flex-shrink-0 mt-1.5 ${cfg.dot}`} />
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-1.5 flex-wrap mb-0.5">
-                    <span className={`font-mono text-[10px] font-bold ${cfg.color}`}>{cfg.label}</span>
+                    <span className={`font-mono text-[10px] font-bold ${cfg.color}`}>{bandLabel(t, cfg.label)}</span>
                     {(h.totalEmkQuantity ?? 1) > 1 ? (
                       <>
                         <span className="font-mono text-[10px] font-bold text-accent-red">{h.emk3Quantity ? `${h.emk3Quantity}×EMK3` : ''}</span>
@@ -218,7 +238,7 @@ function AssessAuditLog({ districtId }: { districtId: string }) {
                   </div>
                   <p className="font-mono text-[10px] text-text-secondary truncate">{h.address}</p>
                 </div>
-                <span className="font-mono text-[10px] text-text-muted flex-shrink-0">{timeAgo(h.createdAt)}</span>
+                <span className="font-mono text-[10px] text-text-muted flex-shrink-0">{timeAgo(t, h.createdAt)}</span>
               </div>
             );
           })}
@@ -243,6 +263,8 @@ function AssessTab({ districtId }: { districtId: string }) {
   const [submittedResult, setSubmittedResult] = useState<Household | null>(null);
   const [savedOffline, setSavedOffline] = useState(false);
   const { user } = useAuth();
+  const { t } = useI18n();
+  const color = useThemeColors();
 
   const cat2 = computeCat2(cat2Flags);
   const hasVulnerableMember = cat2Flags.size > 0;
@@ -276,7 +298,7 @@ function AssessTab({ districtId }: { districtId: string }) {
       kind: 'assessment',
       url: '/api/households',
       body: { ...payload, clientRef: crypto.randomUUID() },
-      label: `Assessment · ${payload.address}`,
+      label: `${t('vol.outbox.assessment')} · ${payload.address}`,
     }),
     onSuccess: (result, payload) => {
       if (result.queued) {
@@ -311,10 +333,9 @@ function AssessTab({ districtId }: { districtId: string }) {
       <div className="max-w-xl">
         {savedOffline && (
           <div className="card px-4 py-3 mb-4 border-accent-orange/40 bg-accent-orange/5">
-            <p className="font-mono text-xs text-accent-orange font-bold mb-0.5">Saved on this device — not sent yet</p>
+            <p className="font-mono text-xs text-accent-orange font-bold mb-0.5">{t('vol.savedOffline')}</p>
             <p className="font-mono text-[11px] text-text-secondary leading-relaxed">
-              No connection. This assessment will be sent automatically when you reconnect, and the household
-              will join the priority queue then. Score below was calculated on this device.
+              {t('vol.savedOfflineAssess')}
             </p>
           </div>
         )}
@@ -322,9 +343,9 @@ function AssessTab({ districtId }: { districtId: string }) {
           <div className="flex items-center gap-6 mb-6">
             <div className="relative w-20 h-20 flex-shrink-0">
               <svg className="w-full h-full -rotate-90" viewBox="0 0 64 64">
-                <circle cx="32" cy="32" r="26" fill="none" stroke="#21262d" strokeWidth="6" />
+                <circle cx="32" cy="32" r="26" fill="none" stroke={color('bg-border')} strokeWidth="6" />
                 <circle cx="32" cy="32" r="26" fill="none"
-                  stroke={submittedResult.priorityBand === 'CRITICAL' ? '#f85149' : submittedResult.priorityBand === 'HIGH' ? '#f0883e' : submittedResult.priorityBand === 'MEDIUM' ? '#d29922' : '#3fb950'}
+                  stroke={color(rBand.ring)}
                   strokeWidth="6"
                   strokeDasharray={`${((submittedResult.totalScore / 20) * 163.4)} 163.4`}
                   strokeLinecap="round" />
@@ -336,28 +357,25 @@ function AssessTab({ districtId }: { districtId: string }) {
             </div>
             <div>
               <div className={`inline-flex items-center gap-2 px-3 py-1 rounded border font-mono text-sm font-bold mb-2 ${rBand.bg} ${rBand.border} ${rBand.color}`}>
-                <span className={`w-2 h-2 rounded-full ${rBand.dot}`} />{rBand.label}
+                <span className={`w-2 h-2 rounded-full ${rBand.dot}`} />{bandLabel(t, rBand.label)}
               </div>
               <p className="font-mono text-xs text-text-muted">
-                {submittedResult.priorityBand === 'CRITICAL' ? 'Deliver in current run' :
-                 submittedResult.priorityBand === 'HIGH'     ? 'Deliver same day' :
-                 submittedResult.priorityBand === 'MEDIUM'   ? 'Deliver within 48h' :
-                                                               'Community collection point'}
+                {t(BAND_GUIDANCE_SHORT[submittedResult.priorityBand])}
               </p>
             </div>
           </div>
           <div className="space-y-2 border-t border-bg-border pt-4">
             <div className="flex justify-between items-center py-1.5">
-              <span className="font-mono text-xs text-text-muted">Address</span>
+              <span className="font-mono text-xs text-text-muted">{t('queue.col.address')}</span>
               <span className="font-sans text-sm text-text-primary">{submittedResult.address}</span>
             </div>
             <div className="flex justify-between items-center py-1.5 border-t border-bg-border">
-              <span className="font-mono text-xs text-text-muted">Primary EMK</span>
+              <span className="font-mono text-xs text-text-muted">{t('vol.primaryEmk')}</span>
               <span className={`font-mono text-sm font-bold ${EMK_COLORS[submittedResult.recommendedEmk]}`}>{submittedResult.recommendedEmk}</span>
             </div>
             {submittedResult.totalEmkQuantity !== undefined && submittedResult.totalEmkQuantity > 0 && (
               <div className="flex justify-between items-start py-1.5 border-t border-bg-border">
-                <span className="font-mono text-xs text-text-muted">Kit breakdown</span>
+                <span className="font-mono text-xs text-text-muted">{t('vol.kitBreakdown')}</span>
                 <EmkQuantityBadge
                   emk3={submittedResult.emk3Quantity ?? 0}
                   emk2={submittedResult.emk2Quantity ?? 0}
@@ -367,18 +385,18 @@ function AssessTab({ districtId }: { districtId: string }) {
               </div>
             )}
             <div className="flex justify-between items-center py-1.5 border-t border-bg-border">
-              <span className="font-mono text-xs text-text-muted">Household size</span>
-              <span className="font-mono text-xs text-text-secondary">{submittedResult.householdSize ?? householdSize} people</span>
+              <span className="font-mono text-xs text-text-muted">{t('vol.householdSizeShort')}</span>
+              <span className="font-mono text-xs text-text-secondary">{t('vol.people', { count: submittedResult.householdSize ?? householdSize })}</span>
             </div>
             <div className="flex justify-between items-center py-1.5 border-t border-bg-border">
-              <span className="font-mono text-xs text-text-muted">Score breakdown</span>
+              <span className="font-mono text-xs text-text-muted">{t('vol.scoreBreakdown')}</span>
               <span className="font-mono text-xs text-text-secondary">
                 Cat1:{submittedResult.medicalUrgencyScore} Cat2:{submittedResult.vulnerabilityScore} Cat3:{submittedResult.floodExposureScore} Cat4:{submittedResult.selfSufficiencyScore} Cat5:{submittedResult.isolationScore}
               </span>
             </div>
           </div>
         </div>
-        <button onClick={reset} className="btn-primary w-full">Assess Next Household</button>
+        <button onClick={reset} className="btn-primary w-full">{t('vol.assessNext')}</button>
       </div>
     );
   }
@@ -393,16 +411,16 @@ function AssessTab({ districtId }: { districtId: string }) {
         {/* ── Left: form categories — 70% ── */}
         <div className="flex-1 min-w-0 space-y-4">
           <div className="card p-5">
-            <SectionTitle>Household Address</SectionTitle>
-            <input type="text" className="input" placeholder="e.g. #45, St. 271, Sangkat Dangkao"
+            <SectionTitle>{t('vol.address')}</SectionTitle>
+            <input type="text" className="input" placeholder={t('vol.addressPlaceholder')}
               value={address} onChange={e => setAddress(e.target.value)} />
           </div>
 
           <div className="card p-5">
-            <SectionTitle sub="Used to calculate how many kits to deliver">Household Size</SectionTitle>
+            <SectionTitle sub={t('vol.householdSizeSub')}>{t('vol.householdSize')}</SectionTitle>
             <div className="flex items-center gap-4">
               <div>
-                <label className="label">Total people in household</label>
+                <label className="label">{t('vol.totalPeople')}</label>
                 <div className="flex items-center gap-2">
                   <button onClick={() => setHouseholdSize(Math.max(1, householdSize - 1))}
                     className="w-8 h-8 rounded border border-bg-border text-text-secondary hover:text-text-primary font-mono text-lg flex items-center justify-center">-</button>
@@ -411,7 +429,7 @@ function AssessTab({ districtId }: { districtId: string }) {
                     className="w-8 h-8 rounded border border-bg-border text-text-secondary hover:text-text-primary font-mono text-lg flex items-center justify-center">+</button>
                 </div>
                 <p className="font-mono text-[10px] text-text-muted mt-1">
-                  EMK3 determined by Category 1 — EMK2 by vulnerability flags
+                  {t('vol.emkRule')}
                 </p>
               </div>
             </div>
@@ -429,14 +447,14 @@ function AssessTab({ districtId }: { districtId: string }) {
 
           <div className="card p-5">
             <div className="flex items-center justify-between mb-3">
-              <SectionTitle sub="Chronic illness + medication status">1. Medical Urgency</SectionTitle>
+              <SectionTitle sub={t('vol.cat1.sub')}>1. {t('vol.cat1')}</SectionTitle>
               <span className={`font-mono text-sm font-bold ${cat1 > 0 ? 'text-accent-red' : 'text-text-muted'}`}>{cat1}/8</span>
             </div>
             <div className="space-y-2">
               {CAT1_OPTIONS.map(opt => (
                 <OptionButton key={opt.value} selected={cat1 === opt.value} onClick={() => setCat1(opt.value)}>
                   <div className="flex items-center justify-between gap-3">
-                    <span className={`font-sans text-sm ${cat1 === opt.value ? 'text-text-primary' : 'text-text-secondary'}`}>{opt.label}</span>
+                    <span className={`font-sans text-sm ${cat1 === opt.value ? 'text-text-primary' : 'text-text-secondary'}`}>{t(CAT1_LABELS[opt.value])}</span>
                     <span className={`font-mono text-xs font-semibold flex-shrink-0 ${cat1 === opt.value ? 'text-accent-blue' : 'text-text-muted'}`}>{opt.value}pt</span>
                   </div>
                 </OptionButton>
@@ -446,7 +464,7 @@ function AssessTab({ districtId }: { districtId: string }) {
 
           <div className="card p-5">
             <div className="flex items-center justify-between mb-3">
-              <SectionTitle sub="Infant, pregnant, elderly, disabled — capped at 5">2. Household Vulnerability</SectionTitle>
+              <SectionTitle sub={t('vol.cat2.sub')}>2. {t('vol.cat2')}</SectionTitle>
               <span className={`font-mono text-sm font-bold ${cat2 > 0 ? 'text-accent-orange' : 'text-text-muted'}`}>{cat2}/5</span>
             </div>
             <div className="space-y-2">
@@ -458,26 +476,26 @@ function AssessTab({ districtId }: { districtId: string }) {
                       <div className={`w-4 h-4 rounded border-2 flex items-center justify-center flex-shrink-0 ${checked ? 'border-accent-blue bg-accent-blue' : 'border-bg-border'}`}>
                         {checked && <span className="text-bg-primary text-[10px] font-bold">✓</span>}
                       </div>
-                      <span className={`font-sans text-sm flex-1 ${checked ? 'text-text-primary' : 'text-text-secondary'}`}>{flag.label}</span>
+                      <span className={`font-sans text-sm flex-1 ${checked ? 'text-text-primary' : 'text-text-secondary'}`}>{t(CAT2_LABELS[flag.id])}</span>
                       <span className={`font-mono text-xs flex-shrink-0 ${checked ? 'text-accent-blue' : 'text-text-muted'}`}>+{flag.points}</span>
                     </div>
                   </OptionButton>
                 );
               })}
-              {cat2 >= 5 && <p className="font-mono text-[11px] text-accent-yellow px-1">Cap reached — additional flags don't add points</p>}
+              {cat2 >= 5 && <p className="font-mono text-[11px] text-accent-yellow px-1">{t('vol.capReached')}</p>}
             </div>
           </div>
 
           <div className="card p-5">
             <div className="flex items-center justify-between mb-3">
-              <SectionTitle sub="Water depth at or in household">3. Flood Exposure</SectionTitle>
+              <SectionTitle sub={t('vol.cat3.sub')}>3. {t('vol.cat3')}</SectionTitle>
               <span className={`font-mono text-sm font-bold ${cat3 > 0 ? 'text-accent-red' : 'text-text-muted'}`}>{cat3}/4</span>
             </div>
             <div className="space-y-2">
               {CAT3_OPTIONS.map(opt => (
                 <OptionButton key={opt.value} selected={cat3 === opt.value} onClick={() => setCat3(opt.value)}>
                   <div className="flex items-center justify-between gap-3">
-                    <span className={`font-sans text-sm ${cat3 === opt.value ? 'text-text-primary' : 'text-text-secondary'}`}>{opt.label}</span>
+                    <span className={`font-sans text-sm ${cat3 === opt.value ? 'text-text-primary' : 'text-text-secondary'}`}>{t(CAT3_LABELS[opt.value])}</span>
                     <span className={`font-mono text-xs flex-shrink-0 ${cat3 === opt.value ? 'text-accent-blue' : 'text-text-muted'}`}>{opt.value}pt</span>
                   </div>
                 </OptionButton>
@@ -487,14 +505,14 @@ function AssessTab({ districtId }: { districtId: string }) {
 
           <div className="card p-5">
             <div className="flex items-center justify-between mb-3">
-              <SectionTitle sub="Food, clean water, sanitation access">4. Self-Sufficiency</SectionTitle>
+              <SectionTitle sub={t('vol.cat4.sub')}>4. {t('vol.cat4')}</SectionTitle>
               <span className={`font-mono text-sm font-bold ${cat4 > 0 ? 'text-accent-yellow' : 'text-text-muted'}`}>{cat4}/2</span>
             </div>
             <div className="space-y-2">
               {CAT4_OPTIONS.map(opt => (
                 <OptionButton key={opt.value} selected={cat4 === opt.value} onClick={() => setCat4(opt.value)}>
                   <div className="flex items-center justify-between gap-3">
-                    <span className={`font-sans text-sm ${cat4 === opt.value ? 'text-text-primary' : 'text-text-secondary'}`}>{opt.label}</span>
+                    <span className={`font-sans text-sm ${cat4 === opt.value ? 'text-text-primary' : 'text-text-secondary'}`}>{t(CAT4_LABELS[opt.value])}</span>
                     <span className={`font-mono text-xs flex-shrink-0 ${cat4 === opt.value ? 'text-accent-blue' : 'text-text-muted'}`}>{opt.value}pt</span>
                   </div>
                 </OptionButton>
@@ -504,7 +522,7 @@ function AssessTab({ districtId }: { districtId: string }) {
 
           <div className="card p-5">
             <div className="flex items-center justify-between mb-3">
-              <SectionTitle>5. Isolation</SectionTitle>
+              <SectionTitle>5. {t('vol.cat5')}</SectionTitle>
               <span className={`font-mono text-sm font-bold ${cat5 > 0 ? 'text-accent-orange' : 'text-text-muted'}`}>{cat5}/1</span>
             </div>
             <OptionButton selected={cat5 === 1} onClick={() => setCat5(cat5 === 1 ? 0 : 1)}>
@@ -512,15 +530,15 @@ function AssessTab({ districtId }: { districtId: string }) {
                 <div className={`w-4 h-4 rounded border-2 flex items-center justify-center flex-shrink-0 ${cat5 === 1 ? 'border-accent-blue bg-accent-blue' : 'border-bg-border'}`}>
                   {cat5 === 1 && <span className="text-bg-primary text-[10px] font-bold">✓</span>}
                 </div>
-                <span className={`font-sans text-sm flex-1 ${cat5 === 1 ? 'text-text-primary' : 'text-text-secondary'}`}>Completely isolated — no neighbors, family, or signal</span>
+                <span className={`font-sans text-sm flex-1 ${cat5 === 1 ? 'text-text-primary' : 'text-text-secondary'}`}>{t('score.cat5.1')}</span>
                 <span className={`font-mono text-xs flex-shrink-0 ${cat5 === 1 ? 'text-accent-blue' : 'text-text-muted'}`}>1pt</span>
               </div>
             </OptionButton>
           </div>
 
           <div className="card p-5">
-            <SectionTitle>Field Notes (optional)</SectionTitle>
-            <textarea rows={3} className="input resize-none" placeholder="Observations, contact name, additional context..."
+            <SectionTitle>{t('vol.notes')}</SectionTitle>
+            <textarea rows={3} className="input resize-none" placeholder={t('vol.notesPlaceholder')}
               value={notes} onChange={e => setNotes(e.target.value)} />
           </div>
         </div>
@@ -531,15 +549,15 @@ function AssessTab({ districtId }: { districtId: string }) {
 
             {/* live score card */}
             <div className={`card p-5 border-2 transition-colors duration-300 ${bandCfg.border}`}>
-              <p className="font-mono text-[11px] text-text-muted uppercase tracking-widest mb-4">Live Score</p>
+              <p className="font-mono text-[11px] text-text-muted uppercase tracking-widest mb-4">{t('vol.liveScore')}</p>
 
               {/* score circle + band — larger */}
               <div className="flex flex-col items-center gap-4 mb-4">
                 <div className="relative w-28 h-28">
                   <svg className="w-full h-full -rotate-90" viewBox="0 0 64 64">
-                    <circle cx="32" cy="32" r="26" fill="none" stroke="#21262d" strokeWidth="5" />
+                    <circle cx="32" cy="32" r="26" fill="none" stroke={color('bg-border')} strokeWidth="5" />
                     <circle cx="32" cy="32" r="26" fill="none"
-                      stroke={liveScore.priorityBand === 'CRITICAL' ? '#f85149' : liveScore.priorityBand === 'HIGH' ? '#f0883e' : liveScore.priorityBand === 'MEDIUM' ? '#d29922' : '#3fb950'}
+                      stroke={color(bandCfg.ring)}
                       strokeWidth="5" strokeDasharray={`${(scorePct / 100) * 163.4} 163.4`}
                       strokeLinecap="round" className="transition-all duration-500" />
                   </svg>
@@ -550,7 +568,7 @@ function AssessTab({ districtId }: { districtId: string }) {
                 </div>
                 <div className="text-center">
                   <div className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded border font-mono text-sm font-bold mb-2 ${bandCfg.bg} ${bandCfg.border} ${bandCfg.color}`}>
-                    <span className={`w-2 h-2 rounded-full ${bandCfg.dot}`} />{bandCfg.label}
+                    <span className={`w-2 h-2 rounded-full ${bandCfg.dot}`} />{bandLabel(t, bandCfg.label)}
                   </div>
                   <p className={`font-mono text-sm font-bold ${EMK_COLORS[liveScore.recommendedEmk]}`}>→ {liveScore.recommendedEmk}</p>
                 </div>
@@ -571,11 +589,11 @@ function AssessTab({ districtId }: { districtId: string }) {
               {/* category bars */}
               <div className="space-y-2">
                 {[
-                  { label: 'Medical',       val: cat1, max: 8, color: 'bg-accent-red'    },
-                  { label: 'Vulnerability', val: cat2, max: 5, color: 'bg-accent-orange' },
-                  { label: 'Flood Exp.',    val: cat3, max: 4, color: 'bg-accent-yellow' },
-                  { label: 'Self-Suff.',    val: cat4, max: 2, color: 'bg-accent-blue'   },
-                  { label: 'Isolation',     val: cat5, max: 1, color: 'bg-accent-green'  },
+                  { label: t('vol.bar.medical'),       val: cat1, max: 8, color: 'bg-accent-red'    },
+                  { label: t('vol.bar.vulnerability'), val: cat2, max: 5, color: 'bg-accent-orange' },
+                  { label: t('vol.bar.flood'),         val: cat3, max: 4, color: 'bg-accent-yellow' },
+                  { label: t('vol.bar.selfSuff'),      val: cat4, max: 2, color: 'bg-accent-blue'   },
+                  { label: t('vol.cat5'),              val: cat5, max: 1, color: 'bg-accent-green'  },
                 ].map(bar => (
                   <div key={bar.label} className="flex items-center gap-2">
                     <span className="font-mono text-[10px] text-text-muted w-20 flex-shrink-0">{bar.label}</span>
@@ -591,12 +609,9 @@ function AssessTab({ districtId }: { districtId: string }) {
 
             {/* delivery guidance */}
             <div className={`rounded border px-4 py-3 ${bandCfg.bg} ${bandCfg.border}`}>
-              <p className={`font-mono text-[11px] font-bold mb-0.5 ${bandCfg.color}`}>Delivery Guidance</p>
+              <p className={`font-mono text-[11px] font-bold mb-0.5 ${bandCfg.color}`}>{t('vol.guidance')}</p>
               <p className="font-mono text-[11px] text-text-secondary">
-                {liveScore.priorityBand === 'CRITICAL' ? 'Deliver within this run — goes first' :
-                 liveScore.priorityBand === 'HIGH'     ? 'Deliver in the same day' :
-                 liveScore.priorityBand === 'MEDIUM'   ? 'Deliver within 48 hours' :
-                                                         'Community collection point self-pickup'}
+                {t(BAND_GUIDANCE[liveScore.priorityBand])}
               </p>
             </div>
 
@@ -610,9 +625,9 @@ function AssessTab({ districtId }: { districtId: string }) {
               })}
               disabled={submitMutation.isPending || !address.trim()}
               className="btn-primary w-full">
-              {submitMutation.isPending ? 'Submitting...' : `Submit Assessment · ${liveScore.totalScore}/20`}
+              {submitMutation.isPending ? t('vol.submitting') : `${t('vol.submit')} · ${liveScore.totalScore}/20`}
             </button>
-            <p className="font-mono text-[11px] text-text-muted text-center">5 categories, 20-point scale</p>
+            <p className="font-mono text-[11px] text-text-muted text-center">{t('vol.scale')}</p>
 
             {/* audit log — below submit */}
             <AssessAuditLog districtId={districtId} />
@@ -633,6 +648,7 @@ function DeliverTab({ districtId }: { districtId: string }) {
   const [selectedRunId, setSelectedRunId] = useState<string | null>(null);
   const [confirming, setConfirming] = useState<string | null>(null);
   const { user } = useAuth();
+  const { t } = useI18n();
   const { pending } = useOutbox(user?.id);
 
   // deliveries recorded offline and not yet synced — shown as such so nobody delivers twice
@@ -681,7 +697,7 @@ function DeliverTab({ districtId }: { districtId: string }) {
         kind: 'delivery',
         url: '/api/delivery/receipts',
         body: { deliveryRunId: activeRun!.id, householdId: household.id, kits, deliveredAt: now },
-        label: `Delivery · ${household.address}`,
+        label: `${t('vol.outbox.delivery')} · ${household.address}`,
       });
     },
     onSuccess: (result) => {
@@ -711,7 +727,7 @@ function DeliverTab({ districtId }: { districtId: string }) {
       {/* ── run selector ── */}
       {activeRuns.length === 0 ? (
         <div className="card px-4 py-3 border-accent-orange/20">
-          <p className="font-mono text-xs text-accent-orange">No active delivery run. Contact your Hub Manager to start one.</p>
+          <p className="font-mono text-xs text-accent-orange">{t('vol.noRun')}</p>
         </div>
       ) : activeRuns.length === 1 ? (
         // single run — just show the banner, no need to pick
@@ -719,10 +735,10 @@ function DeliverTab({ districtId }: { districtId: string }) {
           <span className="w-2 h-2 rounded-full bg-accent-green animate-pulse-slow flex-shrink-0" />
           <div>
             <p className="font-sans text-sm font-semibold text-text-primary">
-              Team {activeRun!.teamNumber} · {activeRun!.zone} — Active Run
+              {t('vol.teamZone', { n: activeRun!.teamNumber, zone: zoneLabel(t, activeRun!.zone) })} — {t('vol.activeRun')}
             </p>
             <p className="font-mono text-[11px] text-text-muted">
-              {new Set(activeRun!.receipts?.map(r => r.householdId) ?? []).size} deliveries
+              {t('vol.deliveries', { count: new Set(activeRun!.receipts?.map(r => r.householdId) ?? []).size })}
             </p>
           </div>
         </div>
@@ -730,7 +746,7 @@ function DeliverTab({ districtId }: { districtId: string }) {
         // multiple runs — let volunteer pick which one they're on
         <div className="card p-4">
           <p className="font-mono text-[11px] text-text-muted uppercase tracking-widest mb-3">
-            Select Your Run — {activeRuns.length} teams in field
+            {t('vol.selectRun', { count: activeRuns.length })}
           </p>
           <div className="space-y-2">
             {activeRuns.map(run => {
@@ -750,14 +766,14 @@ function DeliverTab({ districtId }: { districtId: string }) {
                     <div className="flex items-center gap-2">
                       <span className={`w-1.5 h-1.5 rounded-full flex-shrink-0 ${isSelected ? 'bg-accent-green' : 'bg-text-muted'}`} />
                       <span className={`font-sans text-sm font-semibold ${isSelected ? 'text-text-primary' : 'text-text-secondary'}`}>
-                        Team {run.teamNumber} · {run.zone}
+                        {t('vol.teamZone', { n: run.teamNumber, zone: zoneLabel(t, run.zone) })}
                       </span>
                     </div>
                     <div className="flex items-center gap-3">
-                      <span className="font-mono text-[11px] text-text-muted">{deliveryCount} delivered</span>
+                      <span className="font-mono text-[11px] text-text-muted">{deliveryCount} {t('routing.delivered')}</span>
                       {isSelected && (
                         <span className="font-mono text-[10px] px-2 py-0.5 rounded border border-accent-green/40 text-accent-green bg-accent-green/10">
-                          SELECTED
+                          {t('vol.selected')}
                         </span>
                       )}
                     </div>
@@ -771,12 +787,12 @@ function DeliverTab({ districtId }: { districtId: string }) {
 
       {/* ── priority queue ── */}
       <div>
-        <SectionTitle sub={`${householdsResult?.total ?? 0} undelivered households, sorted by priority`}>Priority Queue</SectionTitle>
+        <SectionTitle sub={t('vol.queueSub', { count: householdsResult?.total ?? 0 })}>{t('queue.title')}</SectionTitle>
         {households.length === 0 ? (
           <div className="card py-12 text-center">
             <p className="text-3xl mb-2">✓</p>
-            <p className="font-sans text-sm text-text-primary font-semibold">All households delivered</p>
-            <p className="font-mono text-xs text-text-muted mt-1">Check back for new assessments.</p>
+            <p className="font-sans text-sm text-text-primary font-semibold">{t('vol.allDelivered')}</p>
+            <p className="font-mono text-xs text-text-muted mt-1">{t('vol.checkBack')}</p>
           </div>
         ) : (
           <div className="card divide-y divide-bg-border">
@@ -791,10 +807,10 @@ function DeliverTab({ districtId }: { districtId: string }) {
                     <div className={`w-2 h-2 rounded-full flex-shrink-0 mt-1.5 ${cfg.dot}`} />
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center gap-2 flex-wrap mb-1">
-                        <Badge label={cfg.label} color={`${cfg.color} ${cfg.border} ${cfg.bg}`} />
+                        <Badge label={bandLabel(t, cfg.label)} color={`${cfg.color} ${cfg.border} ${cfg.bg}`} />
                         <span className={`font-mono text-[11px] font-bold ${EMK_COLORS[h.recommendedEmk]}`}>{h.recommendedEmk}</span>
                         <span className="font-mono text-[11px] text-text-muted">{h.totalScore}/20</span>
-                        {qty > 1 && <span className="font-mono text-[11px] text-accent-yellow font-bold">{qty} kits</span>}
+                        {qty > 1 && <span className="font-mono text-[11px] text-accent-yellow font-bold">{t('vol.nKits', { count: qty })}</span>}
                       </div>
                       <p className="font-sans text-sm text-text-primary">{h.address}</p>
                       {qty > 1 && (h.emk3Quantity || h.emk2Quantity || h.emk1Quantity) && (
@@ -808,29 +824,29 @@ function DeliverTab({ districtId }: { districtId: string }) {
                         </div>
                       )}
                       {h.medicalUrgencyScore >= 5 && (
-                        <p className="font-mono text-[11px] text-accent-red mt-0.5">Life-sustaining medication needed</p>
+                        <p className="font-mono text-[11px] text-accent-red mt-0.5">{t('vol.lifeMeds')}</p>
                       )}
                     </div>
                     <div className="flex-shrink-0">
                       {queuedHouseholdIds.has(h.id) ? (
                         <span className="font-mono text-[11px] px-2 py-1 rounded border border-accent-orange/40 text-accent-orange bg-accent-orange/10"
-                          title="Recorded offline — will sync when you reconnect">
-                          ⏳ Saved offline
+                          title={t('vol.recordedOffline')}>
+                          ⏳ {t('vol.savedOfflineShort')}
                         </span>
                       ) : !isConfirming ? (
                         <button onClick={() => setConfirming(h.id)} disabled={!activeRun}
                           className={`font-mono text-xs px-3 py-1.5 rounded border transition-all disabled:opacity-40 ${cfg.bg} ${cfg.border} ${cfg.color} hover:opacity-80`}>
-                          Deliver {qty > 1 ? `(${qty})` : ''}
+                          {t('vol.deliver')} {qty > 1 ? `(${qty})` : ''}
                         </button>
                       ) : (
                         <div className="flex gap-2">
                           <button onClick={() => deliverMutation.mutate(h)} disabled={isDelivering}
                             className="font-mono text-xs px-3 py-1.5 rounded border border-accent-green/40 text-accent-green bg-accent-green/10 hover:bg-accent-green/20 transition-colors disabled:opacity-40">
-                            {isDelivering ? '...' : '✓ Confirm'}
+                            {isDelivering ? '...' : `✓ ${t('common.confirm')}`}
                           </button>
                           <button onClick={() => setConfirming(null)}
                             className="font-mono text-xs px-3 py-1.5 rounded border border-bg-border text-text-muted hover:text-text-secondary transition-colors">
-                            Cancel
+                            {t('common.cancel')}
                           </button>
                         </div>
                       )}
@@ -854,9 +870,11 @@ function ReportTab({ districtId }: { districtId: string }) {
   const [description, setDescription] = useState('');
   const [submitted, setSubmitted] = useState<{ type: string; autoEscalated: boolean; savedOffline?: boolean } | null>(null);
   const { user } = useAuth();
+  const { t } = useI18n();
   const online = useOnline();
 
-  const selectedType = INCIDENT_TYPES.find(t => t.value === incType)!;
+  const selectedType = INCIDENT_TYPES.find(it => it.value === incType)!;
+  const selectedLabel = enumLabel(t, 'incidentType', selectedType.value);
 
   const reportMutation = useMutation({
     mutationFn: (payload: { districtId: string; type: string; description: string }) =>
@@ -865,7 +883,7 @@ function ReportTab({ districtId }: { districtId: string }) {
         kind: 'incident',
         url: '/api/incidents',
         body: { ...payload, clientRef: crypto.randomUUID() },
-        label: `Incident report · ${payload.type.replace(/_/g, ' ').toLowerCase()}`,
+        label: `${t('vol.outbox.incident')} · ${enumLabel(t, 'incidentType', payload.type)}`,
       }),
     onSuccess: (result) => {
       if (result.queued) {
@@ -890,21 +908,20 @@ function ReportTab({ districtId }: { districtId: string }) {
           <div className="flex items-start gap-4">
             <span className="text-4xl flex-shrink-0">{isSafety ? '📻' : '⏳'}</span>
             <div>
-              <p className="font-display font-bold text-text-primary text-lg mb-1">Saved on this device — not sent yet</p>
+              <p className="font-display font-bold text-text-primary text-lg mb-1">{t('vol.savedOffline')}</p>
               {isSafety ? (
                 <p className="font-mono text-xs text-accent-red leading-relaxed font-bold">
-                  Nobody has received this safety report. Contact your Hub Manager or the Operations Center by
-                  radio or phone NOW. If water exceeds 80cm, return to the sub-warehouse or shelter in place.
+                  {t('vol.safetyOffline')}
                 </p>
               ) : (
                 <p className="font-mono text-xs text-text-secondary leading-relaxed">
-                  No connection. The report will be sent automatically when you reconnect. If it is urgent, use radio.
+                  {t('vol.reportOffline')}
                 </p>
               )}
             </div>
           </div>
         </div>
-        <button onClick={() => setSubmitted(null)} className="btn-primary">Report Another Incident</button>
+        <button onClick={() => setSubmitted(null)} className="btn-primary">{t('vol.reportAnother')}</button>
       </div>
     );
   }
@@ -916,22 +933,21 @@ function ReportTab({ districtId }: { districtId: string }) {
           <div className="flex items-start gap-4">
             <span className="text-4xl flex-shrink-0">{submitted.autoEscalated ? '🚨' : '✓'}</span>
             <div>
-              <p className="font-display font-bold text-text-primary text-lg mb-1">Incident Reported</p>
+              <p className="font-display font-bold text-text-primary text-lg mb-1">{t('vol.reported')}</p>
               {submitted.autoEscalated ? (
                 <>
-                  <Badge label="AUTO-ESCALATED" color="text-accent-red border-accent-red/30 bg-accent-red/10" />
+                  <Badge label={t('vol.autoEscalated')} color="text-accent-red border-accent-red/30 bg-accent-red/10" />
                   <p className="font-mono text-[11px] text-text-secondary mt-2 leading-relaxed">
-                    VOLUNTEER_SAFETY incident auto-escalated to Operations Center.
-                    If water exceeds 80cm, return to sub-warehouse or shelter in place immediately.
+                    {t('vol.autoEscalatedBody')}
                   </p>
                 </>
               ) : (
-                <p className="font-mono text-xs text-accent-green">Hub Manager and Operations Center have been notified.</p>
+                <p className="font-mono text-xs text-accent-green">{t('vol.notified')}</p>
               )}
             </div>
           </div>
         </div>
-        <button onClick={() => setSubmitted(null)} className="btn-primary">Report Another Incident</button>
+        <button onClick={() => setSubmitted(null)} className="btn-primary">{t('vol.reportAnother')}</button>
       </div>
     );
   }
@@ -942,22 +958,22 @@ function ReportTab({ districtId }: { districtId: string }) {
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
         <div className="card p-5">
-          <SectionTitle sub="VOLUNTEER_SAFETY incidents are auto-escalated">Incident Type</SectionTitle>
+          <SectionTitle sub={t('vol.typeSub')}>{t('vol.incidentType')}</SectionTitle>
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-1 gap-2">
-            {INCIDENT_TYPES.map(t => (
-              <OptionButton key={t.value} selected={incType === t.value} onClick={() => setIncType(t.value)} danger={t.value === 'VOLUNTEER_SAFETY'}>
+            {INCIDENT_TYPES.map(it => (
+              <OptionButton key={it.value} selected={incType === it.value} onClick={() => setIncType(it.value)} danger={it.value === 'VOLUNTEER_SAFETY'}>
                 <div className="flex items-center gap-3">
-                  <span className="text-lg flex-shrink-0">{t.icon}</span>
+                  <span className="text-lg flex-shrink-0">{it.icon}</span>
                   <div className="flex-1">
-                    <span className={`font-sans text-sm font-medium ${incType === t.value ? 'text-text-primary' : 'text-text-secondary'}`}>{t.label}</span>
-                    {t.autoEscalate && <span className="block font-mono text-[10px] text-accent-red mt-0.5">Auto-escalates to Operations Center</span>}
+                    <span className={`font-sans text-sm font-medium ${incType === it.value ? 'text-text-primary' : 'text-text-secondary'}`}>{enumLabel(t, 'incidentType', it.value)}</span>
+                    {it.autoEscalate && <span className="block font-mono text-[10px] text-accent-red mt-0.5">{t('vol.autoEscalates')}</span>}
                   </div>
                   <div className={`w-4 h-4 rounded-full border-2 flex-shrink-0 flex items-center justify-center ${
-                    incType === t.value
-                      ? t.value === 'VOLUNTEER_SAFETY' ? 'border-accent-red bg-accent-red' : 'border-accent-blue bg-accent-blue'
+                    incType === it.value
+                      ? it.value === 'VOLUNTEER_SAFETY' ? 'border-accent-red bg-accent-red' : 'border-accent-blue bg-accent-blue'
                       : 'border-bg-border'
                   }`}>
-                    {incType === t.value && <span className="text-bg-primary text-[10px] font-bold">✓</span>}
+                    {incType === it.value && <span className="text-bg-primary text-[10px] font-bold">✓</span>}
                   </div>
                 </div>
               </OptionButton>
@@ -970,31 +986,30 @@ function ReportTab({ districtId }: { districtId: string }) {
             <div className="bg-accent-red/10 border border-accent-red/40 rounded px-4 py-3 flex gap-3 animate-slide-in">
               <span className="text-2xl flex-shrink-0">🚨</span>
               <div>
-                <p className="font-mono text-xs font-bold text-accent-red mb-1">SAFETY HARD CONSTRAINT</p>
+                <p className="font-mono text-xs font-bold text-accent-red mb-1">{t('vol.safetyConstraint')}</p>
                 <p className="font-mono text-[11px] text-accent-red/80 leading-relaxed">
-                  If water depth exceeds 80cm, stop all delivery immediately. Return to sub-warehouse or shelter in place.
+                  {t('vol.safetyConstraintBody')}
                 </p>
               </div>
             </div>
           )}
 
           <div className="card p-5">
-            <SectionTitle sub="Be specific about location and severity">Description</SectionTitle>
+            <SectionTitle sub={t('vol.descSub')}>{t('vol.description')}</SectionTitle>
             <textarea rows={8} className="input resize-none"
               placeholder={
-                incType === 'ROUTE_BLOCKED'    ? 'e.g. St. 371 flooded near the market, cannot pass by motorbike.' :
-                incType === 'VOLUNTEER_SAFETY' ? 'e.g. Water now 85cm in Zone C. Team 2 returning immediately.' :
-                incType === 'BUILDING_FLOODED' ? 'e.g. Water entering sub-warehouse. 10cm on ground floor.' :
-                'Describe the incident — location, current situation, actions taken.'
+                incType === 'ROUTE_BLOCKED'    ? t('vol.ph.route') :
+                incType === 'VOLUNTEER_SAFETY' ? t('vol.ph.safety') :
+                incType === 'BUILDING_FLOODED' ? t('vol.ph.building') :
+                t('vol.ph.other')
               }
               value={description} onChange={e => setDescription(e.target.value)} />
-            <p className="font-mono text-[11px] text-text-muted mt-2">Reporting as: {selectedType.icon} {selectedType.label}</p>
+            <p className="font-mono text-[11px] text-text-muted mt-2">{t('vol.reportingAs')} {selectedType.icon} {selectedLabel}</p>
           </div>
 
           {!online && (
             <p className="font-mono text-[11px] text-accent-orange leading-relaxed">
-              You are offline. This report will be saved on your device and sent when you reconnect —
-              nobody will see it until then. For anything urgent, use radio or phone.
+              {t('vol.offlineWarning')}
             </p>
           )}
 
@@ -1004,7 +1019,7 @@ function ReportTab({ districtId }: { districtId: string }) {
             className={`w-full py-2.5 rounded font-sans font-semibold text-sm transition-all disabled:opacity-40 ${
               incType === 'VOLUNTEER_SAFETY' ? 'bg-accent-red text-white hover:bg-accent-red/90' : 'btn-primary'
             }`}>
-            {reportMutation.isPending ? 'Reporting...' : `Report ${selectedType.label}`}
+            {reportMutation.isPending ? t('vol.reporting') : t('vol.reportType', { type: selectedLabel })}
           </button>
         </div>
       </div>
@@ -1015,7 +1030,8 @@ function ReportTab({ districtId }: { districtId: string }) {
 // ─── MAIN VOLUNTEER PAGE ──────────────────────────────────────────────────────
 
 export function VolunteerPage() {
-  usePageTitle('Volunteer');
+  const { t } = useI18n();
+  usePageTitle(t('nav.volunteer'));
   const { user } = useAuth();
   const [activeTab, setActiveTab] = useState<TabId>('assess');
 
@@ -1032,44 +1048,45 @@ export function VolunteerPage() {
 
   const realDistricts = (summaryData?.districts ?? []).filter((d: { name: string }) => d.name !== '__central__');
   const districtId = user?.districtId ?? realDistricts[0]?.districtId ?? '';
-  const districtName = districtData?.name ?? realDistricts[0]?.name ?? 'Your District';
+  const rawDistrictName = districtData?.name ?? realDistricts[0]?.name;
+  const districtName = rawDistrictName ? districtLabel(t, rawDistrictName) : t('vol.yourDistrict');
   const isLoading = user?.districtId ? districtLoading : summaryLoading;
 
   const TABS: Array<{ id: TabId; Icon: LucideIcon; label: string }> = [
-    { id: 'assess',  Icon: ClipboardCheck, label: 'Assess'  },
-    { id: 'deliver', Icon: Truck,          label: 'Deliver' },
-    { id: 'report',  Icon: AlertTriangle,  label: 'Report'  },
+    { id: 'assess',  Icon: ClipboardCheck, label: t('vol.tab.assess')  },
+    { id: 'deliver', Icon: Truck,          label: t('vol.deliver') },
+    { id: 'report',  Icon: AlertTriangle,  label: t('vol.tab.report')  },
   ];
 
   if (isLoading) {
-    return <DashboardLayout title="Volunteer View"><VolunteerSkeleton /></DashboardLayout>;
+    return <DashboardLayout title={t('vol.title')}><VolunteerSkeleton /></DashboardLayout>;
   }
 
   if (!districtId) {
     return (
-      <DashboardLayout title="Volunteer View">
+      <DashboardLayout title={t('vol.title')}>
         <div className="py-20 text-center max-w-sm mx-auto">
           <p className="text-4xl mb-4">⚠️</p>
-          <p className="font-display font-bold text-text-primary mb-2">No District Assigned</p>
-          <p className="font-mono text-xs text-text-muted">Contact your Hub Manager or SUPER_ADMIN.</p>
+          <p className="font-display font-bold text-text-primary mb-2">{t('vol.noDistrict')}</p>
+          <p className="font-mono text-xs text-text-muted">{t('vol.noDistrictHint')}</p>
         </div>
       </DashboardLayout>
     );
   }
 
   return (
-    <DashboardLayout title="Volunteer View">
+    <DashboardLayout title={t('vol.title')}>
       <div className="space-y-5">
         <div className="flex items-center justify-between gap-4 flex-wrap">
           <div className="flex items-center gap-2">
             <span className="w-1.5 h-1.5 rounded-full bg-accent-green animate-pulse-slow" />
             <span className="font-sans font-semibold text-text-primary">{districtName}</span>
-            <span className="font-mono text-[11px] text-text-muted">· {user?.name ?? 'Volunteer'}</span>
+            <span className="font-mono text-[11px] text-text-muted">· {user?.name ?? t('role.VOLUNTEER')}</span>
           </div>
           <span className="font-mono text-[11px] text-text-muted">
-            {activeTab === 'assess'  ? '20-point scoring system' :
-             activeTab === 'deliver' ? 'Last-mile delivery model' :
-                                      'Volunteer safety protocol'}
+            {activeTab === 'assess'  ? t('vol.tabHint.assess') :
+             activeTab === 'deliver' ? t('vol.tabHint.deliver') :
+                                      t('vol.tabHint.report')}
           </span>
         </div>
 

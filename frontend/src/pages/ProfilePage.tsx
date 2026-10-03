@@ -5,16 +5,10 @@ import { authApi } from '../api/auth';
 import { Avatar } from '../components/Avatar';
 import { DashboardLayout } from '../components/DashboardLayout';
 import { usePageTitle } from '../hooks/usePageTitle';
+import { useI18n, roleLabel as translateRole, type Translate } from '../i18n';
+import { LanguageToggle, ThemeToggle } from '../components/PreferenceToggles';
 
 // ─── constants ────────────────────────────────────────────────────────────────
-
-const ROLE_LABELS: Record<string, string> = {
-  SUPER_ADMIN:           'Super Admin',
-  EMERGENCY_COORDINATOR: 'Emergency Coordinator',
-  HUB_MANAGER:           'Hub Manager',
-  VOLUNTEER:             'Volunteer',
-  VIEWER:                'Viewer',
-};
 
 const ROLE_COLORS: Record<string, string> = {
   SUPER_ADMIN:           'text-accent-red    bg-accent-red/10    border-accent-red/30',
@@ -26,16 +20,16 @@ const ROLE_COLORS: Record<string, string> = {
 
 // ─── helpers ──────────────────────────────────────────────────────────────────
 
-function formatDate(iso: string | null | undefined): string {
-  if (!iso) return 'Never';
-  return new Date(iso).toLocaleDateString('en-GB', {
+function formatDate(t: Translate, locale: string, iso: string | null | undefined): string {
+  if (!iso) return t('profile.never');
+  return new Date(iso).toLocaleDateString(locale, {
     day: '2-digit', month: 'short', year: 'numeric',
   });
 }
 
-function formatDateTime(iso: string | null | undefined): string {
-  if (!iso) return 'Never';
-  return new Date(iso).toLocaleString('en-GB', {
+function formatDateTime(t: Translate, locale: string, iso: string | null | undefined): string {
+  if (!iso) return t('profile.never');
+  return new Date(iso).toLocaleString(locale, {
     day: '2-digit', month: 'short', year: 'numeric',
     hour: '2-digit', minute: '2-digit',
   });
@@ -84,6 +78,7 @@ function EditableField({
   const [error,   setError]   = useState('');
   const [success, setSuccess] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
+  const { t } = useI18n();
 
   function startEdit() {
     if (locked) return;
@@ -102,7 +97,7 @@ function EditableField({
       setTimeout(() => setSuccess(false), 2500);
     } catch (err: unknown) {
       setError(
-        (err as { response?: { data?: { error?: string } } })?.response?.data?.error || 'Failed to save'
+        (err as { response?: { data?: { error?: string } } })?.response?.data?.error || t('profile.saveFailed')
       );
     } finally { setSaving(false); }
   }
@@ -128,7 +123,7 @@ function EditableField({
           />
         ) : (
           <span className={`flex-1 font-mono text-sm truncate ${value ? 'text-text-primary' : 'text-text-muted italic text-xs'}`}>
-            {value || placeholder || 'Not set'}
+            {value || placeholder || t('profile.notSet')}
           </span>
         )}
         <div className="flex items-center gap-2 shrink-0 min-w-[90px] justify-end">
@@ -136,27 +131,27 @@ function EditableField({
             <>
               <button onClick={save} disabled={saving}
                 className="font-mono text-[10px] text-accent-green px-2 py-1 rounded bg-accent-green/10 border border-accent-green/20">
-                {saving ? '...' : 'save'}
+                {saving ? '...' : t('common.save')}
               </button>
               <button onClick={cancel} disabled={saving}
                 className="font-mono text-[10px] text-text-muted px-2 py-1 rounded bg-bg-secondary border border-bg-border">
-                cancel
+                {t('common.cancel')}
               </button>
             </>
           ) : locked ? (
             <span className="font-mono text-[10px] text-text-muted opacity-0 group-hover:opacity-50 transition-opacity text-right leading-tight">
-              {lockedReason || 'admin only'}
+              {lockedReason || t('profile.adminOnly')}
             </span>
           ) : (
             <button onClick={startEdit}
               className="font-mono text-[10px] text-text-muted hover:text-accent-blue opacity-0 group-hover:opacity-100 px-2 py-1 rounded hover:bg-accent-blue/10 transition-all">
-              edit
+              {t('common.edit')}
             </button>
           )}
         </div>
       </div>
       {error   && <p className="font-mono text-[10px] text-accent-red   pb-2 px-6 ml-[84px]">{error}</p>}
-      {success && !editing && <p className="font-mono text-[10px] text-accent-green pb-2 px-6 ml-[84px]">saved</p>}
+      {success && !editing && <p className="font-mono text-[10px] text-accent-green pb-2 px-6 ml-[84px]">{t('profile.saved')}</p>}
     </div>
   );
 }
@@ -175,7 +170,8 @@ function SectionHeader({ label }: { label: string }) {
 // ─── main page ────────────────────────────────────────────────────────────────
 
 export function ProfilePage() {
-  usePageTitle('My Profile');
+  const { t, locale } = useI18n();
+  usePageTitle(t('sidebar.myProfile'));
   const { user, updateAvatar: ctxUpdateAvatar, updateProfile: ctxUpdateProfile } = useAuth();
 
   const [currentPw, setCurrentPw] = useState('');
@@ -204,17 +200,17 @@ export function ProfilePage() {
     const file = e.target.files?.[0];
     if (!file) return;
     setAvatarError(''); setAvatarSuccess('');
-    if (!file.type.startsWith('image/')) { setAvatarError('Please select an image file.'); return; }
+    if (!file.type.startsWith('image/')) { setAvatarError(t('profile.errNotImage')); return; }
     setAvatarLoading(true);
     try {
       const base64 = await resizeImage(file, 128);
       await authApi.updateAvatar(base64);
       ctxUpdateAvatar(base64);
-      setAvatarSuccess('Profile picture updated.');
+      setAvatarSuccess(t('profile.avatarUpdated'));
       setTimeout(() => setAvatarSuccess(''), 2500);
     } catch (err: unknown) {
       setAvatarError(
-        (err as { response?: { data?: { error?: string } } })?.response?.data?.error || 'Failed to upload image.'
+        (err as { response?: { data?: { error?: string } } })?.response?.data?.error || t('profile.uploadFailed')
       );
     } finally {
       setAvatarLoading(false);
@@ -225,26 +221,26 @@ export function ProfilePage() {
   async function handlePasswordSubmit(e: FormEvent) {
     e.preventDefault();
     setPwError(''); setPwSuccess('');
-    if (newPw.length < 8)    { setPwError('New password must be at least 8 characters.'); return; }
-    if (newPw !== confirmPw) { setPwError('Passwords do not match.'); return; }
-    if (newPw === currentPw) { setPwError('New password must differ from current.'); return; }
+    if (newPw.length < 8)    { setPwError(t('password.errTooShort')); return; }
+    if (newPw !== confirmPw) { setPwError(t('password.errMismatch')); return; }
+    if (newPw === currentPw) { setPwError(t('password.errSame')); return; }
     setPwLoading(true);
     try {
       await authApi.changePassword(currentPw, newPw);
-      setPwSuccess('Password updated successfully.');
+      setPwSuccess(t('profile.pwUpdated'));
       setCurrentPw(''); setNewPw(''); setConfirmPw('');
     } catch (err: unknown) {
       setPwError(
-        (err as { response?: { data?: { error?: string } } })?.response?.data?.error || 'Failed to change password.'
+        (err as { response?: { data?: { error?: string } } })?.response?.data?.error || t('password.failed')
       );
     } finally { setPwLoading(false); }
   }
 
   const roleColor = ROLE_COLORS[user?.role ?? ''] ?? ROLE_COLORS['VIEWER'];
-  const roleLabel = ROLE_LABELS[user?.role ?? ''] ?? user?.role;
+  const roleLabel = translateRole(t, user?.role);
 
   return (
-    <DashboardLayout title="My Profile">
+    <DashboardLayout title={t('sidebar.myProfile')}>
       <div className="flex flex-col gap-4 w-[60%] mx-auto">
 
         {/* ── PROFILE CARD ─────────────────────────────────────────────── */}
@@ -257,7 +253,7 @@ export function ProfilePage() {
             <div
               className="relative group/avatar shrink-0 cursor-pointer self-center"
               onClick={() => fileInputRef.current?.click()}
-              title="Change profile picture"
+              title={t('profile.changePicture')}
             >
               <Avatar name={user?.name} avatarBase64={user?.avatarBase64} size="xl" />
               <div className="absolute inset-0 rounded-full bg-black/50 opacity-0 group-hover/avatar:opacity-100 transition-opacity duration-150 flex flex-col items-center justify-center gap-1">
@@ -269,7 +265,7 @@ export function ProfilePage() {
                   <path d="M9 13a3 3 0 1 0 6 0a3 3 0 0 0 -6 0" />
                 </svg>
                 <span className="font-mono text-[10px] text-white/80">
-                  {avatarLoading ? 'uploading...' : 'change photo'}
+                  {avatarLoading ? t('profile.uploading') : t('profile.changePhoto')}
                 </span>
               </div>
               <div className="absolute inset-[-4px] rounded-full border border-dashed border-accent-blue/30 pointer-events-none" />
@@ -302,18 +298,18 @@ export function ProfilePage() {
               {/* stats row — inline with identity */}
               <div className="grid grid-cols-3 divide-x divide-bg-border border border-bg-border rounded-lg overflow-hidden">
                 <div className="px-4 py-3 flex flex-col">
-                  <p className="font-mono text-[10px] uppercase tracking-wider text-text-muted mb-1">Member since</p>
-                  <p className="font-mono text-xs text-text-primary">{formatDate(user?.createdAt)}</p>
+                  <p className="font-mono text-[10px] uppercase tracking-wider text-text-muted mb-1">{t('profile.memberSince')}</p>
+                  <p className="font-mono text-xs text-text-primary">{formatDate(t, locale, user?.createdAt)}</p>
                 </div>
                 <div className="px-4 py-3 flex flex-col">
-                  <p className="font-mono text-[10px] uppercase tracking-wider text-text-muted mb-1">Last login</p>
-                  <p className="font-mono text-xs text-text-primary">{formatDateTime(user?.lastLoginAt)}</p>
+                  <p className="font-mono text-[10px] uppercase tracking-wider text-text-muted mb-1">{t('profile.lastLogin')}</p>
+                  <p className="font-mono text-xs text-text-primary">{formatDateTime(t, locale, user?.lastLoginAt)}</p>
                 </div>
                 <div className="px-4 py-3 flex flex-col">
-                  <p className="font-mono text-[10px] uppercase tracking-wider text-text-muted mb-1">Status</p>
+                  <p className="font-mono text-[10px] uppercase tracking-wider text-text-muted mb-1">{t('queue.col.status')}</p>
                   <span className="inline-flex items-center gap-1.5 font-mono text-[11px] text-accent-green bg-accent-green/10 border border-accent-green/20 px-2 py-0.5 rounded-full self-start">
                     <span className="w-1.5 h-1.5 rounded-full bg-accent-green animate-pulse shrink-0" />
-                    Active
+                    {t('profile.active')}
                   </span>
                 </div>
               </div>
@@ -323,52 +319,67 @@ export function ProfilePage() {
 
           {/* editable fields */}
           <EditableField
-            label="Name" icon="◉"
-            value={user?.name ?? ''} placeholder="Your name"
+            label={t('profile.name')} icon="◉"
+            value={user?.name ?? ''} placeholder={t('profile.namePlaceholder')}
             onSave={saveName}
           />
           <EditableField
-            label="Phone" icon="◈"
+            label={t('profile.phone')} icon="◈"
             value={user?.phone ?? ''} placeholder="+855 12 345 678"
             onSave={savePhone} type="tel"
           />
           <EditableField
-            label="Email" icon="◎"
+            label={t('login.email')} icon="◎"
             value={user?.email ?? ''}
-            locked lockedReason={user?.role === 'SUPER_ADMIN' ? undefined : 'contact admin to change'}
+            locked lockedReason={user?.role === 'SUPER_ADMIN' ? undefined : t('profile.contactAdmin')}
             onSave={async () => {}}
           />
 
           <div className="px-6 py-2.5 bg-bg-secondary/40 border-t border-bg-border">
             <p className="font-mono text-[10px] text-text-muted">
-              Hover a field and click <span className="text-text-secondary">edit</span> to update.
-              Role and district are managed by Super Admin.
+              {t('profile.editHint')}
             </p>
           </div>
         </div>
 
+        {/* ── PREFERENCES CARD ──────────────────────────────────────────── */}
+        <div className="card p-0 overflow-hidden">
+          <SectionHeader label={t('prefs.title')} />
+          <div className="px-8 py-5 grid grid-cols-1 sm:grid-cols-2 gap-5">
+            <div>
+              <p className="label">{t('prefs.language')}</p>
+              <LanguageToggle showNames />
+            </div>
+            <div>
+              <p className="label">{t('prefs.theme')}</p>
+              <ThemeToggle showLabels />
+            </div>
+          </div>
+          <p className="px-8 pb-4 -mt-1 font-mono text-[10px] text-text-muted">{t('prefs.deviceNote')}</p>
+        </div>
+
         {/* ── PASSWORD CARD ─────────────────────────────────────────────── */}
         <div className="card p-0 overflow-hidden">
-          <SectionHeader label="Change Password" />
+          <SectionHeader label={t('password.title')} />
           <form onSubmit={handlePasswordSubmit} className="px-8 py-6">
 
             {/* all 3 password fields in one row */}
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
               <div>
-                <label className="label" htmlFor="current">Current Password</label>
+                <label className="label" htmlFor="current">{t('password.current')}</label>
                 <input id="current" type="password" className="input" placeholder="••••••••"
                   value={currentPw} onChange={e => setCurrentPw(e.target.value)}
                   required disabled={pwLoading} autoComplete="current-password" />
               </div>
               <div>
-                <label className="label" htmlFor="new">New Password</label>
-                <input id="new" type="password" className="input" placeholder="Min. 8 characters"
+                <label className="label" htmlFor="new">{t('password.new')}</label>
+                <input id="new" type="password" className="input" placeholder={t('password.minPlaceholder')}
                   value={newPw} onChange={e => setNewPw(e.target.value)}
                   required disabled={pwLoading} autoComplete="new-password" />
               </div>
               <div>
-                <label className="label" htmlFor="confirm">Confirm New</label>
-                <input id="confirm" type="password" className="input" placeholder="Repeat password"
+                <label className="label" htmlFor="confirm">{t('password.confirmShort')}</label>
+                <input id="confirm" type="password" className="input" placeholder={t('password.repeatPlaceholder')}
                   value={confirmPw} onChange={e => setConfirmPw(e.target.value)}
                   required disabled={pwLoading} autoComplete="new-password" />
               </div>
@@ -386,7 +397,7 @@ export function ProfilePage() {
                   <path d="M8 11v-4a4 4 0 1 1 8 0v4" />
                 </svg>
                 <p className="font-mono text-[11px] text-text-muted leading-relaxed">
-                  Min. 8 characters, different from current password.
+                  {t('profile.pwHint')}
                 </p>
               </div>
               <button
@@ -394,7 +405,7 @@ export function ProfilePage() {
                 disabled={pwLoading || !currentPw || !newPw || !confirmPw}
                 className="btn-primary shrink-0 px-8"
               >
-                {pwLoading ? 'Updating...' : 'Update Password'}
+                {pwLoading ? t('password.updating') : t('password.update')}
               </button>
             </div>
 

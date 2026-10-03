@@ -1,4 +1,5 @@
 import { useEffect } from 'react';
+import { useI18n } from '../i18n';
 
 // ─── PROPS ────────────────────────────────────────────────────────────────────
 
@@ -20,13 +21,14 @@ export function ConfirmModal({
   isOpen,
   title,
   description,
-  confirmLabel = 'Confirm',
-  cancelLabel = 'Cancel',
+  confirmLabel,
+  cancelLabel,
   variant = 'danger',
   isLoading = false,
   onConfirm,
   onCancel,
 }: ConfirmModalProps) {
+  const { t } = useI18n();
   // Close on Escape key
   useEffect(() => {
     if (!isOpen) return;
@@ -127,7 +129,7 @@ export function ConfirmModal({
                 transition-all duration-150 active:scale-95
               "
             >
-              {cancelLabel}
+              {cancelLabel ?? t('common.cancel')}
             </button>
             <button
               onClick={onConfirm}
@@ -143,10 +145,10 @@ export function ConfirmModal({
               {isLoading ? (
                 <>
                   <div className={`w-3 h-3 border border-${accentColor}/40 border-t-${accentColor} rounded-full animate-spin`} />
-                  <span>Processing...</span>
+                  <span>{t('common.processing')}</span>
                 </>
               ) : (
-                confirmLabel
+                confirmLabel ?? t('common.confirm')
               )}
             </button>
           </div>

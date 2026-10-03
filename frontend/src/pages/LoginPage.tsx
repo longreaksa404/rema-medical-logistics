@@ -3,9 +3,12 @@ import type { FormEvent } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { usePageTitle } from '../hooks/usePageTitle';
+import { useI18n } from '../i18n';
+import { PreferenceToggles } from '../components/PreferenceToggles';
 
 export function LoginPage() {
-  usePageTitle('Login');
+  const { t } = useI18n();
+  usePageTitle(t('login.title'));
   const { login, user } = useAuth();
   const navigate = useNavigate();
 
@@ -30,7 +33,7 @@ export function LoginPage() {
     } catch (err: unknown) {
       const message =
         (err as { response?: { data?: { error?: string } } })?.response?.data?.error ||
-        'Login failed. Check your credentials.';
+        t('login.failed');
       setError(message);
     } finally {
       setIsLoading(false);
@@ -42,13 +45,17 @@ export function LoginPage() {
     <div className="min-h-screen bg-bg-primary flex flex-col items-center justify-center px-4">
       {/* Background grid */}
       <div
-        className="fixed inset-0 pointer-events-none opacity-[0.03]"
+        className="fixed inset-0 pointer-events-none opacity-[0.06] dark:opacity-[0.03]"
         style={{
           backgroundImage:
-            'linear-gradient(#58a6ff 1px, transparent 1px), linear-gradient(90deg, #58a6ff 1px, transparent 1px)',
+            'linear-gradient(rgb(var(--accent-blue)) 1px, transparent 1px), linear-gradient(90deg, rgb(var(--accent-blue)) 1px, transparent 1px)',
           backgroundSize: '40px 40px',
         }}
       />
+
+      <div className="absolute top-4 right-4">
+        <PreferenceToggles />
+      </div>
 
       <div className="relative w-full max-w-sm animate-fade-in">
         {/* Header */}
@@ -56,7 +63,7 @@ export function LoginPage() {
           <div className="inline-flex items-center gap-2 mb-6">
             <span className="w-2 h-2 rounded-full bg-accent-green animate-pulse-slow" />
             <span className="font-mono text-xs text-text-muted tracking-widest uppercase">
-              System Online
+              {t('login.systemOnline')}
             </span>
           </div>
 
@@ -73,10 +80,10 @@ export function LoginPage() {
             REMA
           </h1>
           <p className="font-mono text-xs text-text-muted">
-            Rapid Emergency Medical Access
+            {t('app.fullName')}
           </p>
           <p className="font-mono text-xs text-text-muted mt-0.5">
-            Viet Nam Red Cross
+            {t('login.org')}
           </p>
         </div>
 
@@ -84,7 +91,7 @@ export function LoginPage() {
         <form onSubmit={handleSubmit} className="space-y-4">
           <div>
             <label className="label" htmlFor="email">
-              Email
+              {t('login.email')}
             </label>
             <input
               id="email"
@@ -101,7 +108,7 @@ export function LoginPage() {
 
           <div>
             <label className="label" htmlFor="password">
-              Password
+              {t('login.password')}
             </label>
             <input
               id="password"
@@ -128,9 +135,9 @@ export function LoginPage() {
             className="btn-primary w-full mt-2"
           >
             {isLoading ? (
-              <span className="font-mono">authenticating...</span>
+              <span className="font-mono">{t('login.authenticating')}</span>
             ) : (
-              'Sign In'
+              t('login.signIn')
             )}
           </button>
         </form>
@@ -138,10 +145,10 @@ export function LoginPage() {
         {/* Footer */}
         <div className="mt-8 pt-6 border-t border-bg-border text-center">
           <p className="font-mono text-xs text-text-muted">
-            Access restricted to authorised Red Cross personnel.
+            {t('login.restricted')}
           </p>
           <p className="font-mono text-xs text-text-muted mt-1">
-            Contact your Emergency Coordinator if you need access.
+            {t('login.contact')}
           </p>
         </div>
       </div>

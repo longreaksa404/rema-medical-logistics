@@ -1,48 +1,54 @@
+const v = (name) => `rgb(var(--${name}) / <alpha-value>)`;
+
 /** @type {import('tailwindcss').Config} */
 export default {
+  darkMode: ['selector', '[data-theme="dark"]'],
   content: ['./index.html', './src/**/*.{js,ts,jsx,tsx}'],
   theme: {
     extend: {
       fontFamily: {
-        mono: ['JetBrains Mono', 'Fira Code', 'ui-monospace', 'monospace'],
+        mono: ['JetBrains Mono', 'Fira Code', 'Noto Sans Khmer', 'ui-monospace', 'monospace'],
         // Inter for body/UI text (legible at small sizes, tabular figures);
         // Syne kept as the display face for page and card titles.
-        sans: ['Inter', 'system-ui', '-apple-system', 'Segoe UI', 'sans-serif'],
-        display: ['Syne', 'Inter', 'system-ui', 'sans-serif'],
+        sans: ['Inter', 'Noto Sans Khmer', 'system-ui', '-apple-system', 'Segoe UI', 'sans-serif'],
+        display: ['Syne', 'Noto Sans Khmer', 'Inter', 'system-ui', 'sans-serif'],
       },
       colors: {
-        // REMA design system — dark ops theme
+        // REMA design system. Values live in index.css as RGB channels so the
+        // light/dark themes can swap them and opacity modifiers (/10) still work.
         bg: {
-          primary: '#0a0c0f',
-          secondary: '#111418',
-          elevated: '#161b22',
-          border: '#262c36',
-          hover: '#1c2129',
+          primary: v('bg-primary'),
+          secondary: v('bg-secondary'),
+          elevated: v('bg-elevated'),
+          border: v('bg-border'),
+          hover: v('bg-hover'),
+          'border-strong': v('bg-border-strong'),
         },
         accent: {
-          red: '#f85149',
-          orange: '#f0883e',
-          yellow: '#d29922',
-          green: '#3fb950',
-          blue: '#58a6ff',
-          cyan: '#39d353',
+          red: v('accent-red'),
+          orange: v('accent-orange'),
+          yellow: v('accent-yellow'),
+          green: v('accent-green'),
+          blue: v('accent-blue'),
+          cyan: v('accent-cyan'),
+          'blue-hover': v('accent-blue-hover'),
+          'red-hover': v('accent-red-hover'),
         },
         text: {
-          primary: '#e6edf3',
-          secondary: '#9da7b3',
-          // was #484f58 (~2.3:1 on bg-primary, failed WCAG); now ~4.2:1
-          muted: '#6e7681',
+          primary: v('text-primary'),
+          secondary: v('text-secondary'),
+          muted: v('text-muted'),
         },
         phase: {
-          0: '#484f58',   // standby — muted
-          1: '#f0883e',   // phase 1 — orange alert
-          2: '#f85149',   // phase 2 — red active
+          0: v('phase-0'),   // standby — muted
+          1: v('accent-orange'),   // phase 1 — orange alert
+          2: v('accent-red'),   // phase 2 — red active
         },
         band: {
-          critical: '#f85149',
-          high: '#f0883e',
-          medium: '#d29922',
-          standard: '#3fb950',
+          critical: v('accent-red'),
+          high: v('accent-orange'),
+          medium: v('accent-yellow'),
+          standard: v('accent-green'),
         },
       },
       animation: {

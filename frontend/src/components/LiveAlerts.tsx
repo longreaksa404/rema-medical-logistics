@@ -5,6 +5,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { useAuth } from '../context/AuthContext';
+import { useI18n, districtLabel } from '../i18n';
 
 export interface ScarcityAlert {
   scope: 'subWarehouse' | 'central';
@@ -29,6 +30,7 @@ export function LiveAlerts() {
   const { user, onSocketEvent } = useAuth();
   const queryClient = useQueryClient();
   const [toasts, setToasts] = useState<Toast[]>([]);
+  const { t: tr } = useI18n();
 
   const dismiss = useCallback((id: number) => {
     setToasts(prev => prev.filter(t => t.id !== id));
@@ -66,21 +68,21 @@ export function LiveAlerts() {
           <div className="flex items-start justify-between gap-3">
             <div className="min-w-0">
               <p className="font-mono text-[11px] text-accent-red uppercase tracking-widest mb-1">
-                ⚠ Stock scarcity
+                ⚠ {tr('alerts.scarcity')}
               </p>
               <p className="font-sans text-sm text-text-primary">
-                {t.scope === 'central' ? 'Central warehouse' : `${t.districtName} sub-warehouse`}
-                {' · '}{t.emkType} at <span className="font-semibold text-accent-red">{t.pct}%</span>
+                {t.scope === 'central' ? tr('alerts.central') : tr('alerts.subWarehouse', { district: districtLabel(tr, t.districtName) })}
+                {' · '}{tr('alerts.atPct', { emk: t.emkType })} <span className="font-semibold text-accent-red">{t.pct}%</span>
               </p>
               <p className="font-mono text-[11px] text-text-muted mt-0.5">
-                {t.remaining.toLocaleString()} of {t.total.toLocaleString()} remaining ·{' '}
-                {t.scope === 'central' ? 'arrange resupply' : 'reallocate or resupply'}
+                {tr('alerts.remaining', { remaining: t.remaining.toLocaleString(), total: t.total.toLocaleString() })} ·{' '}
+                {t.scope === 'central' ? tr('alerts.arrangeResupply') : tr('alerts.reallocate')}
               </p>
             </div>
             <button
               onClick={() => dismiss(t.id)}
               className="font-mono text-xs text-text-muted hover:text-text-primary flex-shrink-0"
-              aria-label="Dismiss alert"
+              aria-label={tr('alerts.dismiss')}
             >
               ✕
             </button>

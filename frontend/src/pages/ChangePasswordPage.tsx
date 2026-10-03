@@ -5,9 +5,11 @@ import { authApi } from '../api/auth';
 import { useAuth } from '../context/AuthContext';
 import { DashboardLayout } from '../components/DashboardLayout';
 import { usePageTitle } from '../hooks/usePageTitle';
+import { useI18n } from '../i18n';
 
 export function ChangePasswordPage() {
-  usePageTitle('Change Password');
+  const { t } = useI18n();
+  usePageTitle(t('password.title'));
   const navigate = useNavigate();
   const { mustChangePassword, clearMustChangePassword } = useAuth();
 
@@ -24,15 +26,15 @@ export function ChangePasswordPage() {
     setSuccess('');
 
     if (newPassword.length < 8) {
-      setError('New password must be at least 8 characters.');
+      setError(t('password.errTooShort'));
       return;
     }
     if (newPassword !== confirm) {
-      setError('New password and confirmation do not match.');
+      setError(t('password.errMismatch'));
       return;
     }
     if (newPassword === currentPassword) {
-      setError('New password must be different from your current password.');
+      setError(t('password.errSame'));
       return;
     }
 
@@ -40,7 +42,7 @@ export function ChangePasswordPage() {
     try {
       await authApi.changePassword(currentPassword, newPassword);
       clearMustChangePassword();
-      setSuccess('Password updated successfully. Redirecting...');
+      setSuccess(t('password.success'));
       setCurrentPassword('');
       setNewPassword('');
       setConfirm('');
@@ -48,7 +50,7 @@ export function ChangePasswordPage() {
     } catch (err: unknown) {
       const message =
         (err as { response?: { data?: { error?: string } } })?.response?.data?.error ||
-        'Failed to change password.';
+        t('password.failed');
       setError(message);
     } finally {
       setIsLoading(false);
@@ -56,29 +58,28 @@ export function ChangePasswordPage() {
   }
 
   return (
-    <DashboardLayout title="Change Password">
+    <DashboardLayout title={t('password.title')}>
       <div className="max-w-md">
         {/* warning banner for forced change */}
         {mustChangePassword && (
           <div className="mb-4 bg-accent-yellow/10 border border-accent-yellow/30 rounded px-4 py-3">
             <p className="font-mono text-xs text-accent-yellow font-semibold">
-              Password change required
+              {t('password.requiredTitle')}
             </p>
             <p className="font-mono text-xs text-text-muted mt-1">
-              Your account was created with a temporary password. You must set a new password before continuing.
+              {t('password.requiredBody')}
             </p>
           </div>
         )}
 
         <div className="card p-6">
           <p className="font-mono text-xs text-text-muted mb-6">
-            Use this form to update your password. You must know your current password.
-            Contact your SUPER_ADMIN if you are locked out.
+            {t('password.intro')}
           </p>
 
           <form onSubmit={handleSubmit} className="space-y-4">
             <div>
-              <label className="label" htmlFor="current">Current Password</label>
+              <label className="label" htmlFor="current">{t('password.current')}</label>
               <input
                 id="current"
                 type="password"
@@ -93,12 +94,12 @@ export function ChangePasswordPage() {
             </div>
 
             <div>
-              <label className="label" htmlFor="new">New Password</label>
+              <label className="label" htmlFor="new">{t('password.new')}</label>
               <input
                 id="new"
                 type="password"
                 className="input"
-                placeholder="Minimum 8 characters"
+                placeholder={t('password.minPlaceholder')}
                 value={newPassword}
                 onChange={(e) => setNewPassword(e.target.value)}
                 required
@@ -108,12 +109,12 @@ export function ChangePasswordPage() {
             </div>
 
             <div>
-              <label className="label" htmlFor="confirm">Confirm New Password</label>
+              <label className="label" htmlFor="confirm">{t('password.confirm')}</label>
               <input
                 id="confirm"
                 type="password"
                 className="input"
-                placeholder="Repeat new password"
+                placeholder={t('password.repeatPlaceholder')}
                 value={confirm}
                 onChange={(e) => setConfirm(e.target.value)}
                 required
@@ -140,7 +141,7 @@ export function ChangePasswordPage() {
                 disabled={isLoading || !currentPassword || !newPassword || !confirm}
                 className="btn-primary"
               >
-                {isLoading ? 'Updating...' : 'Update Password'}
+                {isLoading ? t('password.updating') : t('password.update')}
               </button>
               {/* only show cancel if not a forced change */}
               {!mustChangePassword && (
@@ -150,7 +151,7 @@ export function ChangePasswordPage() {
                   className="btn-ghost"
                   disabled={isLoading}
                 >
-                  Cancel
+                  {t('common.cancel')}
                 </button>
               )}
             </div>

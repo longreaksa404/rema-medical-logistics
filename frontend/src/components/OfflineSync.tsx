@@ -5,6 +5,7 @@ import { useCallback, useEffect } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { useAuth } from '../context/AuthContext';
 import { outbox, useOnline, useOutbox } from '../offline';
+import { useI18n } from '../i18n';
 
 const RETRY_INTERVAL_MS = 30_000;
 
@@ -13,6 +14,7 @@ export function OfflineSync() {
   const online = useOnline();
   const queryClient = useQueryClient();
   const { pending, settled, flushing } = useOutbox(user?.id);
+  const { t } = useI18n();
 
   const sync = useCallback(async () => {
     if (!user || !navigator.onLine) return;
@@ -49,17 +51,17 @@ export function OfflineSync() {
           <p className={`font-mono text-[11px] ${online ? 'text-accent-blue' : 'text-accent-orange'}`}>
             {online
               ? flushing
-                ? `Syncing ${pending.length} item${pending.length === 1 ? '' : 's'} recorded offline…`
-                : `${pending.length} item${pending.length === 1 ? '' : 's'} recorded offline waiting to sync`
-              : 'Offline — showing data saved on this device. New deliveries, assessments and reports are kept and sent when you reconnect.'}
-            {!online && pending.length > 0 && ` (${pending.length} waiting)`}
+                ? t(pending.length === 1 ? 'offline.syncing.one' : 'offline.syncing.other', { count: pending.length })
+                : t(pending.length === 1 ? 'offline.waiting.one' : 'offline.waiting.other', { count: pending.length })
+              : t('offline.banner')}
+            {!online && pending.length > 0 && ` ${t('offline.waitingCount', { count: pending.length })}`}
           </p>
           {online && pending.length > 0 && !flushing && (
             <button
               onClick={sync}
               className="font-mono text-[11px] px-2.5 py-1 rounded border border-accent-blue/40 text-accent-blue hover:bg-accent-blue/10 transition-colors"
             >
-              Sync now
+              {t('offline.syncNow')}
             </button>
           )}
         </div>
@@ -74,13 +76,13 @@ export function OfflineSync() {
         >
           <p className={`font-mono text-[11px] ${item.outcome === 'already-done' ? 'text-text-secondary' : 'text-accent-red'}`}>
             {item.outcome === 'already-done'
-              ? `${item.label}: already recorded as delivered — nothing more to do.`
-              : `${item.label} could not be saved: ${item.reason}. Tell your Hub Manager or record it again.`}
+              ? t('offline.alreadyDone', { label: item.label })
+              : t('offline.failed', { label: item.label, reason: item.reason })}
           </p>
           <button
             onClick={() => outbox.dismissSettled(item.id)}
             className="font-mono text-xs text-text-muted hover:text-text-primary flex-shrink-0"
-            aria-label="Dismiss"
+            aria-label={t('common.dismiss')}
           >
             ✕
           </button>
