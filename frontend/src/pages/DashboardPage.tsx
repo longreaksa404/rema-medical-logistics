@@ -68,7 +68,7 @@ const StatCard = memo(function StatCard({
 }) {
   return (
     <div className="card px-4 py-3">
-      <p className="font-mono text-[10px] text-text-muted uppercase tracking-widest mb-1">
+      <p className="font-mono text-[11px] text-text-muted uppercase tracking-widest mb-1">
         {label}
       </p>
       <div className="flex items-baseline gap-1.5">
@@ -78,7 +78,7 @@ const StatCard = memo(function StatCard({
         <p className={`font-mono text-2xl font-semibold ${color}`}>{value}</p>
       </div>
       {sub && (
-        <p className="font-mono text-[10px] text-text-muted mt-0.5">{sub}</p>
+        <p className="font-mono text-[11px] text-text-muted mt-0.5">{sub}</p>
       )}
     </div>
   );
@@ -121,12 +121,12 @@ const IncidentPanel = memo(function IncidentPanel({
                 <span className={`w-1.5 h-1.5 rounded-full flex-shrink-0 ${
                   inc.status === 'ESCALATED' ? 'bg-accent-red animate-pulse-slow' : 'bg-accent-orange'
                 }`} />
-                <span className={`font-mono text-[10px] font-semibold ${
+                <span className={`font-mono text-[11px] font-semibold ${
                   inc.status === 'ESCALATED' ? 'text-accent-red' : 'text-accent-orange'
                 }`}>
                   {inc.status}
                 </span>
-                <span className="font-mono text-[10px] text-text-muted">
+                <span className="font-mono text-[11px] text-text-muted">
                   {inc.type.replace(/_/g, ' ')}
                 </span>
               </div>
@@ -134,7 +134,7 @@ const IncidentPanel = memo(function IncidentPanel({
                 {inc.description}
               </p>
             </div>
-            <span className="font-mono text-[10px] text-text-muted flex-shrink-0">
+            <span className="font-mono text-[11px] text-text-muted flex-shrink-0">
               {new Date(inc.createdAt).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' })}
             </span>
           </div>
@@ -179,12 +179,12 @@ const DistrictCard = memo(function DistrictCard({
       {/* Header */}
       <div className="flex items-start justify-between gap-2">
         <div>
-          <h3 className="font-sans font-bold text-text-primary">{d.name}</h3>
+          <h3 className="font-display font-bold text-text-primary">{d.name}</h3>
           <p className="font-mono text-xs text-text-muted mt-0.5">
             {d.population.toLocaleString()} households
           </p>
         </div>
-        <span className={`font-mono text-[10px] px-2 py-0.5 rounded border flex-shrink-0 ${statusColor}`}>
+        <span className={`font-mono text-[11px] px-2 py-0.5 rounded border flex-shrink-0 ${statusColor}`}>
           {d.subWarehouseStatus ?? 'NO WAREHOUSE'}
         </span>
       </div>
@@ -192,7 +192,7 @@ const DistrictCard = memo(function DistrictCard({
       {/* Stock bar + EMK breakdown */}
       <div>
         <div className="flex justify-between items-center mb-1.5">
-          <span className="font-mono text-[10px] text-text-muted uppercase tracking-widest">Stock Level</span>
+          <span className="font-mono text-[11px] text-text-muted uppercase tracking-widest">Stock Level</span>
           <span className={`font-mono text-xs ${stockTextColor}`}>
             {d.stockPct}%{d.anyScarce ? ' ⚠ SCARCE' : ''}
           </span>
@@ -216,7 +216,7 @@ const DistrictCard = memo(function DistrictCard({
                     scarce ? 'bg-accent-red/10 border border-accent-red/20' : 'bg-bg-elevated'
                   }`}
                 >
-                  <p className={`font-mono text-[9px] uppercase ${scarce ? 'text-accent-red' : 'text-text-muted'}`}>
+                  <p className={`font-mono text-[10px] uppercase ${scarce ? 'text-accent-red' : 'text-text-muted'}`}>
                     {type.toUpperCase()}
                   </p>
                   <p className={`font-mono text-xs ${scarce ? 'text-accent-red' : 'text-text-primary'}`}>
@@ -234,17 +234,17 @@ const DistrictCard = memo(function DistrictCard({
       <div className="grid grid-cols-3 gap-2 pt-2 border-t border-bg-border">
         <div className="text-center">
           <p className="font-mono text-lg font-semibold text-text-primary">{d.householdsAssessed}</p>
-          <p className="font-mono text-[9px] text-text-muted uppercase tracking-wide">Assessed</p>
+          <p className="font-mono text-[10px] text-text-muted uppercase tracking-wide">Assessed</p>
         </div>
         <div className="text-center">
           <p className="font-mono text-lg font-semibold text-accent-green">{d.deliveredCount}</p>
-          <p className="font-mono text-[9px] text-text-muted uppercase tracking-wide">Delivered</p>
+          <p className="font-mono text-[10px] text-text-muted uppercase tracking-wide">Delivered</p>
         </div>
         <div className="text-center">
           <p className={`font-mono text-lg font-semibold ${d.openIncidents > 0 ? 'text-accent-red' : 'text-text-muted'}`}>
             {d.openIncidents}
           </p>
-          <p className="font-mono text-[9px] text-text-muted uppercase tracking-wide">Incidents</p>
+          <p className="font-mono text-[10px] text-text-muted uppercase tracking-wide">Incidents</p>
         </div>
       </div>
 
@@ -252,8 +252,8 @@ const DistrictCard = memo(function DistrictCard({
       {d.householdsAssessed > 0 && (
         <div>
           <div className="flex justify-between mb-1">
-            <span className="font-mono text-[9px] text-text-muted">Delivery progress</span>
-            <span className="font-mono text-[9px] text-text-muted">{deliveryPct}%</span>
+            <span className="font-mono text-[10px] text-text-muted">Delivery progress</span>
+            <span className="font-mono text-[10px] text-text-muted">{deliveryPct}%</span>
           </div>
           <div className="h-1 bg-bg-border rounded-full overflow-hidden">
             <div
@@ -294,7 +294,7 @@ function TriggerPanel({
           <h3 className="font-mono text-xs text-accent-yellow uppercase tracking-widest">
             Activation Required
           </h3>
-          <p className="font-mono text-[10px] text-text-muted mt-0.5">
+          <p className="font-mono text-[11px] text-text-muted mt-0.5">
             Submit any 2 of 3 conditions to activate REMA Phase 1
           </p>
         </div>
@@ -330,19 +330,19 @@ function TriggerPanel({
               <span className={`w-2 h-2 rounded-full flex-shrink-0 transition-colors duration-150 ${
                 active ? 'bg-accent-green' : 'bg-bg-border'
               }`} />
-              <span className="font-mono text-[10px] uppercase tracking-widest">{label}</span>
-              {active && <span className="ml-auto font-mono text-[9px] text-accent-green">✓</span>}
+              <span className="font-mono text-[11px] uppercase tracking-widest">{label}</span>
+              {active && <span className="ml-auto font-mono text-[10px] text-accent-green">✓</span>}
             </button>
           );
         })}
       </div>
 
       {isLoading ? (
-        <p className="font-mono text-[9px] text-text-muted mt-3 animate-pulse-slow">
+        <p className="font-mono text-[10px] text-text-muted mt-3 animate-pulse-slow">
           Processing trigger condition...
         </p>
       ) : trueCount === 1 ? (
-        <p className="font-mono text-[9px] text-accent-yellow mt-3 animate-pulse-slow">
+        <p className="font-mono text-[10px] text-accent-yellow mt-3 animate-pulse-slow">
           1 more condition needed to activate REMA
         </p>
       ) : null}
@@ -678,7 +678,7 @@ export function DashboardPage() {
 
           {/* 4 ── Priority bands */}
           <div>
-            <p className="font-mono text-[10px] text-text-muted uppercase tracking-widest mb-2">
+            <p className="font-mono text-[11px] text-text-muted uppercase tracking-widest mb-2">
               Household Priority Bands
               <span className="ml-2 font-normal normal-case opacity-60">undelivered</span>
             </p>
@@ -687,18 +687,18 @@ export function DashboardPage() {
                 <div key={key} className={`card border ${border} ${bg} px-4 py-3`}>
                   <div className="flex items-center gap-1.5 mb-2">
                     <span className={`w-1.5 h-1.5 rounded-full ${dot}`} />
-                    <p className={`font-mono text-[10px] uppercase tracking-widest ${color}`}>{label}</p>
+                    <p className={`font-mono text-[11px] uppercase tracking-widest ${color}`}>{label}</p>
                   </div>
                   <p className={`font-mono text-3xl font-bold ${color}`}>
                     {data.households[key]}
                   </p>
                   {key === 'critical' && data.households.critical > 0 && (
-                    <p className="font-mono text-[9px] text-accent-red mt-1.5 animate-pulse-slow">
+                    <p className="font-mono text-[10px] text-accent-red mt-1.5 animate-pulse-slow">
                       Deliver in current run
                     </p>
                   )}
                   {data.households[key] === 0 && (
-                    <p className="font-mono text-[9px] text-text-muted/40 mt-1.5">All clear</p>
+                    <p className="font-mono text-[10px] text-text-muted/40 mt-1.5">All clear</p>
                   )}
                 </div>
               ))}
@@ -723,7 +723,7 @@ export function DashboardPage() {
 
           {/* 7 ── Districts */}
           <div>
-            <p className="font-mono text-[10px] text-text-muted uppercase tracking-widest mb-3">
+            <p className="font-mono text-[11px] text-text-muted uppercase tracking-widest mb-3">
               Districts
             </p>
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
@@ -735,7 +735,7 @@ export function DashboardPage() {
 
           {/* 8 ── Priority queue */}
           <div>
-            <p className="font-mono text-[10px] text-text-muted uppercase tracking-widest mb-3">
+            <p className="font-mono text-[11px] text-text-muted uppercase tracking-widest mb-3">
               Household Priority Queue
             </p>
             <PriorityQueueTable districts={data.districts.filter(d => d.name !== '__central__')} />

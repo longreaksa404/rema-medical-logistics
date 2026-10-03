@@ -1,5 +1,5 @@
-import { useState } from 'react';
-import { NavLink, useNavigate } from 'react-router-dom';
+import { useEffect, useState } from 'react';
+import { NavLink, useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import {
   LayoutDashboard,
@@ -15,10 +15,22 @@ import {
   ChevronRight,
   ChevronLeft,
   ChevronDown,
+  X,
   type LucideIcon,
 } from 'lucide-react';
 import { Avatar } from './Avatar';
 import { useOutbox } from '../offline';
+import { useMediaQuery } from '../hooks/useMediaQuery';
+
+const COLLAPSE_KEY = 'rema.sidebar.collapsed';
+
+const ROLE_LABEL: Record<Role, string> = {
+  SUPER_ADMIN: 'Super Admin',
+  EMERGENCY_COORDINATOR: 'Emergency Coord.',
+  HUB_MANAGER: 'Hub Manager',
+  VOLUNTEER: 'Volunteer',
+  VIEWER: 'Viewer',
+};
 
 type Role = 'SUPER_ADMIN' | 'EMERGENCY_COORDINATOR' | 'HUB_MANAGER' | 'VOLUNTEER' | 'VIEWER';
 
@@ -63,14 +75,42 @@ const NAV_GROUPS: NavGroup[] = [
   },
 ];
 
-export function Sidebar() {
+interface SidebarProps {
+  mobileOpen: boolean;
+  onMobileClose: () => void;
+}
+
+export function Sidebar({ mobileOpen, onMobileClose }: SidebarProps) {
   const { user, logout, isRole } = useAuth();
   const navigate = useNavigate();
+  const location = useLocation();
+  const isDesktop = useMediaQuery('(min-width: 768px)');
 
-  const [collapsed,         setCollapsed]         = useState(false);
+  const [collapsedPref, setCollapsedPref] = useState(() => {
+    try { return localStorage.getItem(COLLAPSE_KEY) === '1'; } catch { return false; }
+  });
+  // the drawer is always full width on mobile
+  const collapsed = collapsedPref && isDesktop;
+  function toggleCollapsed() {
+    setCollapsedPref((prev) => {
+      try { localStorage.setItem(COLLAPSE_KEY, prev ? '0' : '1'); } catch { /* storage unavailable */ }
+      return !prev;
+    });
+  }
   const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
-  const [referenceOpen,     setReferenceOpen]     = useState(false);
+  const [referenceOpen,     setReferenceOpen]     = useState(
+    () => ['/warehouse', '/stakeholders', '/protocol'].includes(location.pathname),
+  );
   const { pending: unsynced } = useOutbox(user?.id);
+
+  // close the mobile drawer on navigation and on Escape
+  useEffect(() => { onMobileClose(); }, [location.pathname]); // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => {
+    if (!mobileOpen) return;
+    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') onMobileClose(); };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [mobileOpen, onMobileClose]);
 
   function handleLogout() {
     setShowLogoutConfirm(false);
@@ -86,7 +126,9 @@ export function Sidebar() {
           onClick={() => setShowLogoutConfirm(false)}
         >
           <div
-            className="bg-bg-secondary border border-bg-border rounded-lg p-6 w-80 shadow-xl"
+            role="alertdialog"
+            aria-modal="true"
+            className="bg-bg-secondary border border-bg-border rounded-xl p-6 w-80 max-w-[calc(100vw-2rem)] shadow-xl"
             onClick={(e) => e.stopPropagation()}
           >
             <p className="font-sans text-sm text-text-primary mb-1">Sign out of REMA?</p>
@@ -118,11 +160,25 @@ export function Sidebar() {
         </div>
       )}
 
+      {/* mobile drawer backdrop */}
+      {mobileOpen && (
+        <div
+          className="md:hidden fixed inset-0 z-40 bg-black/60 backdrop-blur-sm animate-fade-in"
+          onClick={onMobileClose}
+          aria-hidden="true"
+        />
+      )}
+
       {/* sidebar */}
       <aside
-        className={`flex-shrink-0 bg-bg-secondary border-r border-bg-border flex flex-col h-screen sticky top-0 transition-all duration-200 ${
-          collapsed ? 'w-14' : 'w-56'
-        }`}
+        aria-label="Main navigation"
+        className={[
+          'bg-bg-secondary border-r border-bg-border flex flex-col h-[100dvh] flex-shrink-0',
+          'fixed inset-y-0 left-0 z-50 w-64 shadow-2xl transition-transform duration-200',
+          mobileOpen ? 'translate-x-0' : '-translate-x-full',
+          'md:static md:translate-x-0 md:shadow-none md:transition-[width]',
+          collapsed ? 'md:w-16' : 'md:w-60',
+        ].join(' ')}
       >
         {/* logo + collapse toggle */}
         <div
@@ -137,18 +193,26 @@ export function Sidebar() {
             <div className="flex flex-col gap-1">
               <div className="flex items-center gap-2">
                 <img src="/rema_logo_new.svg" alt="REMA" className="h-5 w-5 flex-shrink-0" />
-                <span className="font-sans font-extrabold text-text-primary text-lg tracking-tight">REMA</span>
+                <span className="font-display font-extrabold text-text-primary text-lg tracking-tight">REMA</span>
                 <span className="w-1.5 h-1.5 rounded-full bg-accent-green animate-pulse-slow" />
               </div>
-              <p className="font-mono text-[10px] text-text-muted">Emergency Medical Access</p>
+              <p className="font-mono text-[11px] text-text-muted">Emergency Medical Access</p>
             </div>
           )}
           <button
-            onClick={() => setCollapsed((prev) => !prev)}
+            onClick={toggleCollapsed}
             title={collapsed ? 'Expand sidebar' : 'Collapse sidebar'}
-            className="w-7 h-7 flex items-center justify-center rounded border border-bg-border text-text-primary hover:border-text-muted transition-colors duration-100 flex-shrink-0"
+            aria-label={collapsed ? 'Expand sidebar' : 'Collapse sidebar'}
+            className="hidden md:flex w-7 h-7 items-center justify-center rounded-md border border-bg-border text-text-secondary hover:text-text-primary hover:bg-bg-hover transition-colors duration-100 flex-shrink-0"
           >
-            {collapsed ? <ChevronRight size={13} /> : <ChevronLeft size={13} />}
+            {collapsed ? <ChevronRight size={14} /> : <ChevronLeft size={14} />}
+          </button>
+          <button
+            onClick={onMobileClose}
+            aria-label="Close navigation"
+            className="md:hidden w-9 h-9 -mr-2 flex items-center justify-center rounded-md text-text-secondary hover:text-text-primary hover:bg-bg-hover"
+          >
+            <X size={18} />
           </button>
         </div>
 
@@ -177,7 +241,7 @@ export function Sidebar() {
                       className="w-full flex items-center justify-between px-2 pt-2 pb-1 group"
                       aria-expanded={referenceOpen}
                     >
-                      <span className="font-mono text-[9px] text-text-muted uppercase tracking-widest select-none group-hover:text-text-secondary transition-colors duration-100">
+                      <span className="font-mono text-[10px] text-text-muted uppercase tracking-widest select-none group-hover:text-text-secondary transition-colors duration-100">
                         {group.label}
                       </span>
                       <ChevronDown
@@ -188,7 +252,7 @@ export function Sidebar() {
                       />
                     </button>
                   ) : (
-                    <p className="font-mono text-[9px] text-text-muted uppercase tracking-widest px-2 pt-2 pb-1 select-none">
+                    <p className="font-mono text-[10px] text-text-muted uppercase tracking-widest px-2 pt-2 pb-1 select-none">
                       {group.label}
                     </p>
                   )
@@ -206,22 +270,25 @@ export function Sidebar() {
                       title={collapsed ? label : undefined}
                       className={({ isActive }) =>
                         [
-                          'flex items-center gap-3 px-2 py-2.5 rounded text-sm transition-colors duration-100',
+                          'relative flex items-center gap-3 px-2.5 py-2 min-h-[38px] rounded-md text-sm transition-colors duration-100',
                           collapsed ? 'justify-center' : '',
                           isActive
-                            ? 'bg-bg-elevated text-text-primary border border-bg-border'
-                            : 'text-text-secondary hover:text-text-primary hover:bg-bg-elevated/50',
+                            ? 'bg-accent-blue/10 text-text-primary'
+                            : 'text-text-secondary hover:text-text-primary hover:bg-bg-hover',
                         ].join(' ')
                       }
                     >
                       {({ isActive }) => (
                         <>
+                          {isActive && (
+                            <span className="absolute left-0 top-1.5 bottom-1.5 w-[3px] rounded-r bg-accent-blue" aria-hidden="true" />
+                          )}
                           <Icon
-                            size={15}
-                            className={`flex-shrink-0 ${isActive ? 'text-text-primary' : 'text-text-muted'}`}
+                            size={16}
+                            className={`flex-shrink-0 ${isActive ? 'text-accent-blue' : 'text-text-muted'}`}
                             strokeWidth={1.75}
                           />
-                          {!collapsed && <span className="font-sans text-sm">{label}</span>}
+                          {!collapsed && <span className={`font-sans text-sm ${isActive ? 'font-medium' : ''}`}>{label}</span>}
                         </>
                       )}
                     </NavLink>
@@ -258,9 +325,16 @@ export function Sidebar() {
             >
               <div className="flex items-center gap-3">
                 <Avatar name={user?.name} avatarBase64={user?.avatarBase64} size="md" />
-                <p className="font-sans text-sm font-medium text-text-primary truncate group-hover:text-accent-blue transition-colors duration-150">
-                  {user?.name}
-                </p>
+                <div className="min-w-0">
+                  <p className="font-sans text-sm font-medium text-text-primary truncate group-hover:text-accent-blue transition-colors duration-150">
+                    {user?.name}
+                  </p>
+                  {user?.role && (
+                    <p className="font-mono text-[10px] text-text-muted uppercase tracking-wider truncate">
+                      {ROLE_LABEL[user.role as Role] ?? user.role}
+                    </p>
+                  )}
+                </div>
               </div>
             </button>
             <button

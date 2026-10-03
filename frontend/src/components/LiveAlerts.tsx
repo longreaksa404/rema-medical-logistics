@@ -65,14 +65,14 @@ export function LiveAlerts() {
         <div key={t.id} className="card border-accent-red/40 bg-bg-elevated px-4 py-3 shadow-lg">
           <div className="flex items-start justify-between gap-3">
             <div className="min-w-0">
-              <p className="font-mono text-[10px] text-accent-red uppercase tracking-widest mb-1">
+              <p className="font-mono text-[11px] text-accent-red uppercase tracking-widest mb-1">
                 ⚠ Stock scarcity
               </p>
               <p className="font-sans text-sm text-text-primary">
                 {t.scope === 'central' ? 'Central warehouse' : `${t.districtName} sub-warehouse`}
                 {' · '}{t.emkType} at <span className="font-semibold text-accent-red">{t.pct}%</span>
               </p>
-              <p className="font-mono text-[10px] text-text-muted mt-0.5">
+              <p className="font-mono text-[11px] text-text-muted mt-0.5">
                 {t.remaining.toLocaleString()} of {t.total.toLocaleString()} remaining ·{' '}
                 {t.scope === 'central' ? 'arrange resupply' : 'reallocate or resupply'}
               </p>

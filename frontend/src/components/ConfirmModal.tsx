@@ -58,10 +58,12 @@ export function ConfirmModal({
       {/* Modal */}
       <div className="fixed inset-0 z-[9999] flex items-center justify-center p-4 pointer-events-none">
         <div
+          role="alertdialog"
+          aria-modal="true"
           className={`
             pointer-events-auto
             w-full max-w-sm
-            bg-bg-surface border ${borderColor} rounded-lg shadow-2xl
+            bg-bg-secondary border ${borderColor} rounded-lg shadow-2xl
             animate-fade-in
           `}
           onClick={(e) => e.stopPropagation()}

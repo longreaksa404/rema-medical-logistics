@@ -8,6 +8,7 @@
 
 import { useState, useCallback, useMemo, useEffect  } from 'react';
 import { useQuery, useMutation, useQueryClient, keepPreviousData } from '@tanstack/react-query';
+import { Package, Users, Truck, AlertTriangle, Radio, type LucideIcon } from 'lucide-react';
 import { DashboardLayout } from '../components/DashboardLayout';
 import { useAuth } from '../context/AuthContext';
 import { api } from '../api/client';
@@ -69,8 +70,8 @@ function HubSkeleton() {
 function SectionTitle({ children, sub }: { children: React.ReactNode; sub?: string }) {
   return (
     <div className="mb-4">
-      <h3 className="font-sans font-bold text-text-primary">{children}</h3>
-      {sub && <p className="font-mono text-[10px] text-text-muted mt-0.5">{sub}</p>}
+      <h3 className="font-display font-bold text-text-primary">{children}</h3>
+      {sub && <p className="font-mono text-[11px] text-text-muted mt-0.5">{sub}</p>}
     </div>
   );
 }
@@ -78,13 +79,13 @@ function Empty({ message }: { message: string }) {
   return <div className="py-10 text-center"><p className="font-mono text-xs text-text-muted">{message}</p></div>;
 }
 function Badge({ label, color }: { label: string; color: string }) {
-  return <span className={`font-mono text-[10px] px-2 py-0.5 rounded border ${color}`}>{label}</span>;
+  return <span className={`font-mono text-[11px] px-2 py-0.5 rounded border ${color}`}>{label}</span>;
 }
 function ErrorBox({ msg, onDismiss }: { msg: string; onDismiss: () => void }) {
   return (
     <div className="bg-accent-red/10 border border-accent-red/30 rounded px-3 py-2 flex items-start justify-between gap-2 animate-slide-in">
       <p className="font-mono text-xs text-accent-red">{msg}</p>
-      <button onClick={onDismiss} className="font-mono text-[10px] text-accent-red flex-shrink-0">✕</button>
+      <button onClick={onDismiss} className="font-mono text-[11px] text-accent-red flex-shrink-0">✕</button>
     </div>
   );
 }
@@ -92,7 +93,7 @@ function SuccessBox({ msg, onDismiss }: { msg: string; onDismiss: () => void }) 
   return (
     <div className="bg-accent-green/10 border border-accent-green/30 rounded px-3 py-2 flex items-start justify-between gap-2 animate-slide-in">
       <p className="font-mono text-xs text-accent-green">{msg}</p>
-      <button onClick={onDismiss} className="font-mono text-[10px] text-accent-green flex-shrink-0">✕</button>
+      <button onClick={onDismiss} className="font-mono text-[11px] text-accent-green flex-shrink-0">✕</button>
     </div>
   );
 }
@@ -280,18 +281,18 @@ function StockTab({ districtId, subWarehouseId }: {
                   <div className="flex items-center justify-between mb-2">
                     <span className={`font-mono text-sm font-bold ${EMK_COLORS[type]}`}>{type}</span>
                     {scarce && (
-                      <span className="font-mono text-[9px] text-accent-red bg-accent-red/10 px-1.5 py-0.5 rounded border border-accent-red/30 animate-pulse">
+                      <span className="font-mono text-[10px] text-accent-red bg-accent-red/10 px-1.5 py-0.5 rounded border border-accent-red/30 animate-pulse">
                         ⚠ SCARCE
                       </span>
                     )}
                     {!scarce && above && (
-                      <span className="font-mono text-[9px] text-accent-blue bg-accent-blue/10 px-1.5 py-0.5 rounded border border-accent-blue/30">
+                      <span className="font-mono text-[10px] text-accent-blue bg-accent-blue/10 px-1.5 py-0.5 rounded border border-accent-blue/30">
                         ↑ EXTRA
                       </span>
                     )}
                   </div>
                   <p className="font-mono text-2xl font-bold text-text-primary">{fmt(rem)}</p>
-                  <p className="font-mono text-[10px] text-text-muted mt-0.5">of {fmt(total)} · {pct}%</p>
+                  <p className="font-mono text-[11px] text-text-muted mt-0.5">of {fmt(total)} · {pct}%</p>
                   <div className="mt-2 h-1.5 bg-bg-border rounded-full overflow-hidden">
                     <div
                       className={`h-full rounded-full transition-all duration-500 ${
@@ -301,12 +302,12 @@ function StockTab({ districtId, subWarehouseId }: {
                     />
                   </div>
                   {above && (
-                    <p className="font-mono text-[9px] text-accent-blue mt-1.5">
+                    <p className="font-mono text-[10px] text-accent-blue mt-1.5">
                       ↑ Above allocation — extra resupply received
                     </p>
                   )}
                   {type === 'EMK3' && total === 0 && (
-                    <p className="font-mono text-[9px] text-text-muted mt-1.5">
+                    <p className="font-mono text-[10px] text-text-muted mt-1.5">
                       MoH cold storage — transferred at activation
                     </p>
                   )}
@@ -330,7 +331,7 @@ function StockTab({ districtId, subWarehouseId }: {
 
           {centralAvailable !== null && (
             <div className="mb-3 bg-bg-elevated rounded px-3 py-2 border border-bg-border">
-              <p className="font-mono text-[10px] text-text-muted">
+              <p className="font-mono text-[11px] text-text-muted">
                 Central available —{' '}
                 <span className={EMK_COLORS[dispEmkType]}>
                   {dispEmkType}: {fmt(centralAvailable)} units
@@ -377,7 +378,7 @@ function StockTab({ districtId, subWarehouseId }: {
                 {dispatchMutation.isPending ? 'Dispatching...' : 'Dispatch to Sub-Warehouse'}
               </button>
               {!subWarehouseId && (
-                <p className="font-mono text-[10px] text-accent-orange mt-2">No sub-warehouse assigned.</p>
+                <p className="font-mono text-[11px] text-accent-orange mt-2">No sub-warehouse assigned.</p>
               )}
             </div>
           </div>
@@ -406,7 +407,7 @@ function StockTab({ districtId, subWarehouseId }: {
                   type="number" min="1" className="input" placeholder="e.g. 100"
                   value={realQty} onChange={e => setRealQty(e.target.value)} />
                 {realQty && realFromRemaining !== null && Number(realQty) > realFromRemaining && (
-                  <p className="font-mono text-[10px] text-accent-red mt-1">
+                  <p className="font-mono text-[11px] text-accent-red mt-1">
                     Exceeds available ({fmt(realFromRemaining)}).
                   </p>
                 )}
@@ -416,7 +417,7 @@ function StockTab({ districtId, subWarehouseId }: {
             <div>
               <label className="label">To District</label>
               {otherSubWarehouses.length === 0 ? (
-                <p className="font-mono text-[10px] text-text-muted">No other sub-warehouses found.</p>
+                <p className="font-mono text-[11px] text-text-muted">No other sub-warehouses found.</p>
               ) : (
                 <select
                   value={realToSwId}
@@ -461,7 +462,7 @@ function StockTab({ districtId, subWarehouseId }: {
                 {reallocateMutation.isPending ? 'Reallocating...' : '⇄ Reallocate Stock'}
               </button>
               {!subWarehouseId && (
-                <p className="font-mono text-[10px] text-accent-orange mt-2">No sub-warehouse assigned.</p>
+                <p className="font-mono text-[11px] text-accent-orange mt-2">No sub-warehouse assigned.</p>
               )}
             </div>
           </div>
@@ -525,7 +526,7 @@ function StockTab({ districtId, subWarehouseId }: {
               <div key={m.id} className="px-4 py-3 flex items-start justify-between gap-3">
                 <div className="min-w-0 flex-1">
                   <div className="flex items-center gap-2 flex-wrap mb-0.5">
-                    <span className={`font-mono text-[10px] px-1.5 py-0.5 rounded border ${MOVE_COLORS[m.movementType] ?? 'text-text-muted border-bg-border'}`}>
+                    <span className={`font-mono text-[11px] px-1.5 py-0.5 rounded border ${MOVE_COLORS[m.movementType] ?? 'text-text-muted border-bg-border'}`}>
                       {m.movementType}
                     </span>
                     <span className={`font-mono text-xs font-semibold ${EMK_COLORS[m.emkType]}`}>{m.emkType}</span>
@@ -533,10 +534,10 @@ function StockTab({ districtId, subWarehouseId }: {
                       {m.quantity > 0 ? '+' : ''}{fmt(m.quantity)}
                     </span>
                   </div>
-                  {m.reason && <p className="font-mono text-[10px] text-text-muted truncate">{m.reason}</p>}
-                  <p className="font-mono text-[10px] text-text-muted mt-0.5">by {m.performedBy?.name ?? '—'}</p>
+                  {m.reason && <p className="font-mono text-[11px] text-text-muted truncate">{m.reason}</p>}
+                  <p className="font-mono text-[11px] text-text-muted mt-0.5">by {m.performedBy?.name ?? '—'}</p>
                 </div>
-                <span className="font-mono text-[10px] text-text-muted flex-shrink-0">{timeAgo(m.createdAt)}</span>
+                <span className="font-mono text-[11px] text-text-muted flex-shrink-0">{timeAgo(m.createdAt)}</span>
               </div>
             ))
           )}
@@ -550,7 +551,7 @@ function StockTab({ districtId, subWarehouseId }: {
               className="font-mono text-xs px-3 py-1.5 rounded border border-bg-border text-text-muted hover:text-text-primary disabled:opacity-30 transition-colors">
               ← Prev
             </button>
-            <span className="font-mono text-[10px] text-text-muted">
+            <span className="font-mono text-[11px] text-text-muted">
               {movPage} / {movTotalPages}
               {movResult && <span className="ml-2 text-text-muted">({movResult.total} total)</span>}
             </span>
@@ -794,22 +795,22 @@ function VolunteersTab({ districtId, subWarehouseId }: { districtId: string; sub
       {roster && (
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
           <div className="card px-4 py-3">
-            <p className="font-mono text-[10px] text-text-muted uppercase tracking-widest mb-1">Total</p>
+            <p className="font-mono text-[11px] text-text-muted uppercase tracking-widest mb-1">Total</p>
             <p className={`font-mono text-2xl font-bold ${roster.belowMinimum ? 'text-accent-red' : 'text-text-primary'}`}>
               {roster.total}
             </p>
-            <p className="font-mono text-[10px] text-text-muted">min. 12</p>
+            <p className="font-mono text-[11px] text-text-muted">min. 12</p>
           </div>
           <div className="card px-4 py-3">
-            <p className="font-mono text-[10px] text-text-muted uppercase tracking-widest mb-1">Team Leaders</p>
+            <p className="font-mono text-[11px] text-text-muted uppercase tracking-widest mb-1">Team Leaders</p>
             <p className="font-mono text-2xl font-bold text-accent-blue">{roster.teamLeaders}</p>
           </div>
           <div className="card px-4 py-3">
-            <p className="font-mono text-[10px] text-text-muted uppercase tracking-widest mb-1">Available</p>
+            <p className="font-mono text-[11px] text-text-muted uppercase tracking-widest mb-1">Available</p>
             <p className="font-mono text-2xl font-bold text-accent-green">{availableVols.length}</p>
           </div>
           <div className="card px-4 py-3">
-            <p className="font-mono text-[10px] text-text-muted uppercase tracking-widest mb-1">Deployed</p>
+            <p className="font-mono text-[11px] text-text-muted uppercase tracking-widest mb-1">Deployed</p>
             <p className="font-mono text-2xl font-bold text-accent-orange">{deployedCount}</p>
           </div>
         </div>
@@ -828,13 +829,13 @@ function VolunteersTab({ districtId, subWarehouseId }: { districtId: string; sub
         <div className="card p-5">
           <div className="flex items-center justify-between mb-4">
             <div>
-              <h3 className="font-sans font-bold text-text-primary">Team Setup</h3>
-              <p className="font-mono text-[10px] text-text-muted mt-0.5">
+              <h3 className="font-display font-bold text-text-primary">Team Setup</h3>
+              <p className="font-mono text-[11px] text-text-muted mt-0.5">
                 Assign a team leader and members before starting a delivery run
               </p>
             </div>
             {!alertId && (
-              <span className="font-mono text-[9px] text-accent-orange bg-accent-orange/10 px-2 py-0.5 rounded border border-accent-orange/30 flex-shrink-0">
+              <span className="font-mono text-[10px] text-accent-orange bg-accent-orange/10 px-2 py-0.5 rounded border border-accent-orange/30 flex-shrink-0">
                 Activate REMA first
               </span>
             )}
@@ -883,7 +884,7 @@ function VolunteersTab({ districtId, subWarehouseId }: { districtId: string; sub
                                   if (selectedTeamNum === n) setSelectedTeamNum(1);
                                   setTeamDropdownOpen(false);
                                 }}
-                                className="ml-2 font-mono text-[10px] text-accent-red hover:text-accent-red/70 px-1 py-0.5 rounded hover:bg-accent-red/10 transition-colors"
+                                className="ml-2 font-mono text-[11px] text-accent-red hover:text-accent-red/70 px-1 py-0.5 rounded hover:bg-accent-red/10 transition-colors"
                                 title="Remove team">
                                 ✕
                               </button>
@@ -896,7 +897,7 @@ function VolunteersTab({ districtId, subWarehouseId }: { districtId: string; sub
                                   setTeamDropdownOpen(false);
                                 }}
                                 disabled={deleteTeamMutation.isPending}
-                                className="ml-2 font-mono text-[10px] text-accent-red hover:text-accent-red/70 px-1 py-0.5 rounded hover:bg-accent-red/10 transition-colors"
+                                className="ml-2 font-mono text-[11px] text-accent-red hover:text-accent-red/70 px-1 py-0.5 rounded hover:bg-accent-red/10 transition-colors"
                                 title="Remove team">
                                 ✕
                               </button>
@@ -936,7 +937,7 @@ function VolunteersTab({ districtId, subWarehouseId }: { districtId: string; sub
               <div className="flex flex-wrap gap-1.5 items-center">
                 {removableTeams.map(n => (
                   <span key={n}
-                    className="flex items-center gap-1 font-mono text-[10px] px-2 py-0.5 rounded border border-bg-border text-text-muted bg-bg-elevated">
+                    className="flex items-center gap-1 font-mono text-[11px] px-2 py-0.5 rounded border border-bg-border text-text-muted bg-bg-elevated">
                     Team {n}
                     <button
                       onClick={() => {
@@ -949,7 +950,7 @@ function VolunteersTab({ districtId, subWarehouseId }: { districtId: string; sub
                     </button>
                   </span>
                 ))}
-                <p className="font-mono text-[9px] text-text-muted">
+                <p className="font-mono text-[10px] text-text-muted">
                   Unsaved — disappears on reload if not deployed
                 </p>
               </div>
@@ -965,18 +966,18 @@ function VolunteersTab({ districtId, subWarehouseId }: { districtId: string; sub
                     : 'border-accent-blue/20 bg-accent-blue/5'
                 }`}>
                   <div className="flex items-center justify-between mb-1">
-                    <p className="font-mono text-[10px] text-text-muted uppercase tracking-widest">
+                    <p className="font-mono text-[11px] text-text-muted uppercase tracking-widest">
                       Current Team {resolvedTeamNum}
                     </p>
                     {isTeamLocked && (
-                      <span className="font-mono text-[9px] px-1.5 py-0.5 rounded border text-accent-green border-accent-green/30 bg-accent-green/5">
+                      <span className="font-mono text-[10px] px-1.5 py-0.5 rounded border text-accent-green border-accent-green/30 bg-accent-green/5">
                         IN FIELD
                       </span>
                     )}
                   </div>
                   {existingTeamTL && (
                     <div className="flex items-center gap-2">
-                      <span className="font-mono text-[9px] px-1.5 py-0.5 rounded border text-accent-blue border-accent-blue/30 bg-accent-blue/5 flex-shrink-0">
+                      <span className="font-mono text-[10px] px-1.5 py-0.5 rounded border text-accent-blue border-accent-blue/30 bg-accent-blue/5 flex-shrink-0">
                         TL
                       </span>
                       <span className="font-sans text-sm text-text-primary">{existingTeamTL.name}</span>
@@ -984,14 +985,14 @@ function VolunteersTab({ districtId, subWarehouseId }: { districtId: string; sub
                   )}
                   {existingTeamVols.map((v: Volunteer) => (
                     <div key={v.id} className="flex items-center gap-2">
-                      <span className="font-mono text-[9px] px-1.5 py-0.5 rounded border text-text-muted border-bg-border flex-shrink-0">
+                      <span className="font-mono text-[10px] px-1.5 py-0.5 rounded border text-text-muted border-bg-border flex-shrink-0">
                         V
                       </span>
                       <span className="font-sans text-sm text-text-secondary">{v.name}</span>
                     </div>
                   ))}
                   <div className="pt-2 border-t border-bg-border">
-                    <p className="font-mono text-[9px] text-text-muted">
+                    <p className="font-mono text-[10px] text-text-muted">
                       {existingZone}
                       {activeRunForTeam && (
                         ` · departed ${fmtTime(activeRunForTeam.departedAt)} · ${new Set(activeRunForTeam.receipts?.map(r => r.householdId) ?? []).size} delivered`
@@ -1001,7 +1002,7 @@ function VolunteersTab({ districtId, subWarehouseId }: { districtId: string; sub
                 </div>
                 {isTeamLocked && (
                   <div className="bg-accent-orange/10 border border-accent-orange/20 rounded px-3 py-2">
-                    <p className="font-mono text-[10px] text-accent-orange">
+                    <p className="font-mono text-[11px] text-accent-orange">
                       Team {resolvedTeamNum} is in the field. Complete or abort their run in the Deliveries tab to redeploy.
                     </p>
                   </div>
@@ -1013,7 +1014,7 @@ function VolunteersTab({ districtId, subWarehouseId }: { districtId: string; sub
                 <div>
                   <label className="label">Team Leader</label>
                   {availableTLs.length === 0 ? (
-                    <p className="font-mono text-[10px] text-accent-orange">
+                    <p className="font-mono text-[11px] text-accent-orange">
                       No available team leaders. Promote one in the roster below.
                     </p>
                   ) : (
@@ -1032,12 +1033,12 @@ function VolunteersTab({ districtId, subWarehouseId }: { districtId: string; sub
                 <div>
                   <label className="label">
                     Members
-                    <span className="font-mono text-[9px] text-text-muted normal-case ml-2">
+                    <span className="font-mono text-[10px] text-text-muted normal-case ml-2">
                       {selectedMemberIds.length} selected
                     </span>
                   </label>
                   {availableMembers.length === 0 ? (
-                    <p className="font-mono text-[10px] text-text-muted">
+                    <p className="font-mono text-[11px] text-text-muted">
                       No available volunteers.
                     </p>
                   ) : (
@@ -1081,7 +1082,7 @@ function VolunteersTab({ districtId, subWarehouseId }: { districtId: string; sub
                 </button>
 
                 {!alertId && (
-                  <p className="font-mono text-[9px] text-text-muted text-center">
+                  <p className="font-mono text-[10px] text-text-muted text-center">
                     REMA must be activated before deploying teams
                   </p>
                 )}
@@ -1093,8 +1094,8 @@ function VolunteersTab({ districtId, subWarehouseId }: { districtId: string; sub
         {/* add community volunteer */}
         <div className="card p-5">
           <div className="mb-4">
-            <h3 className="font-sans font-bold text-text-primary">Add Community Volunteer</h3>
-            <p className="font-mono text-[10px] text-text-muted mt-0.5">
+            <h3 className="font-display font-bold text-text-primary">Add Community Volunteer</h3>
+            <p className="font-mono text-[11px] text-text-muted mt-0.5">
               Field helper with no login account
             </p>
           </div>
@@ -1104,7 +1105,7 @@ function VolunteersTab({ districtId, subWarehouseId }: { districtId: string; sub
               <input
                 type="text"
                 className="input"
-                placeholder="Nguyen Van A"
+                placeholder="e.g. Sok Dara"
                 value={communityName}
                 onChange={e => setCommunityName(e.target.value)}
               />
@@ -1114,7 +1115,7 @@ function VolunteersTab({ districtId, subWarehouseId }: { districtId: string; sub
               <input
                 type="tel"
                 className="input"
-                placeholder="+84 901 234 567"
+                placeholder="e.g. 012 345 678"
                 value={communityPhone}
                 onChange={e => setCommunityPhone(e.target.value)}
               />
@@ -1125,7 +1126,7 @@ function VolunteersTab({ districtId, subWarehouseId }: { districtId: string; sub
               className="btn-primary w-full">
               {communityMutation.isPending ? 'Adding...' : 'Add to Roster'}
             </button>
-            <p className="font-mono text-[10px] text-text-muted">
+            <p className="font-mono text-[11px] text-text-muted">
               Community volunteers appear in the roster but cannot log in to REMA.
               For full access, ask SUPER_ADMIN to create a VOLUNTEER account instead.
             </p>
@@ -1141,7 +1142,7 @@ function VolunteersTab({ districtId, subWarehouseId }: { districtId: string; sub
             <thead>
               <tr className="border-b border-bg-border">
                 {['Name', 'Phone', 'Field Role', 'Status', 'Last Assignment', 'Actions'].map(h => (
-                  <th key={h} className="px-4 py-2.5 text-left font-mono text-[10px] text-text-muted uppercase tracking-widest">
+                  <th key={h} className="px-4 py-2.5 text-left font-mono text-[11px] text-text-muted uppercase tracking-widest">
                     {h}
                   </th>
                 ))}
@@ -1163,46 +1164,46 @@ function VolunteersTab({ districtId, subWarehouseId }: { districtId: string; sub
                   <td className="px-4 py-3">
                     <p className="font-sans text-sm text-text-primary">{v.name}</p>
                     {v.user ? (
-                      <p className="font-mono text-[9px] text-text-muted">{v.user.email}</p>
+                      <p className="font-mono text-[10px] text-text-muted">{v.user.email}</p>
                     ) : (
-                      <p className="font-mono text-[9px] text-text-muted italic">community volunteer</p>
+                      <p className="font-mono text-[10px] text-text-muted italic">community volunteer</p>
                     )}
                   </td>
                   <td className="px-4 py-3 font-mono text-xs text-text-secondary">{v.phone || '—'}</td>
                   <td className="px-4 py-3">
                     {v.role === 'TEAM_LEADER' ? (
-                      <span className="font-mono text-[10px] px-2 py-0.5 rounded border text-accent-blue border-accent-blue/30 bg-accent-blue/5">
+                      <span className="font-mono text-[11px] px-2 py-0.5 rounded border text-accent-blue border-accent-blue/30 bg-accent-blue/5">
                         Team Leader
                       </span>
                     ) : (
-                      <span className="font-mono text-[10px] text-text-muted">Volunteer</span>
+                      <span className="font-mono text-[11px] text-text-muted">Volunteer</span>
                     )}
                   </td>
                   <td className="px-4 py-3">
                     <Badge label={v.status} color={STATUS_COLORS[v.status]} />
                   </td>
-                  <td className="px-4 py-3 font-mono text-[10px] text-text-muted">
+                  <td className="px-4 py-3 font-mono text-[11px] text-text-muted">
                     {v.assignments?.[0]
                       ? `${v.assignments[0].zone} · T${v.assignments[0].teamNumber}`
                       : '—'}
                   </td>
                   <td className="px-4 py-3">
                     {v.status === 'DEPLOYED' ? (
-                      <span className="font-mono text-[9px] text-text-muted">in field</span>
+                      <span className="font-mono text-[10px] text-text-muted">in field</span>
                     ) : (
                       <div className="flex items-center gap-1.5 flex-wrap">
                         {v.role === 'TEAM_LEADER' ? (
                           <button
                             onClick={() => roleMutation.mutate({ id: v.id, role: 'VOLUNTEER' })}
                             disabled={roleMutation.isPending}
-                            className="font-mono text-[10px] px-2 py-0.5 rounded border border-accent-orange/30 text-accent-orange hover:bg-accent-orange/10 transition-colors">
+                            className="font-mono text-[11px] px-2 py-0.5 rounded border border-accent-orange/30 text-accent-orange hover:bg-accent-orange/10 transition-colors">
                             Demote
                           </button>
                         ) : (
                           <button
                             onClick={() => roleMutation.mutate({ id: v.id, role: 'TEAM_LEADER' })}
                             disabled={roleMutation.isPending}
-                            className="font-mono text-[10px] px-2 py-0.5 rounded border border-accent-blue/30 text-accent-blue hover:bg-accent-blue/10 transition-colors">
+                            className="font-mono text-[11px] px-2 py-0.5 rounded border border-accent-blue/30 text-accent-blue hover:bg-accent-blue/10 transition-colors">
                             Promote TL
                           </button>
                         )}
@@ -1210,14 +1211,14 @@ function VolunteersTab({ districtId, subWarehouseId }: { districtId: string; sub
                           <button
                             onClick={() => statusMutation.mutate({ id: v.id, status: 'INACTIVE' })}
                             disabled={statusMutation.isPending}
-                            className="font-mono text-[10px] px-2 py-0.5 rounded border border-bg-border text-text-muted hover:border-accent-red/30 hover:text-accent-red transition-colors">
+                            className="font-mono text-[11px] px-2 py-0.5 rounded border border-bg-border text-text-muted hover:border-accent-red/30 hover:text-accent-red transition-colors">
                             Deactivate
                           </button>
                         ) : (
                           <button
                             onClick={() => statusMutation.mutate({ id: v.id, status: 'AVAILABLE' })}
                             disabled={statusMutation.isPending}
-                            className="font-mono text-[10px] px-2 py-0.5 rounded border border-accent-green/30 text-accent-green hover:bg-accent-green/10 transition-colors">
+                            className="font-mono text-[11px] px-2 py-0.5 rounded border border-accent-green/30 text-accent-green hover:bg-accent-green/10 transition-colors">
                             Reactivate
                           </button>
                         )}
@@ -1374,7 +1375,7 @@ function DeliveriesTab({ districtId, subWarehouseId }: { districtId: string; sub
               <label className="label">Team #</label>
               {deployedTeamNumbers.length === 0 ? (
                 <div className="bg-accent-orange/10 border border-accent-orange/20 rounded px-3 py-2">
-                  <p className="font-mono text-[10px] text-accent-orange">
+                  <p className="font-mono text-[11px] text-accent-orange">
                     No teams deployed yet. Go to Volunteers tab and deploy a team first.
                   </p>
                 </div>
@@ -1396,7 +1397,7 @@ function DeliveriesTab({ districtId, subWarehouseId }: { districtId: string; sub
                 <label className="label">Zone</label>
                 <div className="bg-bg-elevated rounded border border-bg-border px-3 py-2">
                   <span className="font-mono text-sm text-text-primary">{selectedTeamData.zone}</span>
-                  <span className="font-mono text-[10px] text-text-muted ml-2">from team assignment</span>
+                  <span className="font-mono text-[11px] text-text-muted ml-2">from team assignment</span>
                 </div>
               </div>
             )}
@@ -1408,17 +1409,17 @@ function DeliveriesTab({ districtId, subWarehouseId }: { districtId: string; sub
                 <div className="bg-bg-elevated rounded border border-bg-border px-3 py-2 flex items-center justify-between">
                   <div>
                     <span className="font-sans text-sm text-text-primary">{selectedTeamData.tl.name}</span>
-                    <span className={`ml-2 font-mono text-[10px] ${
+                    <span className={`ml-2 font-mono text-[11px] ${
                       selectedTeamData.tl.status === 'DEPLOYED' ? 'text-accent-blue' : 'text-accent-green'
                     }`}>· {selectedTeamData.tl.status}</span>
                   </div>
-                  <span className="font-mono text-[9px] px-1.5 py-0.5 rounded border text-accent-blue border-accent-blue/30 bg-accent-blue/5">
+                  <span className="font-mono text-[10px] px-1.5 py-0.5 rounded border text-accent-blue border-accent-blue/30 bg-accent-blue/5">
                     TL
                   </span>
                 </div>
               ) : (
                 <div className="bg-bg-elevated rounded border border-accent-orange/20 px-3 py-2">
-                  <p className="font-mono text-[10px] text-accent-orange">
+                  <p className="font-mono text-[11px] text-accent-orange">
                     No team leader assigned to Team {team}.
                   </p>
                 </div>
@@ -1427,7 +1428,7 @@ function DeliveriesTab({ districtId, subWarehouseId }: { districtId: string; sub
 
             {activeRunForTeam ? (
               <div className="bg-accent-orange/10 border border-accent-orange/20 rounded px-3 py-2">
-                <p className="font-mono text-[10px] text-accent-orange">
+                <p className="font-mono text-[11px] text-accent-orange">
                   Team {team} already has an active run. Complete or abort it first.
                 </p>
               </div>
@@ -1463,15 +1464,15 @@ function DeliveriesTab({ districtId, subWarehouseId }: { districtId: string; sub
                       <p className="font-sans text-sm font-semibold text-text-primary">
                         Team {r.teamNumber} · {r.zone}
                       </p>
-                      <p className="font-mono text-[10px] text-text-muted">
+                      <p className="font-mono text-[11px] text-text-muted">
                         {r.leadVolunteer?.name ?? '—'} · departed {fmtTime(r.departedAt)}
                       </p>
                     </div>
-                    <span className="font-mono text-[9px] px-1.5 py-0.5 rounded border text-accent-green border-accent-green/30 bg-accent-green/5 flex-shrink-0">
+                    <span className="font-mono text-[10px] px-1.5 py-0.5 rounded border text-accent-green border-accent-green/30 bg-accent-green/5 flex-shrink-0">
                       IN PROGRESS
                     </span>
                   </div>
-                  <p className="font-mono text-[10px] text-text-muted mb-3">
+                  <p className="font-mono text-[11px] text-text-muted mb-3">
                     {new Set(r.receipts?.map(rec => rec.householdId) ?? []).size} deliveries recorded
                   </p>
                   <div className="flex gap-2">
@@ -1542,23 +1543,23 @@ function DeliveriesTab({ districtId, subWarehouseId }: { districtId: string; sub
                           Team {r.teamNumber} · {r.zone}
                         </p>
                         {r.status === 'COMPLETE' ? (
-                          <span className="font-mono text-[9px] px-1.5 py-0.5 rounded border text-accent-green border-accent-green/30 bg-accent-green/5">
+                          <span className="font-mono text-[10px] px-1.5 py-0.5 rounded border text-accent-green border-accent-green/30 bg-accent-green/5">
                             COMPLETE
                           </span>
                         ) : (
-                          <span className="font-mono text-[9px] px-1.5 py-0.5 rounded border text-accent-red border-accent-red/30 bg-accent-red/5">
+                          <span className="font-mono text-[10px] px-1.5 py-0.5 rounded border text-accent-red border-accent-red/30 bg-accent-red/5">
                             ABORTED
                           </span>
                         )}
                       </div>
-                      <p className="font-mono text-[10px] text-text-muted">
+                      <p className="font-mono text-[11px] text-text-muted">
                         {r.leadVolunteer?.name ?? '—'} · {fmtTime(r.departedAt)}
                         {r.returnedAt ? ` → ${fmtTime(r.returnedAt)}` : ''}
                         {duration !== null ? ` · ${duration}m` : ''}
                         {' · '}{new Set(r.receipts?.map(rec => rec.householdId) ?? []).size} delivered
                       </p>
                       {r.status === 'ABORTED' && r.abortReason && (
-                        <p className="font-mono text-[10px] text-accent-red mt-0.5 break-words">
+                        <p className="font-mono text-[11px] text-accent-red mt-0.5 break-words">
                           Reason: {r.abortReason}
                         </p>
                       )}
@@ -1576,7 +1577,7 @@ function DeliveriesTab({ districtId, subWarehouseId }: { districtId: string; sub
                   className="font-mono text-xs px-3 py-1.5 rounded border border-bg-border text-text-muted hover:text-text-primary disabled:opacity-30 transition-colors">
                   ← Prev
                 </button>
-                <span className="font-mono text-[10px] text-text-muted">
+                <span className="font-mono text-[11px] text-text-muted">
                   {historyPage} / {historyTotalPages} · {historyTotal} total
                 </span>
                 <button
@@ -1670,7 +1671,7 @@ function IncidentsTab({ districtId }: { districtId: string }) {
             <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
               {INCIDENT_TYPES.map(t => (
                 <button key={t} onClick={() => setIncType(t)}
-                  className={`font-mono text-[10px] py-2 px-2 rounded border transition-all text-left ${
+                  className={`font-mono text-[11px] py-2 px-2 rounded border transition-all text-left ${
                     incType === t
                       ? t === 'VOLUNTEER_SAFETY'
                         ? 'bg-accent-red/10 border-accent-red/40 text-accent-red'
@@ -1679,7 +1680,7 @@ function IncidentsTab({ districtId }: { districtId: string }) {
                   }`}>
                   {t.replace(/_/g, ' ')}
                   {t === 'VOLUNTEER_SAFETY' && (
-                    <span className="block text-[9px] text-accent-red mt-0.5">Auto-escalates</span>
+                    <span className="block text-[10px] text-accent-red mt-0.5">Auto-escalates</span>
                   )}
                 </button>
               ))}
@@ -1708,11 +1709,11 @@ function IncidentsTab({ districtId }: { districtId: string }) {
                 <div className="min-w-0 flex-1">
                   <div className="flex items-center gap-2 flex-wrap mb-1">
                     <Badge label={inc.status} color={STATUS_COLORS[inc.status]} />
-                    <span className="font-mono text-[10px] text-text-muted">{inc.type.replace(/_/g, ' ')}</span>
-                    <span className="font-mono text-[10px] text-text-muted">{timeAgo(inc.createdAt)}</span>
+                    <span className="font-mono text-[11px] text-text-muted">{inc.type.replace(/_/g, ' ')}</span>
+                    <span className="font-mono text-[11px] text-text-muted">{timeAgo(inc.createdAt)}</span>
                   </div>
                   <p className="font-sans text-sm text-text-primary">{inc.description}</p>
-                  <p className="font-mono text-[10px] text-text-muted mt-1">
+                  <p className="font-mono text-[11px] text-text-muted mt-1">
                     Reported by {inc.reportedBy?.name ?? '—'}
                   </p>
                 </div>
@@ -1725,12 +1726,12 @@ function IncidentsTab({ districtId }: { districtId: string }) {
               {inc.status === 'ESCALATED' && (
                 <div className="bg-accent-red/10 border border-accent-red/30 rounded px-3 py-2 mt-2 space-y-1">
                   {(inc as Incident & { escalationNote?: string }).escalationNote && (
-                    <p className="font-mono text-[10px] text-accent-red">
+                    <p className="font-mono text-[11px] text-accent-red">
                       {(inc as Incident & { escalationNote?: string }).escalationNote}
                     </p>
                   )}
                   {inc.type === 'VOLUNTEER_SAFETY' && (
-                    <p className="font-mono text-[10px] text-accent-red font-bold">
+                    <p className="font-mono text-[11px] text-accent-red font-bold">
                       ⚡ Contact civil defense immediately for evacuation support.
                       Water may exceed 80cm — all volunteers must return to sub-warehouse or shelter in place.
                       Do NOT send more teams to this zone.
@@ -1756,10 +1757,10 @@ function IncidentsTab({ districtId }: { districtId: string }) {
                 <div key={inc.id} className="px-4 py-3 opacity-60">
                   <div className="flex items-center gap-2 mb-0.5">
                     <Badge label="RESOLVED" color={STATUS_COLORS.RESOLVED} />
-                    <span className="font-mono text-[10px] text-text-muted">{inc.type.replace(/_/g, ' ')}</span>
+                    <span className="font-mono text-[11px] text-text-muted">{inc.type.replace(/_/g, ' ')}</span>
                   </div>
                   <p className="font-sans text-xs text-text-secondary">{inc.description}</p>
-                  <p className="font-mono text-[10px] text-text-muted mt-0.5">
+                  <p className="font-mono text-[11px] text-text-muted mt-0.5">
                     Resolved {inc.resolvedAt ? timeAgo(inc.resolvedAt) : '—'} by {inc.resolvedBy?.name ?? '—'}
                   </p>
                 </div>
@@ -1774,7 +1775,7 @@ function IncidentsTab({ districtId }: { districtId: string }) {
                   className="font-mono text-xs px-3 py-1.5 rounded border border-bg-border text-text-muted hover:text-text-primary disabled:opacity-30 transition-colors">
                   ← Prev
                 </button>
-                <span className="font-mono text-[10px] text-text-muted">
+                <span className="font-mono text-[11px] text-text-muted">
                   {resolvedPage} / {resolvedTotalPages} · {resolvedTotal} total
                 </span>
                 <button
@@ -1845,7 +1846,7 @@ function RadioTab({ districtId }: { districtId: string }) {
 
       {/* FIX: clarified subtitle explaining relationship to physical radio */}
       <div className="bg-bg-elevated border border-bg-border rounded px-4 py-3">
-        <p className="font-mono text-[10px] text-text-muted">
+        <p className="font-mono text-[11px] text-text-muted">
           <span className="text-text-secondary font-bold">How this works:</span> At each scheduled time, make the real radio call to Operations Center first.
           Then log it here to record compliance. This is the digital record — the radio call is the actual communication.
         </p>
@@ -1874,11 +1875,11 @@ function RadioTab({ districtId }: { districtId: string }) {
                         : 'text-accent-red border-accent-red/30 bg-accent-red/5'}
                     />
                     {checkin.notes && (
-                      <p className="font-mono text-[9px] text-text-muted mt-1.5 truncate">{checkin.notes}</p>
+                      <p className="font-mono text-[10px] text-text-muted mt-1.5 truncate">{checkin.notes}</p>
                     )}
                   </>
                 ) : (
-                  <p className="font-mono text-[9px] text-text-muted">{s.desc}</p>
+                  <p className="font-mono text-[10px] text-text-muted">{s.desc}</p>
                 )}
               </div>
             );
@@ -1903,7 +1904,7 @@ function RadioTab({ districtId }: { districtId: string }) {
                           ? 'bg-accent-green/5 border-accent-green/20 text-accent-green'
                           : 'bg-bg-elevated border-bg-border text-text-secondary hover:text-text-primary'
                     }`}>
-                    {s.label}{done && <span className="block text-[9px]">✓ done</span>}
+                    {s.label}{done && <span className="block text-[10px]">✓ done</span>}
                   </button>
                 );
               })}
@@ -1948,7 +1949,7 @@ function RadioTab({ districtId }: { districtId: string }) {
               ? 'Submitting...'
               : `Submit ${SLOTS.find(s => s.value === slot)?.label} Check-in`}
           </button>
-          <p className="font-mono text-[10px] text-text-muted text-center">
+          <p className="font-mono text-[11px] text-text-muted text-center">
             If internet/phone fails, submit retroactively when contact restored.
           </p>
         </div>
@@ -1970,8 +1971,8 @@ function RadioTab({ districtId }: { districtId: string }) {
                       color={c.status === 'OK' ? 'text-accent-green border-accent-green/30' : 'text-accent-red border-accent-red/30'}
                     />
                   </div>
-                  {c.notes && <p className="font-mono text-[10px] text-text-secondary">{c.notes}</p>}
-                  <p className="font-mono text-[10px] text-text-muted mt-0.5">
+                  {c.notes && <p className="font-mono text-[11px] text-text-secondary">{c.notes}</p>}
+                  <p className="font-mono text-[11px] text-text-muted mt-0.5">
                     by {c.submittedBy?.name ?? '—'} · {timeAgo(c.createdAt)}
                   </p>
                 </div>
@@ -2142,12 +2143,12 @@ const centralMovTotalPages = movResult?.totalPages ?? 1;
       <div className="card p-5 border-accent-blue/20 bg-bg-elevated/40">
         <div className="flex items-start justify-between mb-4">
           <div>
-            <h3 className="font-sans font-bold text-text-primary">Central Warehouse — Stock Levels</h3>
-            <p className="font-mono text-[10px] text-text-muted mt-0.5">
+            <h3 className="font-display font-bold text-text-primary">Central Warehouse — Stock Levels</h3>
+            <p className="font-mono text-[11px] text-text-muted mt-0.5">
               Remaining = available to dispatch · Total = allocation reference
             </p>
           </div>
-          <span className="font-mono text-[10px] text-text-muted bg-bg-elevated px-2 py-1 rounded border border-bg-border">
+          <span className="font-mono text-[11px] text-text-muted bg-bg-elevated px-2 py-1 rounded border border-bg-border">
             30% reserve
           </span>
         </div>
@@ -2166,18 +2167,18 @@ const centralMovTotalPages = movResult?.totalPages ?? 1;
                   <div className="flex items-center justify-between mb-2">
                     <span className={`font-mono text-sm font-bold ${EMK_COLORS[type]}`}>{type}</span>
                     {scarce && (
-                      <span className="font-mono text-[9px] text-accent-red bg-accent-red/10 px-1.5 py-0.5 rounded border border-accent-red/30 animate-pulse">
+                      <span className="font-mono text-[10px] text-accent-red bg-accent-red/10 px-1.5 py-0.5 rounded border border-accent-red/30 animate-pulse">
                         ⚠ SCARCE
                       </span>
                     )}
                     {!scarce && above && (
-                      <span className="font-mono text-[9px] text-accent-blue bg-accent-blue/10 px-1.5 py-0.5 rounded border border-accent-blue/30">
+                      <span className="font-mono text-[10px] text-accent-blue bg-accent-blue/10 px-1.5 py-0.5 rounded border border-accent-blue/30">
                         ↑ EXTRA
                       </span>
                     )}
                   </div>
                   <p className="font-mono text-2xl font-bold text-text-primary">{fmt(rem)}</p>
-                  <p className="font-mono text-[10px] text-text-muted mt-0.5">of {fmt(total)} · {pct}%</p>
+                  <p className="font-mono text-[11px] text-text-muted mt-0.5">of {fmt(total)} · {pct}%</p>
                   <div className="mt-2 h-1.5 bg-bg-border rounded-full overflow-hidden">
                     <div
                       className={`h-full rounded-full transition-all duration-500 ${
@@ -2187,7 +2188,7 @@ const centralMovTotalPages = movResult?.totalPages ?? 1;
                     />
                   </div>
                   {type === 'EMK3' && total === 0 && (
-                    <p className="font-mono text-[9px] text-text-muted mt-1.5">
+                    <p className="font-mono text-[10px] text-text-muted mt-1.5">
                       MoH cold storage — transferred at activation
                     </p>
                   )}
@@ -2208,10 +2209,10 @@ const centralMovTotalPages = movResult?.totalPages ?? 1;
       {isSuperAdmin && (
         <>
           <div className="flex items-center gap-2">
-            <span className="font-mono text-[10px] text-text-muted uppercase tracking-widest">
+            <span className="font-mono text-[11px] text-text-muted uppercase tracking-widest">
               Stock Management
             </span>
-            <span className="font-mono text-[9px] text-accent-blue bg-accent-blue/10 px-2 py-0.5 rounded border border-accent-blue/30">
+            <span className="font-mono text-[10px] text-accent-blue bg-accent-blue/10 px-2 py-0.5 rounded border border-accent-blue/30">
               SUPER_ADMIN
             </span>
           </div>
@@ -2255,7 +2256,7 @@ const centralMovTotalPages = movResult?.totalPages ?? 1;
               <SectionTitle sub="Signed correction — changes Remaining only (not Total)">
                 Adjust Central Stock
               </SectionTitle>
-              <p className="font-mono text-[10px] text-text-muted mb-3">
+              <p className="font-mono text-[11px] text-text-muted mb-3">
                 For damaged, lost, or miscounted kits. Use Replenish for new stock.
               </p>
               <div className="space-y-3">
@@ -2292,7 +2293,7 @@ const centralMovTotalPages = movResult?.totalPages ?? 1;
             <SectionTitle sub="Changes Total reference only — Remaining is unaffected">
               Set Stock Allocation
             </SectionTitle>
-            <p className="font-mono text-[10px] text-text-muted mb-4">
+            <p className="font-mono text-[11px] text-text-muted mb-4">
               Use when a formal capacity decision changes — new donor agreement, reallocation plan,
               or correcting seed data. Changes the <span className="text-text-primary">Total</span> used
               for the scarcity % bar.
@@ -2341,7 +2342,7 @@ const centralMovTotalPages = movResult?.totalPages ?? 1;
                   <label className="label">
                     New Total
                     {currentAllocTotal !== null && (
-                      <span className="ml-2 font-mono text-[10px] text-text-muted normal-case">
+                      <span className="ml-2 font-mono text-[11px] text-text-muted normal-case">
                         current: {fmt(currentAllocTotal)}
                       </span>
                     )}
@@ -2364,7 +2365,7 @@ const centralMovTotalPages = movResult?.totalPages ?? 1;
                 const curRem = centralStock[`${allocEmkType.toLowerCase()}Remaining` as keyof CentralStockLevel] as number;
                 return newT < curRem ? (
                   <div className="bg-accent-orange/10 border border-accent-orange/30 rounded px-3 py-2">
-                    <p className="font-mono text-[10px] text-accent-orange">
+                    <p className="font-mono text-[11px] text-accent-orange">
                       ⚠ New total ({fmt(newT)}) is less than current remaining ({fmt(curRem)}).
                       The ↑ EXTRA badge will appear until stock is consumed or adjusted.
                     </p>
@@ -2413,7 +2414,7 @@ const centralMovTotalPages = movResult?.totalPages ?? 1;
                 <div key={m.id} className="px-4 py-3 flex items-start justify-between gap-3">
                   <div className="min-w-0 flex-1">
                     <div className="flex items-center gap-2 flex-wrap mb-0.5">
-                      <span className={`font-mono text-[10px] px-1.5 py-0.5 rounded border ${MOV_COLORS[m.movementType] ?? 'text-text-muted border-bg-border'}`}>
+                      <span className={`font-mono text-[11px] px-1.5 py-0.5 rounded border ${MOV_COLORS[m.movementType] ?? 'text-text-muted border-bg-border'}`}>
                         {m.movementType.replace('_', ' ')}
                       </span>
                       <span className={`font-mono text-xs font-semibold ${EMK_COLORS[m.emkType]}`}>
@@ -2430,13 +2431,13 @@ const centralMovTotalPages = movResult?.totalPages ?? 1;
                       )}
                     </div>
                     {m.reason && (
-                      <p className="font-mono text-[10px] text-text-muted truncate">{m.reason}</p>
+                      <p className="font-mono text-[11px] text-text-muted truncate">{m.reason}</p>
                     )}
-                    <p className="font-mono text-[10px] text-text-muted mt-0.5">
+                    <p className="font-mono text-[11px] text-text-muted mt-0.5">
                       by {m.performedBy?.name ?? '—'}
                     </p>
                   </div>
-                  <span className="font-mono text-[10px] text-text-muted flex-shrink-0">
+                  <span className="font-mono text-[11px] text-text-muted flex-shrink-0">
                     {timeAgo(m.createdAt)}
                   </span>
                 </div>
@@ -2454,7 +2455,7 @@ const centralMovTotalPages = movResult?.totalPages ?? 1;
               className="font-mono text-xs px-3 py-1.5 rounded border border-bg-border text-text-muted hover:text-text-primary disabled:opacity-30 transition-colors">
               ← Prev
             </button>
-            <span className="font-mono text-[10px] text-text-muted">
+            <span className="font-mono text-[11px] text-text-muted">
               {centralMovPage} / {centralMovTotalPages}
               {movResult && <span className="ml-2">({movResult.total} total)</span>}
             </span>
@@ -2526,12 +2527,12 @@ export function HubPage() {
 
   const isCentralActive = activeTab === 'central';
 
-  const SUB_TABS: Array<{ id: TabId; label: string; icon: string }> = [
-    { id: 'stock',      label: 'Stock',      icon: '⬡' },
-    { id: 'volunteers', label: 'Volunteers', icon: '⊕' },
-    { id: 'deliveries', label: 'Deliveries', icon: '⟁' },
-    { id: 'incidents',  label: 'Incidents',  icon: '⚠' },
-    { id: 'radio',      label: 'Radio',      icon: '◈' },
+  const SUB_TABS: Array<{ id: TabId; label: string; Icon: LucideIcon }> = [
+    { id: 'stock',      label: 'Stock',      Icon: Package },
+    { id: 'volunteers', label: 'Volunteers', Icon: Users },
+    { id: 'deliveries', label: 'Deliveries', Icon: Truck },
+    { id: 'incidents',  label: 'Incidents',  Icon: AlertTriangle },
+    { id: 'radio',      label: 'Radio',      Icon: Radio },
   ];
 
   // clicking a district while Central is active switches to stock tab
@@ -2562,7 +2563,7 @@ export function HubPage() {
                     : 'bg-bg-elevated border-bg-border text-text-secondary hover:text-text-primary'
                 }`}>
                 🏛 Central
-                <span className="font-mono text-[8px] text-accent-blue bg-accent-blue/10 px-1 py-0.5 rounded border border-accent-blue/20">
+                <span className="font-mono text-[10px] text-accent-blue bg-accent-blue/10 px-1 py-0.5 rounded border border-accent-blue/20">
                   HQ
                 </span>
               </button>
@@ -2572,9 +2573,9 @@ export function HubPage() {
             {canSelectDistrict ? (
               <>
                 {canSeeCentral && (
-                  <span className="font-mono text-[10px] text-bg-border select-none px-1">/</span>
+                  <span className="font-mono text-[11px] text-bg-border select-none px-1">/</span>
                 )}
-                <span className="font-mono text-[10px] text-text-muted uppercase tracking-widest mr-1">
+                <span className="font-mono text-[11px] text-text-muted uppercase tracking-widest mr-1">
                   District
                 </span>
                 {districts.map(d => {
@@ -2600,7 +2601,7 @@ export function HubPage() {
                 <span className="font-mono text-sm font-bold text-text-primary">
                   {selectedDistrict?.name ?? 'Your District'}
                 </span>
-                <span className="font-mono text-[10px] text-text-muted">Hub Manager view</span>
+                <span className="font-mono text-[11px] text-text-muted">Hub Manager view</span>
               </div>
             )}
           </div>
@@ -2629,15 +2630,16 @@ export function HubPage() {
                 </p>
               </div>
             )}
-            <div className="flex gap-0.5 bg-bg-elevated rounded-lg p-1 border border-bg-border w-fit overflow-x-auto">
+            <div role="tablist" className="flex gap-0.5 bg-bg-elevated rounded-lg p-1 border border-bg-border w-fit max-w-full overflow-x-auto">
               {SUB_TABS.map(tab => (
                 <button key={tab.id} onClick={() => setActiveTab(tab.id)}
-                  className={`flex items-center gap-1.5 px-4 py-2 rounded font-sans text-sm font-medium transition-all duration-100 whitespace-nowrap ${
+                  role="tab" aria-selected={activeTab === tab.id}
+                  className={`flex items-center gap-1.5 px-3.5 py-2 rounded-md font-sans text-sm font-medium transition-colors duration-100 whitespace-nowrap border ${
                     activeTab === tab.id
-                      ? 'bg-bg-primary text-text-primary border border-bg-border shadow-sm'
-                      : 'text-text-muted hover:text-text-secondary'
+                      ? 'bg-bg-primary text-text-primary border-bg-border shadow-sm'
+                      : 'text-text-secondary border-transparent hover:text-text-primary hover:bg-bg-hover'
                   }`}>
-                  <span className="text-xs">{tab.icon}</span>
+                  <tab.Icon size={14} strokeWidth={2} className={activeTab === tab.id ? 'text-accent-blue' : ''} />
                   {tab.label}
                 </button>
               ))}

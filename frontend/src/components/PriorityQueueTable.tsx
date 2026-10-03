@@ -72,13 +72,13 @@ export const PriorityQueueTable = memo(function PriorityQueueTable({ districts }
       <div className="px-5 py-4 border-b border-bg-border">
         <div className="flex items-start justify-between gap-4 flex-wrap">
           <div>
-            <h2 className="font-sans font-bold uppercase text-text-primary">Priority Queue</h2>
-            <p className="font-mono text-[10px] text-text-muted mt-0.5">
+            <h2 className="font-display font-bold text-text-primary">Priority Queue</h2>
+            <p className="font-mono text-[11px] text-text-muted mt-0.5">
               Undelivered households — sorted by Section C tiebreaker rules
             </p>
           </div>
           <div className="flex items-center gap-2">
-            <span className="font-mono text-[10px] text-text-muted uppercase tracking-widest">District</span>
+            <span className="font-mono text-[11px] text-text-muted uppercase tracking-widest">District</span>
             <div className="flex gap-1">
               {districts.map((d) => (
                 <button key={d.districtId} onClick={() => setSelectedDistrictId(d.districtId)}
@@ -96,7 +96,7 @@ export const PriorityQueueTable = memo(function PriorityQueueTable({ districts }
 
         <div className="flex gap-2 mt-3 flex-wrap">
           <button onClick={() => setBandFilter('ALL')}
-            className={`font-mono text-[10px] px-2.5 py-1 rounded border transition-all ${
+            className={`font-mono text-[11px] px-2.5 py-1 rounded border transition-all ${
               bandFilter === 'ALL' ? 'bg-bg-elevated border-bg-border text-text-primary' : 'border-transparent text-text-muted hover:text-text-secondary'
             }`}>
             ALL ({total})
@@ -105,7 +105,7 @@ export const PriorityQueueTable = memo(function PriorityQueueTable({ districts }
             const cfg = BAND_CONFIG[band];
             return (
               <button key={band} onClick={() => setBandFilter(band)}
-                className={`font-mono text-[10px] px-2.5 py-1 rounded border transition-all ${
+                className={`font-mono text-[11px] px-2.5 py-1 rounded border transition-all ${
                   bandFilter === band ? `${cfg.bg} ${cfg.border} ${cfg.color}` : `border-transparent ${cfg.color} opacity-60 hover:opacity-100`
                 }`}>
                 {cfg.label} ({bandCounts[band]})
@@ -120,7 +120,7 @@ export const PriorityQueueTable = memo(function PriorityQueueTable({ districts }
           <thead>
             <tr className="border-b border-bg-border">
               {['Band', 'Address', 'Score', 'Cat.1', 'EMK', 'Status'].map((h) => (
-                <th key={h} className="px-4 py-2.5 text-left font-mono text-[10px] text-text-muted uppercase tracking-widest">{h}</th>
+                <th key={h} className="px-4 py-2.5 text-left font-mono text-[11px] text-text-muted uppercase tracking-widest">{h}</th>
               ))}
             </tr>
           </thead>
@@ -149,7 +149,7 @@ export const PriorityQueueTable = memo(function PriorityQueueTable({ districts }
                       <td className="px-4 py-2.5">
                         <div className="flex items-center gap-1.5">
                           <span className={`w-1.5 h-1.5 rounded-full flex-shrink-0 ${cfg.dot}`} />
-                          <span className={`font-mono text-[10px] font-semibold ${cfg.color}`}>{cfg.label}</span>
+                          <span className={`font-mono text-[11px] font-semibold ${cfg.color}`}>{cfg.label}</span>
                         </div>
                       </td>
                       <td className="px-4 py-2.5 max-w-[200px]">
@@ -171,12 +171,12 @@ export const PriorityQueueTable = memo(function PriorityQueueTable({ districts }
                         }`}>{h.medicalUrgencyScore}/8</span>
                       </td>
                       <td className="px-4 py-2.5">
-                        <span className={`font-mono text-[10px] font-semibold ${EMK_COLORS[h.recommendedEmk]}`}>{h.recommendedEmk}</span>
+                        <span className={`font-mono text-[11px] font-semibold ${EMK_COLORS[h.recommendedEmk]}`}>{h.recommendedEmk}</span>
                       </td>
                       <td className="px-4 py-2.5">
                         {h.delivered
-                          ? <span className="font-mono text-[10px] text-accent-green">✓ Delivered</span>
-                          : <span className="font-mono text-[10px] text-text-muted">Pending</span>
+                          ? <span className="font-mono text-[11px] text-accent-green">✓ Delivered</span>
+                          : <span className="font-mono text-[11px] text-text-muted">Pending</span>
                         }
                       </td>
                     </tr>
@@ -190,12 +190,12 @@ export const PriorityQueueTable = memo(function PriorityQueueTable({ districts }
       {(filtered.length > 0 || totalPages > 1) && (
         <div className="px-4 py-2.5 border-t border-bg-border space-y-2">
           <div className="flex items-center justify-between">
-            <span className="font-mono text-[10px] text-text-muted">
+            <span className="font-mono text-[11px] text-text-muted">
               {bandFilter === 'ALL'
                 ? `${total} undelivered total — page ${page} of ${totalPages}`
                 : `Filtered to ${filtered.length} on this page`}
             </span>
-            <span className="font-mono text-[10px] text-text-muted">
+            <span className="font-mono text-[11px] text-text-muted">
               Sorted: band → score → cat.1 → submitted first
             </span>
           </div>
@@ -208,7 +208,7 @@ export const PriorityQueueTable = memo(function PriorityQueueTable({ districts }
                 className="font-mono text-xs px-3 py-1.5 rounded border border-bg-border text-text-muted hover:text-text-primary disabled:opacity-30 transition-colors">
                 ← Prev
               </button>
-              <span className="font-mono text-[10px] text-text-muted">
+              <span className="font-mono text-[11px] text-text-muted">
                 {page} / {totalPages}
               </span>
               <button

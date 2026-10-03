@@ -10,7 +10,7 @@ export function WarehouseLayoutPage() {
     <DashboardLayout title="Warehouse Layout (V3)">
       <div className="space-y-5">
         <div className="card px-5 py-3">
-          <p className="font-mono text-[10px] text-text-muted uppercase tracking-widest mb-1">
+          <p className="font-mono text-[11px] text-text-muted uppercase tracking-widest mb-1">
             Static Diagram — draw.io
           </p>
           <p className="font-sans text-sm text-text-primary font-medium">
@@ -19,7 +19,7 @@ export function WarehouseLayoutPage() {
         </div>
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
           <div className="card p-4">
-            <p className="font-mono text-[10px] text-text-muted uppercase tracking-widest mb-3">
+            <p className="font-mono text-[11px] text-text-muted uppercase tracking-widest mb-3">
               Central Warehouse (~200–250 sqm)
             </p>
             <img
@@ -29,7 +29,7 @@ export function WarehouseLayoutPage() {
             />
           </div>
           <div className="card p-4">
-            <p className="font-mono text-[10px] text-text-muted uppercase tracking-widest mb-3">
+            <p className="font-mono text-[11px] text-text-muted uppercase tracking-widest mb-3">
               Sub-Warehouse (~40–60 sqm)
             </p>
             <img
@@ -105,13 +105,13 @@ export function OperatingProtocolPage() {
         {/* ── Header info strip ── */}
         <div className="card px-5 py-3 flex items-start justify-between gap-4 flex-wrap">
           <div>
-            <p className="font-mono text-[10px] text-text-muted uppercase tracking-widest mb-1">
+            <p className="font-mono text-[11px] text-text-muted uppercase tracking-widest mb-1">
               Field Reference Document
             </p>
             <p className="font-sans text-sm text-text-primary font-medium">
               REMA Operating Protocol — 8 pages, A4, designed to print double-sided
             </p>
-            <p className="font-mono text-[10px] text-text-muted mt-0.5">
+            <p className="font-mono text-[11px] text-text-muted mt-0.5">
               Classification: REMA INTERNAL — Viet Nam Red Cross Operations Staff Only
             </p>
           </div>
@@ -165,10 +165,10 @@ export function OperatingProtocolPage() {
                 {/* Fallback for browsers that don't render <object> */}
                 <div className="py-20 text-center space-y-4 px-6">
                   <p className="text-4xl">📄</p>
-                  <p className="font-sans font-bold text-text-primary">
+                  <p className="font-display font-bold text-text-primary">
                     PDF preview unavailable in this browser
                   </p>
-                  <p className="font-mono text-[10px] text-text-muted max-w-sm mx-auto">
+                  <p className="font-mono text-[11px] text-text-muted max-w-sm mx-auto">
                     Use the download or open-in-tab buttons above to view the document.
                   </p>
                   <div className="flex justify-center gap-3 pt-2">
@@ -193,10 +193,10 @@ export function OperatingProtocolPage() {
             ) : (
               <div className="py-20 text-center space-y-4 px-6">
                 <p className="text-4xl">📄</p>
-                <p className="font-sans font-bold text-text-primary">
+                <p className="font-display font-bold text-text-primary">
                   PDF preview unavailable in this browser
                 </p>
-                <p className="font-mono text-[10px] text-text-muted max-w-sm mx-auto">
+                <p className="font-mono text-[11px] text-text-muted max-w-sm mx-auto">
                   Use the download or open-in-tab buttons above to view the document.
                 </p>
                 <div className="flex justify-center gap-3 pt-2">
@@ -225,7 +225,7 @@ export function OperatingProtocolPage() {
 
             {/* Document contents grid */}
             <div className="card px-5 py-4">
-              <p className="font-mono text-[10px] text-text-muted uppercase tracking-widest mb-3">
+              <p className="font-mono text-[11px] text-text-muted uppercase tracking-widest mb-3">
                 Document Contents
               </p>
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
@@ -234,13 +234,13 @@ export function OperatingProtocolPage() {
                     key={s.label}
                     className="bg-bg-elevated rounded-lg border border-bg-border px-4 py-3"
                   >
-                    <p className="font-mono text-[10px] text-text-muted mb-1">
+                    <p className="font-mono text-[11px] text-text-muted mb-1">
                       Section {i + 1}
                     </p>
                     <p className="font-sans text-sm font-semibold text-text-primary">
                       {s.label}
                     </p>
-                    <p className="font-mono text-[10px] text-text-muted mt-0.5">{s.desc}</p>
+                    <p className="font-mono text-[11px] text-text-muted mt-0.5">{s.desc}</p>
                   </div>
                 ))}
               </div>
@@ -251,16 +251,16 @@ export function OperatingProtocolPage() {
 
               {/* Activation trigger */}
               <div className="card p-5 border-accent-orange/30 bg-accent-orange/5">
-                <p className="font-mono text-[10px] text-accent-orange uppercase tracking-widest mb-2">
+                <p className="font-mono text-[11px] text-accent-orange uppercase tracking-widest mb-2">
                   Activation Trigger (locked — 2 of 3)
                 </p>
                 <div className="space-y-2">
                   {TRIGGER_CONDITIONS.map((cond, i) => (
                     <div key={i} className="flex items-start gap-2">
-                      <span className="font-mono text-[10px] text-accent-orange mt-0.5 flex-shrink-0">
+                      <span className="font-mono text-[11px] text-accent-orange mt-0.5 flex-shrink-0">
                         {i + 1}.
                       </span>
-                      <p className="font-mono text-[10px] text-text-secondary">{cond}</p>
+                      <p className="font-mono text-[11px] text-text-secondary">{cond}</p>
                     </div>
                   ))}
                 </div>
@@ -268,7 +268,7 @@ export function OperatingProtocolPage() {
 
               {/* Radio schedule */}
               <div className="card p-5">
-                <p className="font-mono text-[10px] text-text-muted uppercase tracking-widest mb-2">
+                <p className="font-mono text-[11px] text-text-muted uppercase tracking-widest mb-2">
                   Radio Check-In Schedule (Section D.9)
                 </p>
                 <div className="space-y-2">
@@ -277,7 +277,7 @@ export function OperatingProtocolPage() {
                       <span className="font-mono text-xs font-bold text-text-primary flex-shrink-0 w-12">
                         {slot.time}
                       </span>
-                      <p className="font-mono text-[10px] text-text-secondary">{slot.desc}</p>
+                      <p className="font-mono text-[11px] text-text-secondary">{slot.desc}</p>
                     </div>
                   ))}
                 </div>
@@ -285,14 +285,14 @@ export function OperatingProtocolPage() {
 
               {/* Delivery tiers */}
               <div className="card p-5">
-                <p className="font-mono text-[10px] text-text-muted uppercase tracking-widest mb-2">
+                <p className="font-mono text-[11px] text-text-muted uppercase tracking-widest mb-2">
                   Last-Mile Delivery Tiers (Section A.4)
                 </p>
                 <div className="space-y-2">
                   {DELIVERY_TIERS.map((t) => (
                     <div key={t.depth} className="flex items-center justify-between">
-                      <span className="font-mono text-[10px] text-text-muted">{t.depth}</span>
-                      <span className={`font-mono text-[10px] font-semibold ${t.color}`}>
+                      <span className="font-mono text-[11px] text-text-muted">{t.depth}</span>
+                      <span className={`font-mono text-[11px] font-semibold ${t.color}`}>
                         {t.mode}
                       </span>
                     </div>
@@ -302,16 +302,16 @@ export function OperatingProtocolPage() {
 
               {/* Coordination failure protocols */}
               <div className="card p-5">
-                <p className="font-mono text-[10px] text-text-muted uppercase tracking-widest mb-2">
+                <p className="font-mono text-[11px] text-text-muted uppercase tracking-widest mb-2">
                   Coordination Failure Protocols (Section D.10)
                 </p>
                 <div className="space-y-2">
                   {FAILURE_PROTOCOLS.map((f) => (
                     <div key={f.code} className="flex items-start gap-3">
-                      <span className="font-mono text-[10px] font-bold text-accent-orange flex-shrink-0">
+                      <span className="font-mono text-[11px] font-bold text-accent-orange flex-shrink-0">
                         {f.code}
                       </span>
-                      <p className="font-mono text-[10px] text-text-secondary">{f.desc}</p>
+                      <p className="font-mono text-[11px] text-text-secondary">{f.desc}</p>
                     </div>
                   ))}
                 </div>

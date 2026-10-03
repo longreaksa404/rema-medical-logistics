@@ -7,7 +7,7 @@ interface AvatarProps {
 }
 
 const SIZE = {
-  sm: 'w-7 h-7 text-[10px]',
+  sm: 'w-7 h-7 text-[11px]',
   md: 'w-8 h-8 text-xs',
   lg: 'w-20 h-20 text-2xl',
   xl: 'w-24 h-24 text-3xl',

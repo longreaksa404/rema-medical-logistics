@@ -39,13 +39,13 @@ function timeAgo(iso: string) {
   return `${Math.floor(d / 30)}mo ago`;
 }
 function Badge({ label, color }: { label: string; color: string }) {
-  return <span className={`font-mono text-[10px] px-2 py-0.5 rounded border ${color}`}>{label}</span>;
+  return <span className={`font-mono text-[11px] px-2 py-0.5 rounded border ${color}`}>{label}</span>;
 }
 function ErrorBox({ msg, onDismiss }: { msg: string; onDismiss: () => void }) {
   return (
     <div className="bg-accent-red/10 border border-accent-red/30 rounded px-3 py-2 flex items-start justify-between gap-2 animate-slide-in">
       <p className="font-mono text-xs text-accent-red">{msg}</p>
-      <button onClick={onDismiss} className="font-mono text-[10px] text-accent-red flex-shrink-0">✕</button>
+      <button onClick={onDismiss} className="font-mono text-[11px] text-accent-red flex-shrink-0">✕</button>
     </div>
   );
 }
@@ -53,7 +53,7 @@ function SuccessBox({ msg, onDismiss }: { msg: string; onDismiss: () => void }) 
   return (
     <div className="bg-accent-green/10 border border-accent-green/30 rounded px-3 py-2 flex items-start justify-between gap-2 animate-slide-in">
       <p className="font-mono text-xs text-accent-green">{msg}</p>
-      <button onClick={onDismiss} className="font-mono text-[10px] text-accent-green flex-shrink-0">✕</button>
+      <button onClick={onDismiss} className="font-mono text-[11px] text-accent-green flex-shrink-0">✕</button>
     </div>
   );
 }
@@ -103,14 +103,14 @@ function CreateUserPanel({ districts, onSuccess, onClose }: {
   return (
     <div className="card p-5 space-y-4">
       <div>
-        <h3 className="font-sans font-bold text-text-primary mb-0.5">Create User</h3>
-        <p className="font-mono text-[10px] text-text-muted">New users log in with the temporary password and must change it immediately.</p>
+        <h3 className="font-display font-bold text-text-primary mb-0.5">Create User</h3>
+        <p className="font-mono text-[11px] text-text-muted">New users log in with the temporary password and must change it immediately.</p>
       </div>
       {createError && <ErrorBox msg={createError} onDismiss={() => createMutation.reset()} />}
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
         <div>
           <label className="label">Full Name</label>
-          <input type="text" className="input" placeholder="Nguyen Van A"
+          <input type="text" className="input" placeholder="e.g. Sok Dara"
             value={name} onChange={e => setName(e.target.value)} />
         </div>
         <div>
@@ -124,12 +124,12 @@ function CreateUserPanel({ districts, onSuccess, onClose }: {
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
           {CREATABLE_ROLES.map(r => (
             <button key={r} onClick={() => { setRole(r); if (!DISTRICT_REQUIRED_ROLES.includes(r)) setDistrictId(''); }}
-              className={`font-mono text-[10px] py-2 px-2 rounded border transition-all text-left ${
+              className={`font-mono text-[11px] py-2 px-2 rounded border transition-all text-left ${
                 role === r ? ROLE_COLORS[r] : 'bg-bg-elevated border-bg-border text-text-secondary hover:text-text-primary'
               }`}>
               {ROLE_LABELS[r]}
               {DISTRICT_REQUIRED_ROLES.includes(r) && (
-                <span className="block text-[9px] text-text-muted mt-0.5">Needs district</span>
+                <span className="block text-[10px] text-text-muted mt-0.5">Needs district</span>
               )}
             </button>
           ))}
@@ -146,7 +146,7 @@ function CreateUserPanel({ districts, onSuccess, onClose }: {
       )}
       <div>
         <label className="label">
-          Phone <span className="font-mono text-[9px] text-text-muted normal-case ml-1">(optional — used for field contact)</span>
+          Phone <span className="font-mono text-[10px] text-text-muted normal-case ml-1">(optional — used for field contact)</span>
         </label>
         <input type="tel" className="input" placeholder="+855 12 345 678"
           value={phone} onChange={e => setPhone(e.target.value)} />
@@ -158,18 +158,18 @@ function CreateUserPanel({ districts, onSuccess, onClose }: {
             placeholder="Min. 8 characters"
             value={tempPassword} onChange={e => setTempPassword(e.target.value)} />
           <button type="button" onClick={() => setShowPassword(v => !v)}
-            className="absolute right-3 top-1/2 -translate-y-1/2 font-mono text-[10px] text-text-muted hover:text-text-primary transition-colors">
+            className="absolute right-3 top-1/2 -translate-y-1/2 font-mono text-[11px] text-text-muted hover:text-text-primary transition-colors">
             {showPassword ? 'HIDE' : 'SHOW'}
           </button>
         </div>
         {tempPassword && tempPassword.length < 8 && (
-          <p className="font-mono text-[10px] text-accent-red mt-1">
+          <p className="font-mono text-[11px] text-accent-red mt-1">
             {8 - tempPassword.length} more character{8 - tempPassword.length !== 1 ? 's' : ''} needed
           </p>
         )}
       </div>
       <div className="bg-bg-elevated border border-bg-border rounded px-3 py-2">
-        <p className="font-mono text-[10px] text-text-muted">
+        <p className="font-mono text-[11px] text-text-muted">
           <span className="text-accent-orange">Note:</span> SUPER_ADMIN accounts can only be created via the seed script — never via this form.
         </p>
       </div>
@@ -233,12 +233,12 @@ function EditUserPanel({ user, districts, currentUserId, onSuccess, onClose }: {
     <div className="card border-accent-blue/20 p-5 space-y-4 animate-slide-in">
       <div className="flex items-start justify-between gap-3">
         <div>
-          <h3 className="font-sans font-bold text-text-primary">Edit User</h3>
-          <p className="font-mono text-[10px] text-text-muted">{user.email}</p>
+          <h3 className="font-display font-bold text-text-primary">Edit User</h3>
+          <p className="font-mono text-[11px] text-text-muted">{user.email}</p>
         </div>
         <button
           onClick={onClose}
-          className="flex items-center gap-1.5 px-2 py-1 -mr-2 font-mono text-[10px] uppercase tracking-wider hover:text-accent-red hover:bg-accent-red/10 rounded transition-all duration-200 flex-shrink-0">
+          className="flex items-center gap-1.5 px-2 py-1 -mr-2 font-mono text-[11px] uppercase tracking-wider hover:text-accent-red hover:bg-accent-red/10 rounded transition-all duration-200 flex-shrink-0">
           <span className="text-xs">✕</span>
           <span>Close</span>
         </button>
@@ -250,7 +250,7 @@ function EditUserPanel({ user, districts, currentUserId, onSuccess, onClose }: {
 
       {isSuperAdmin ? (
         <div className="bg-accent-red/10 border border-accent-red/20 rounded px-3 py-2">
-          <p className="font-mono text-[10px] text-accent-red">SUPER_ADMIN accounts cannot be modified via this interface.</p>
+          <p className="font-mono text-[11px] text-accent-red">SUPER_ADMIN accounts cannot be modified via this interface.</p>
         </div>
       ) : (
         <>
@@ -269,7 +269,7 @@ function EditUserPanel({ user, districts, currentUserId, onSuccess, onClose }: {
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
               {CREATABLE_ROLES.map(r => (
                 <button key={r} onClick={() => { setRole(r); if (!DISTRICT_REQUIRED_ROLES.includes(r)) setDistrictId(''); }}
-                  className={`font-mono text-[10px] py-2 px-2 rounded border transition-all ${
+                  className={`font-mono text-[11px] py-2 px-2 rounded border transition-all ${
                     role === r ? ROLE_COLORS[r] : 'bg-bg-elevated border-bg-border text-text-secondary hover:text-text-primary'
                   }`}>
                   {ROLE_LABELS[r]}
@@ -288,7 +288,7 @@ function EditUserPanel({ user, districts, currentUserId, onSuccess, onClose }: {
           )}
           <div>
             <label className="label">
-              Phone <span className="font-mono text-[9px] text-text-muted normal-case ml-1">(optional)</span>
+              Phone <span className="font-mono text-[10px] text-text-muted normal-case ml-1">(optional)</span>
             </label>
             <input type="tel" className="input" placeholder="+855 12 345 678"
               value={phone} onChange={e => setPhone(e.target.value)} />
@@ -296,7 +296,7 @@ function EditUserPanel({ user, districts, currentUserId, onSuccess, onClose }: {
           <div className="flex items-center justify-between bg-bg-elevated rounded-lg border border-bg-border px-4 py-3">
             <div>
               <p className="font-sans text-sm text-text-primary">Account Active</p>
-              <p className="font-mono text-[10px] text-text-muted">Inactive users cannot log in. Data is preserved.</p>
+              <p className="font-mono text-[11px] text-text-muted">Inactive users cannot log in. Data is preserved.</p>
             </div>
             <button
               onClick={() => {
@@ -334,7 +334,7 @@ function EditUserPanel({ user, districts, currentUserId, onSuccess, onClose }: {
             <div className="flex items-center justify-between mb-3">
               <div>
                 <p className="font-sans text-sm font-medium text-text-primary">Reset Password</p>
-                <p className="font-mono text-[10px] text-text-muted">Admin override — no current password needed</p>
+                <p className="font-mono text-[11px] text-text-muted">Admin override — no current password needed</p>
               </div>
               <button onClick={() => setResetMode(v => !v)}
                 className="font-mono text-xs text-accent-orange hover:text-accent-orange/80 transition-colors">
@@ -348,7 +348,7 @@ function EditUserPanel({ user, districts, currentUserId, onSuccess, onClose }: {
                     placeholder="New temporary password (min. 8 chars)"
                     value={newTempPwd} onChange={e => setNewTempPwd(e.target.value)} />
                   <button type="button" onClick={() => setShowNewPwd(v => !v)}
-                    className="absolute right-3 top-1/2 -translate-y-1/2 font-mono text-[10px] text-text-muted hover:text-text-primary">
+                    className="absolute right-3 top-1/2 -translate-y-1/2 font-mono text-[11px] text-text-muted hover:text-text-primary">
                     {showNewPwd ? 'HIDE' : 'SHOW'}
                   </button>
                 </div>
@@ -430,12 +430,12 @@ export function UsersPage() {
 
         {/* stats row */}
         <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
-          <div className="card px-4 py-3"><p className="font-mono text-[10px] text-text-muted uppercase tracking-widest mb-1">Total</p><p className="font-mono text-2xl font-bold text-text-primary">{stats.total}</p></div>
-          <div className="card px-4 py-3"><p className="font-mono text-[10px] text-text-muted uppercase tracking-widest mb-1">Active</p><p className="font-mono text-2xl font-bold text-accent-green">{stats.active}</p></div>
-          <div className="card px-4 py-3"><p className="font-mono text-[10px] text-text-muted uppercase tracking-widest mb-1">Inactive</p><p className="font-mono text-2xl font-bold text-text-muted">{stats.inactive}</p></div>
+          <div className="card px-4 py-3"><p className="font-mono text-[11px] text-text-muted uppercase tracking-widest mb-1">Total</p><p className="font-mono text-2xl font-bold text-text-primary">{stats.total}</p></div>
+          <div className="card px-4 py-3"><p className="font-mono text-[11px] text-text-muted uppercase tracking-widest mb-1">Active</p><p className="font-mono text-2xl font-bold text-accent-green">{stats.active}</p></div>
+          <div className="card px-4 py-3"><p className="font-mono text-[11px] text-text-muted uppercase tracking-widest mb-1">Inactive</p><p className="font-mono text-2xl font-bold text-text-muted">{stats.inactive}</p></div>
           {CREATABLE_ROLES.slice(0, 3).map(r => (
             <div key={r} className="card px-4 py-3">
-              <p className="font-mono text-[10px] text-text-muted uppercase tracking-widest mb-1">{ROLE_LABELS[r].split(' ')[0]}</p>
+              <p className="font-mono text-[11px] text-text-muted uppercase tracking-widest mb-1">{ROLE_LABELS[r].split(' ')[0]}</p>
               <p className={`font-mono text-2xl font-bold ${ROLE_COLORS[r].split(' ')[0]}`}>{stats.byRole[r] ?? 0}</p>
             </div>
           ))}
@@ -447,7 +447,7 @@ export function UsersPage() {
             <div className="flex gap-1 bg-bg-elevated rounded-lg p-1 border border-bg-border">
               {ALL_FILTER_ROLES.map(r => (
                 <button key={r || 'all'} onClick={() => setFilterRole(r)}
-                  className={`font-mono text-[10px] px-2.5 py-1 rounded transition-all ${
+                  className={`font-mono text-[11px] px-2.5 py-1 rounded transition-all ${
                     filterRole === r
                       ? 'bg-bg-primary text-text-primary border border-bg-border shadow-sm'
                       : 'text-text-muted hover:text-text-secondary'
@@ -459,7 +459,7 @@ export function UsersPage() {
             <div className="flex gap-1 bg-bg-elevated rounded-lg p-1 border border-bg-border">
               {(['all', 'active', 'inactive'] as const).map(f => (
                 <button key={f} onClick={() => setFilterActive(f)}
-                  className={`font-mono text-[10px] px-2.5 py-1 rounded transition-all capitalize ${
+                  className={`font-mono text-[11px] px-2.5 py-1 rounded transition-all capitalize ${
                     filterActive === f
                       ? 'bg-bg-primary text-text-primary border border-bg-border shadow-sm'
                       : 'text-text-muted hover:text-text-secondary'
@@ -516,7 +516,7 @@ export function UsersPage() {
               <thead>
                 <tr className="border-b border-bg-border">
                   {['Name', 'Email', 'Role', 'District', 'Phone', 'Status', 'Created', 'Actions'].map(h => (
-                    <th key={h} className="px-4 py-2.5 text-left font-mono text-[10px] text-text-muted uppercase tracking-widest whitespace-nowrap">{h}</th>
+                    <th key={h} className="px-4 py-2.5 text-left font-mono text-[11px] text-text-muted uppercase tracking-widest whitespace-nowrap">{h}</th>
                   ))}
                 </tr>
               </thead>
@@ -533,7 +533,7 @@ export function UsersPage() {
                         ? <Badge label="ACTIVE" color="text-accent-green border-accent-green/30 bg-accent-green/5" />
                         : <Badge label="INACTIVE" color="text-text-muted border-bg-border bg-bg-elevated" />}
                     </td>
-                    <td className="px-4 py-3 font-mono text-[10px] text-text-muted">{timeAgo(u.createdAt)}</td>
+                    <td className="px-4 py-3 font-mono text-[11px] text-text-muted">{timeAgo(u.createdAt)}</td>
                     <td className="px-4 py-3">
                       {u.role !== 'SUPER_ADMIN' && (
                         <button
@@ -552,7 +552,7 @@ export function UsersPage() {
           )}
           {!isLoading && filteredUsers.length > 0 && (
             <div className="px-4 py-2 border-t border-bg-border">
-              <p className="font-mono text-[10px] text-text-muted">
+              <p className="font-mono text-[11px] text-text-muted">
                 {filteredUsers.length} user{filteredUsers.length !== 1 ? 's' : ''}
                 {search && ` matching "${search}"`}
                 {' · '}Per REMA policy: accounts are deactivated, never deleted.
