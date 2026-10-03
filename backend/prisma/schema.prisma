@@ -201,6 +201,8 @@ model Household {
   emk2Quantity         Int                   @default(0)
   emk3Quantity         Int                   @default(0)
   totalEmkQuantity     Int                   @default(1)
+  // set by the volunteer app so a retried offline submission is not stored twice
+  clientRef            String?               @unique
   deliveryReceipts     DeliveryReceipt[]
   assessments          HouseholdAssessment[]
   assessedBy           User?                 @relation("AssessedBy", fields: [assessedById], references: [id])
@@ -338,6 +340,8 @@ model Incident {
   reportedById String
   resolvedById String?
   resolvedAt   DateTime?
+  // set by the volunteer app so a retried offline report is not stored twice
+  clientRef    String?        @unique
   district     District       @relation(fields: [districtId], references: [id])
   reportedBy   User           @relation("ReportedBy", fields: [reportedById], references: [id])
   resolvedBy   User?          @relation("ResolvedBy", fields: [resolvedById], references: [id])

@@ -1,7 +1,8 @@
 import { IncidentType, IncidentStatus } from '@prisma/client';
 import { prisma } from '../lib/prisma';
 import { getCached, setCached, deleteCached } from '../utils/cache';
-import { io } from '../app';  
+import { io } from '../app';
+import { ConflictError, isUniqueViolation } from '../lib/errors';
 
 // ─── CACHE KEYS ───────────────────────────────────────────────────────────────
 // Incidents are polled by V1 dashboard and Hub Manager portal.
@@ -76,30 +77,60 @@ function invalidateIncidentCache(districtId?: string): void {
 // ─── REPORT AN INCIDENT ───────────────────────────────────────────────────────
 // Section B.6 contingency + Section A.4 volunteer safety
 
+const INCIDENT_INCLUDE = {
+  district: { select: { name: true } },
+  reportedBy: { select: { name: true, email: true, role: true } },
+} as const;
+
+// An offline report retried after its first attempt actually reached the server
+// carries the same clientRef — return the original instead of a duplicate.
+async function findReplayedIncident(clientRef: string, reportedById: string) {
+  const existing = await prisma.incident.findUnique({ where: { clientRef }, include: INCIDENT_INCLUDE });
+  if (!existing) return null;
+  if (existing.reportedById !== reportedById) {
+    throw new ConflictError('This submission reference was already used by another user');
+  }
+  return { ...existing, replayed: true, autoEscalated: existing.type === IncidentType.VOLUNTEER_SAFETY };
+}
+
 export async function reportIncident(data: {
   districtId: string;
   type: IncidentType;
   description: string;
   reportedById: string;
+  clientRef?: string;
 }) {
-  const { districtId, type, description, reportedById } = data;
+  const { districtId, type, description, reportedById, clientRef } = data;
+
+  if (clientRef) {
+    const replayed = await findReplayedIncident(clientRef, reportedById);
+    if (replayed) return replayed;
+  }
 
   const district = await prisma.district.findUnique({ where: { id: districtId } });
   if (!district) throw new Error(`District not found: ${districtId}`);
 
-  const incident = await prisma.incident.create({
-    data: {
-      districtId,
-      type,
-      description,
-      status: IncidentStatus.OPEN,
-      reportedById,
-    },
-    include: {
-      district: { select: { name: true } },
-      reportedBy: { select: { name: true, email: true, role: true } },
-    },
-  });
+  let incident;
+  try {
+    incident = await prisma.incident.create({
+      data: {
+        districtId,
+        type,
+        description,
+        status: IncidentStatus.OPEN,
+        reportedById,
+        clientRef: clientRef ?? null,
+      },
+      include: INCIDENT_INCLUDE,
+    });
+  } catch (err) {
+    // two retries of the same report racing each other
+    if (clientRef && isUniqueViolation(err)) {
+      const replayed = await findReplayedIncident(clientRef, reportedById);
+      if (replayed) return replayed;
+    }
+    throw err;
+  }
 
   invalidateIncidentCache(districtId);
   io.emit('incident_reported', { districtId, type, status: 'OPEN' });

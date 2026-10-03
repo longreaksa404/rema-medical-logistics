@@ -34,7 +34,7 @@ export async function create(req: Request, res: Response): Promise<void> {
     address, districtId,
     cat1, cat2, cat3, cat4, cat5,
     householdSize, hasVulnerableMember, chronicIllCount,
-    notes,
+    notes, clientRef,
   } = req.body;
 
   try {
@@ -47,11 +47,13 @@ export async function create(req: Request, res: Response): Promise<void> {
       address,
       districtId,
       scoreInput,
-      chronicIllCount,  // add this line
+      chronicIllCount,
       notes,
       assessedById: req.user?.userId,
+      clientRef,
     });
-    res.status(201).json(household);
+    // 200 = an earlier attempt of this same (offline) assessment already created it
+    res.status('replayed' in household ? 200 : 201).json(household);
   } catch (err) {
     sendError(res, err, 400);
   }

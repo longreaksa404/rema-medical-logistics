@@ -1,3 +1,5 @@
+import { Prisma } from '@prisma/client';
+
 // ─── TYPED HTTP ERRORS ────────────────────────────────────────────────────────
 // Services throw these instead of bare Error so the HTTP layer can map them to
 // the right status code without string-matching messages.
@@ -32,4 +34,9 @@ export class ConflictError extends HttpError {
 // Request is well-formed but cannot be applied to current state (e.g. not enough stock)
 export class UnprocessableError extends HttpError {
   constructor(message: string) { super(422, message); }
+}
+
+// Unique-constraint violation (e.g. two requests racing with the same clientRef)
+export function isUniqueViolation(err: unknown): boolean {
+  return err instanceof Prisma.PrismaClientKnownRequestError && err.code === 'P2002';
 }
