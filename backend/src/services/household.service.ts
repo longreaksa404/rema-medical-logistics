@@ -20,12 +20,10 @@ export interface PaginatedResult<T> {
 const DEFAULT_PAGE_SIZE = 10;
 
 export function invalidateQueueCache(districtId: string): void {
-  // pattern-delete all cached pages for this district
-  // cache utility stores by exact key, so we delete the prefix match manually
-  // simplest approach: delete the first 10 pages — covers any realistic dataset
-  for (let p = 1; p <= 10; p++) {
-    deleteCached(`${KEY_QUEUE_PREFIX}${districtId}:${p}:20`);
-  }
+  // every cached page/page-size for this district (deleteCached matches by prefix).
+  // Previously only pageSize=20 keys were cleared, so the volunteer app — which
+  // fetches 200 at a time — kept seeing delivered households for up to 15s.
+  deleteCached(`${KEY_QUEUE_PREFIX}${districtId}:`);
 }
 
 // ─── SCORE ONLY (no DB write) ─────────────────────────────────────────────────

@@ -49,3 +49,20 @@ describe('delivery run abort reason', () => {
     expect(res.status).toBe(400);
   });
 });
+
+describe('priority queue cache', () => {
+  it('drops a delivered household immediately, whatever page size was cached', async () => {
+    const run = await newRun();
+    const household = await prisma.household.create({ data: { address: 'Cached House', districtId: fx.a.district.id, totalScore: 10 } });
+    const queue = () => request(app).get('/api/households/priority-queue').set(...bearer(fx.users.volunteerA))
+      .query({ districtId: fx.a.district.id, pageSize: 200 });
+
+    expect((await queue()).body.data.map((h: { id: string }) => h.id)).toContain(household.id);   // now cached
+
+    const receipt = await request(app).post('/api/delivery/receipts').set(...bearer(fx.users.volunteerA))
+      .send({ deliveryRunId: run.id, householdId: household.id, emkType: 'EMK1', deliveredAt: new Date().toISOString() });
+    expect(receipt.status).toBe(201);
+
+    expect((await queue()).body.data.map((h: { id: string }) => h.id)).not.toContain(household.id);
+  });
+});
