@@ -8,7 +8,8 @@ import { useAuth } from '../context/AuthContext';
 import { api } from '../api/client';
 import { householdsApi } from '../api/households';
 import { queryKeys } from '../api/queryKeys';
-import type { Household } from '../api/households';
+import type { Household, CreateHouseholdPayload } from '../api/households';
+import { submitOrQueue, useOutbox, useOnline } from '../offline';
 import {
   scoreHousehold, computeCat2,
   CAT1_OPTIONS, CAT2_FLAGS, CAT3_OPTIONS, CAT4_OPTIONS,
@@ -239,6 +240,8 @@ function AssessTab({ districtId }: { districtId: string }) {
   const [address, setAddress] = useState('');
   const [notes, setNotes] = useState('');
   const [submittedResult, setSubmittedResult] = useState<Household | null>(null);
+  const [savedOffline, setSavedOffline] = useState(false);
+  const { user } = useAuth();
 
   const cat2 = computeCat2(cat2Flags);
   const hasVulnerableMember = cat2Flags.size > 0;
@@ -261,13 +264,36 @@ function AssessTab({ districtId }: { districtId: string }) {
   const reset = useCallback(() => {
     setCat1(0); setCat2Flags(new Set()); setCat3(0); setCat4(0); setCat5(0);
     setHouseholdSize(4);
-    setAddress(''); setNotes(''); setSubmittedResult(null);
+    setAddress(''); setNotes(''); setSubmittedResult(null); setSavedOffline(false);
   }, []);
 
   const submitMutation = useMutation({
-    mutationFn: householdsApi.create,
-    onSuccess: (result) => {
-      setSubmittedResult(result);
+    // online: saved straight away; offline: kept in the outbox and synced later
+    // (clientRef lets the server ignore a retry that already got through)
+    mutationFn: (payload: CreateHouseholdPayload) => submitOrQueue<Household>({
+      userId: user!.id,
+      kind: 'assessment',
+      url: '/api/households',
+      body: { ...payload, clientRef: crypto.randomUUID() },
+      label: `Assessment · ${payload.address}`,
+    }),
+    onSuccess: (result, payload) => {
+      if (result.queued) {
+        // show the score computed on the device (same rules as the server)
+        const now = new Date().toISOString();
+        setSavedOffline(true);
+        setSubmittedResult({
+          id: result.item.id, address: payload.address, districtId: payload.districtId, district: { name: '' },
+          medicalUrgencyScore: liveScore.cat1, vulnerabilityScore: liveScore.cat2, floodExposureScore: liveScore.cat3,
+          selfSufficiencyScore: liveScore.cat4, isolationScore: liveScore.cat5, totalScore: liveScore.totalScore,
+          priorityBand: liveScore.priorityBand, recommendedEmk: liveScore.recommendedEmk, householdSize,
+          emk1Quantity: liveScore.emkQuantity.emk1, emk2Quantity: liveScore.emkQuantity.emk2,
+          emk3Quantity: liveScore.emkQuantity.emk3, totalEmkQuantity: liveScore.emkQuantity.total,
+          delivered: false, deliveredAt: null, createdAt: now, updatedAt: now,
+        });
+        return;
+      }
+      setSubmittedResult(result.data);
       queryClient.invalidateQueries({ queryKey: queryKeys.households.queue(districtId) });
       // invalidate audit log too
       queryClient.invalidateQueries({ queryKey: [...queryKeys.households.queue(districtId), 'all'] });
@@ -282,6 +308,15 @@ function AssessTab({ districtId }: { districtId: string }) {
     const rBand = BAND_CONFIG[submittedResult.priorityBand];
     return (
       <div className="max-w-xl">
+        {savedOffline && (
+          <div className="card px-4 py-3 mb-4 border-accent-orange/40 bg-accent-orange/5">
+            <p className="font-mono text-xs text-accent-orange font-bold mb-0.5">Saved on this device — not sent yet</p>
+            <p className="font-mono text-[10px] text-text-secondary leading-relaxed">
+              No connection. This assessment will be sent automatically when you reconnect, and the household
+              will join the priority queue then. Score below was calculated on this device.
+            </p>
+          </div>
+        )}
         <div className={`card p-6 border-2 ${rBand.border} mb-4`}>
           <div className="flex items-center gap-6 mb-6">
             <div className="relative w-20 h-20 flex-shrink-0">
@@ -596,6 +631,14 @@ function DeliverTab({ districtId }: { districtId: string }) {
   const queryClient = useQueryClient();
   const [selectedRunId, setSelectedRunId] = useState<string | null>(null);
   const [confirming, setConfirming] = useState<string | null>(null);
+  const { user } = useAuth();
+  const { pending } = useOutbox(user?.id);
+
+  // deliveries recorded offline and not yet synced — shown as such so nobody delivers twice
+  const queuedHouseholdIds = useMemo(
+    () => new Set(pending.filter(i => i.kind === 'delivery').map(i => (i.body as { householdId: string }).householdId)),
+    [pending]
+  );
 
   const { data: householdsResult, isLoading: queueLoading } = useQuery({
     queryKey: queryKeys.households.queue(districtId),
@@ -631,15 +674,18 @@ function DeliverTab({ districtId }: { districtId: string }) {
       if ((household.emk2Quantity ?? 0) > 0) kits.push({ emkType: 'EMK2', quantity: household.emk2Quantity! });
       if ((household.emk1Quantity ?? 0) > 0) kits.push({ emkType: 'EMK1', quantity: household.emk1Quantity! });
       if (kits.length === 0) kits.push({ emkType: household.recommendedEmk, quantity: household.totalEmkQuantity ?? 1 });
-      return api.post('/api/delivery/receipts', {
-        deliveryRunId: activeRun!.id,
-        householdId: household.id,
-        kits,
-        deliveredAt: now,
+      // offline → kept in the outbox; deliveredAt is the real hand-over time either way
+      return submitOrQueue({
+        userId: user!.id,
+        kind: 'delivery',
+        url: '/api/delivery/receipts',
+        body: { deliveryRunId: activeRun!.id, householdId: household.id, kits, deliveredAt: now },
+        label: `Delivery · ${household.address}`,
       });
     },
-    onSuccess: () => {
+    onSuccess: (result) => {
       setConfirming(null);
+      if (result.queued) return;
       queryClient.invalidateQueries({ queryKey: queryKeys.households.queue(districtId) });
       queryClient.invalidateQueries({ queryKey: queryKeys.dashboard.summary() });
       queryClient.invalidateQueries({ queryKey: [...queryKeys.hub.deliveries(districtId), 'active'] });
@@ -765,7 +811,12 @@ function DeliverTab({ districtId }: { districtId: string }) {
                       )}
                     </div>
                     <div className="flex-shrink-0">
-                      {!isConfirming ? (
+                      {queuedHouseholdIds.has(h.id) ? (
+                        <span className="font-mono text-[10px] px-2 py-1 rounded border border-accent-orange/40 text-accent-orange bg-accent-orange/10"
+                          title="Recorded offline — will sync when you reconnect">
+                          ⏳ Saved offline
+                        </span>
+                      ) : !isConfirming ? (
                         <button onClick={() => setConfirming(h.id)} disabled={!activeRun}
                           className={`font-mono text-xs px-3 py-1.5 rounded border transition-all disabled:opacity-40 ${cfg.bg} ${cfg.border} ${cfg.color} hover:opacity-80`}>
                           Deliver {qty > 1 ? `(${qty})` : ''}
@@ -800,15 +851,28 @@ function ReportTab({ districtId }: { districtId: string }) {
   const queryClient = useQueryClient();
   const [incType, setIncType] = useState<typeof INCIDENT_TYPES[number]['value']>('ROUTE_BLOCKED');
   const [description, setDescription] = useState('');
-  const [submitted, setSubmitted] = useState<{ type: string; autoEscalated: boolean } | null>(null);
+  const [submitted, setSubmitted] = useState<{ type: string; autoEscalated: boolean; savedOffline?: boolean } | null>(null);
+  const { user } = useAuth();
+  const online = useOnline();
 
   const selectedType = INCIDENT_TYPES.find(t => t.value === incType)!;
 
   const reportMutation = useMutation({
     mutationFn: (payload: { districtId: string; type: string; description: string }) =>
-      api.post('/api/incidents', payload).then(r => r.data),
-    onSuccess: (data) => {
-      setSubmitted({ type: incType, autoEscalated: data?.autoEscalated ?? false });
+      submitOrQueue<{ autoEscalated?: boolean }>({
+        userId: user!.id,
+        kind: 'incident',
+        url: '/api/incidents',
+        body: { ...payload, clientRef: crypto.randomUUID() },
+        label: `Incident report · ${payload.type.replace(/_/g, ' ').toLowerCase()}`,
+      }),
+    onSuccess: (result) => {
+      if (result.queued) {
+        setSubmitted({ type: incType, autoEscalated: false, savedOffline: true });
+        setDescription('');
+        return;
+      }
+      setSubmitted({ type: incType, autoEscalated: result.data?.autoEscalated ?? false });
       setDescription('');
       queryClient.invalidateQueries({ queryKey: queryKeys.hub.incidents(districtId) });
       queryClient.invalidateQueries({ queryKey: queryKeys.dashboard.summary() });
@@ -816,6 +880,33 @@ function ReportTab({ districtId }: { districtId: string }) {
   });
 
   const reportError = (reportMutation.error as { response?: { data?: { error?: string } } })?.response?.data?.error ?? '';
+
+  if (submitted?.savedOffline) {
+    const isSafety = submitted.type === 'VOLUNTEER_SAFETY';
+    return (
+      <div className="space-y-4">
+        <div className={`card p-6 ${isSafety ? 'border-accent-red/60 bg-accent-red/10' : 'border-accent-orange/40 bg-accent-orange/5'}`}>
+          <div className="flex items-start gap-4">
+            <span className="text-4xl flex-shrink-0">{isSafety ? '📻' : '⏳'}</span>
+            <div>
+              <p className="font-sans font-bold text-text-primary text-lg mb-1">Saved on this device — not sent yet</p>
+              {isSafety ? (
+                <p className="font-mono text-xs text-accent-red leading-relaxed font-bold">
+                  Nobody has received this safety report. Contact your Hub Manager or the Operations Center by
+                  radio or phone NOW. If water exceeds 80cm, return to the sub-warehouse or shelter in place.
+                </p>
+              ) : (
+                <p className="font-mono text-xs text-text-secondary leading-relaxed">
+                  No connection. The report will be sent automatically when you reconnect. If it is urgent, use radio.
+                </p>
+              )}
+            </div>
+          </div>
+        </div>
+        <button onClick={() => setSubmitted(null)} className="btn-primary">Report Another Incident</button>
+      </div>
+    );
+  }
 
   if (submitted) {
     return (
@@ -898,6 +989,13 @@ function ReportTab({ districtId }: { districtId: string }) {
               value={description} onChange={e => setDescription(e.target.value)} />
             <p className="font-mono text-[10px] text-text-muted mt-2">Reporting as: {selectedType.icon} {selectedType.label}</p>
           </div>
+
+          {!online && (
+            <p className="font-mono text-[10px] text-accent-orange leading-relaxed">
+              You are offline. This report will be saved on your device and sent when you reconnect —
+              nobody will see it until then. For anything urgent, use radio or phone.
+            </p>
+          )}
 
           <button
             onClick={() => description.trim() && reportMutation.mutate({ districtId, type: incType, description: description.trim() })}

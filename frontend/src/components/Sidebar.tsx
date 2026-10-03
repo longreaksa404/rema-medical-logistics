@@ -18,6 +18,7 @@ import {
   type LucideIcon,
 } from 'lucide-react';
 import { Avatar } from './Avatar';
+import { useOutbox } from '../offline';
 
 type Role = 'SUPER_ADMIN' | 'EMERGENCY_COORDINATOR' | 'HUB_MANAGER' | 'VOLUNTEER' | 'VIEWER';
 
@@ -69,6 +70,7 @@ export function Sidebar() {
   const [collapsed,         setCollapsed]         = useState(false);
   const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
   const [referenceOpen,     setReferenceOpen]     = useState(false);
+  const { pending: unsynced } = useOutbox(user?.id);
 
   function handleLogout() {
     setShowLogoutConfirm(false);
@@ -91,6 +93,13 @@ export function Sidebar() {
             <p className="font-mono text-[11px] text-text-muted mb-6">
               You are signed in as <span className="text-accent-blue">{user?.email}</span>
             </p>
+            {unsynced.length > 0 && (
+              <p className="font-mono text-[11px] text-accent-orange -mt-4 mb-5 leading-relaxed">
+                {unsynced.length} item{unsynced.length === 1 ? '' : 's'} recorded offline {unsynced.length === 1 ? 'has' : 'have'} not
+                synced yet. {unsynced.length === 1 ? 'It stays' : 'They stay'} on this device and will be sent the next time
+                you sign in here.
+              </p>
+            )}
             <div className="flex gap-3">
               <button
                 onClick={handleLogout}

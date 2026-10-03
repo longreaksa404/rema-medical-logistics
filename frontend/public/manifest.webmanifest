@@ -1,0 +1,13 @@
+{
+  "name": "REMA — Rapid Emergency Medical Access",
+  "short_name": "REMA",
+  "description": "Medical kit logistics for urban flood response",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "background_color": "#0a0c0f",
+  "theme_color": "#0a0c0f",
+  "icons": [
+    { "src": "/rema_logo_new.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any" }
+  ]
+}

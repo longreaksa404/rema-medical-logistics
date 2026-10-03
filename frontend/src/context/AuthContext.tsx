@@ -2,6 +2,8 @@ import { createContext, useContext, useState, useEffect, useCallback, useRef } f
 import { io as socketIo, Socket } from 'socket.io-client';
 import { authApi } from '../api/auth';
 import { refreshAccessToken } from '../api/client';
+import { useQueryClient } from '@tanstack/react-query';
+import { clearPersistedQueryCache } from '../offline/keys';
 import type { UserProfile } from '../api/auth';
 
 const BACKEND_URL = import.meta.env.VITE_API_URL || 'http://localhost:3000';
@@ -31,6 +33,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [isLoading, setIsLoading]           = useState(true);
   const [mustChangePassword, setMustChange] = useState(false);
   const socketRef = useRef<Socket | null>(null);
+  const queryClient = useQueryClient();
+
+  // Cached data (household addresses etc.) belongs to one session only.
+  // The offline outbox is NOT cleared — unsynced work is sent at the user's next sign-in.
+  const clearCachedData = useCallback(() => {
+    queryClient.clear();
+    clearPersistedQueryCache();
+  }, [queryClient]);
 
   const connectSocket = useCallback(() => {
     if (socketRef.current) return;
@@ -91,6 +101,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const login = useCallback(async (email: string, password: string): Promise<boolean> => {
     const data = await authApi.login(email, password);
+    clearCachedData();
     const mustChange = data.user.mustChangePassword ?? false;
     localStorage.setItem('rema_token', data.token);
     localStorage.setItem('rema_user', JSON.stringify(data.user));
@@ -100,7 +111,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     setMustChange(mustChange);
     connectSocket();
     return mustChange;
-  }, [connectSocket]);
+  }, [connectSocket, clearCachedData]);
 
   const logout = useCallback(() => {
     localStorage.removeItem('rema_token');
@@ -110,8 +121,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     setUser(null);
     setMustChange(false);
     disconnectSocket();
+    clearCachedData();
     authApi.logout().catch(() => {});
-  }, [disconnectSocket]);
+  }, [disconnectSocket, clearCachedData]);
 
   const clearMustChangePassword = useCallback(() => {
     localStorage.setItem('rema_must_change', 'false');
