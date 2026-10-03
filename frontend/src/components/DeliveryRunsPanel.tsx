@@ -1,4 +1,5 @@
 import type { DashboardSummary } from '../api/dashboard';
+import { useI18n, districtLabel } from '../i18n';
 
 interface DeliveryRunsPanelProps {
   activeRuns: number;
@@ -8,6 +9,7 @@ interface DeliveryRunsPanelProps {
 export function DeliveryRunsPanel({ activeRuns, districts }: DeliveryRunsPanelProps) {
   const totalDelivered = districts.reduce((acc, d) => acc + d.deliveredCount, 0);
   const totalAssessed  = districts.reduce((acc, d) => acc + d.householdsAssessed, 0);
+  const { t } = useI18n();
   const deliveryPct    = totalAssessed > 0 ? Math.round((totalDelivered / totalAssessed) * 100) : 0;
 
   return (
@@ -21,28 +23,28 @@ export function DeliveryRunsPanel({ activeRuns, districts }: DeliveryRunsPanelPr
             : 'bg-bg-elevated border-bg-border text-text-muted'
         }`}>
           <div className={`w-1.5 h-1.5 rounded-full ${activeRuns > 0 ? 'bg-accent-green animate-pulse' : 'bg-text-muted'}`} />
-          {activeRuns} ACTIVE RUNS
+          {t('runs.activeRuns', { count: activeRuns })}
         </div>
       </div>
 
       {/* Header */}
       <div className="pb-3 border-b border-bg-border pr-32">
-        <h2 className="font-display font-bold text-text-primary">Delivery Progress</h2>
-        <span className="font-mono text-[11px] text-text-muted">Total Completion</span>
+        <h2 className="font-display font-bold text-text-primary">{t('runs.title')}</h2>
+        <span className="font-mono text-[11px] text-text-muted">{t('runs.totalCompletion')}</span>
       </div>
 
       {/* Overall progress bar */}
       <div className="py-3">
         <div className="h-[5px] w-full bg-bg-border rounded-full overflow-hidden">
           <div
-            className="h-full rounded-full bg-accent-green transition-all duration-700 shadow-[0_0_8px_rgba(34,197,94,0.3)]"
+            className="h-full rounded-full bg-accent-green transition-all duration-700 shadow-[0_0_8px_rgb(var(--accent-green)/0.3)]"
             style={{ width: `${deliveryPct}%` }}
           />
         </div>
         <div className="flex justify-between items-baseline mt-1.5 font-mono">
           <span className="text-[15px] text-accent-green font-bold">{deliveryPct}%</span>
           <span className="text-[10px] text-text-secondary uppercase tracking-tighter">
-            {totalDelivered} / {totalAssessed} households
+            {t('runs.households', { delivered: totalDelivered, assessed: totalAssessed })}
           </span>
         </div>
       </div>
@@ -52,9 +54,9 @@ export function DeliveryRunsPanel({ activeRuns, districts }: DeliveryRunsPanelPr
         <table className="w-full border-collapse table-fixed">
           <thead>
             <tr className="border-b border-bg-border text-text-muted font-mono text-[10px] uppercase">
-              <th className="text-left py-1.5 w-[35%]">District</th>
-              <th className="text-center py-1.5 w-[30%]">Volume</th>
-              <th className="text-right py-1.5 w-[35%]">Progress</th>
+              <th className="text-left py-1.5 w-[35%]">{t('common.district')}</th>
+              <th className="text-center py-1.5 w-[30%]">{t('runs.volume')}</th>
+              <th className="text-right py-1.5 w-[35%]">{t('runs.progress')}</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-bg-border/40">
@@ -65,7 +67,7 @@ export function DeliveryRunsPanel({ activeRuns, districts }: DeliveryRunsPanelPr
               return (
                 <tr key={d.districtId}>
                   <td className="py-2.5 text-[11px] font-medium text-text-secondary truncate pr-2">
-                    {d.name}
+                    {districtLabel(t, d.name)}
                   </td>
                   <td className="py-2.5 text-center font-mono text-[11px] text-text-muted">
                     {d.deliveredCount}<span className="text-bg-border mx-1">/</span>{d.householdsAssessed}
@@ -90,7 +92,7 @@ export function DeliveryRunsPanel({ activeRuns, districts }: DeliveryRunsPanelPr
 
       {totalAssessed === 0 && (
         <p className="font-mono text-[10px] text-text-muted text-center pt-3 border-t border-bg-border mt-auto uppercase tracking-widest italic">
-          Awaiting Phase 1 Assessment Data Stream...
+          {t('runs.awaiting')}
         </p>
       )}
     </div>

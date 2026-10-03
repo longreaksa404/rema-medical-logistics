@@ -1,4 +1,55 @@
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Syne:wght@600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Syne:wght@600;700;800&family=JetBrains+Mono:wght@400;500;600&family=Noto+Sans+Khmer:wght@400;500;600;700&display=swap');
+
+/* Theme tokens as RGB channels — consumed by tailwind.config.js.
+   Dark is the default; the light palette uses darker accents so status
+   colours keep readable contrast on white. data-theme is set on <html>
+   before first paint by the inline script in index.html. */
+@layer base {
+  :root,
+  :root[data-theme='dark'] {
+    --bg-primary: 10 12 15;
+    --bg-secondary: 17 20 24;
+    --bg-elevated: 22 27 34;
+    --bg-border: 38 44 54;
+    --bg-hover: 28 33 41;
+    --bg-border-strong: 58 65 76;
+    --accent-red: 248 81 73;
+    --accent-orange: 240 136 62;
+    --accent-yellow: 210 153 34;
+    --accent-green: 63 185 80;
+    --accent-blue: 88 166 255;
+    --accent-cyan: 57 211 83;
+    --accent-blue-hover: 121 184 255;
+    --accent-red-hover: 255 106 99;
+    --text-primary: 230 237 243;
+    --text-secondary: 157 167 179;
+    --text-muted: 110 118 129;
+    --phase-0: 72 79 88;
+    color-scheme: dark;
+  }
+
+  :root[data-theme='light'] {
+    --bg-primary: 243 245 248;
+    --bg-secondary: 255 255 255;
+    --bg-elevated: 246 248 250;
+    --bg-border: 208 215 222;
+    --bg-hover: 234 238 242;
+    --bg-border-strong: 175 184 193;
+    --accent-red: 207 34 46;
+    --accent-orange: 188 76 0;
+    --accent-yellow: 154 103 0;
+    --accent-green: 26 127 55;
+    --accent-blue: 9 105 218;
+    --accent-cyan: 26 127 55;
+    --accent-blue-hover: 5 80 174;
+    --accent-red-hover: 164 14 38;
+    --text-primary: 31 35 40;
+    --text-secondary: 87 96 106;
+    --text-muted: 110 119 129;
+    --phase-0: 140 149 159;
+    color-scheme: light;
+  }
+}
 
 @tailwind base;
 @tailwind components;
@@ -10,25 +61,43 @@
   }
 
   html {
-    background-color: #0a0c0f;
-    color: #e6edf3;
-    color-scheme: dark;
+    background-color: rgb(var(--bg-primary));
+    color: rgb(var(--text-primary));
   }
 
   body {
     margin: 0;
-    font-family: 'Inter', system-ui, -apple-system, 'Segoe UI', sans-serif;
+    font-family: 'Inter', 'Noto Sans Khmer', system-ui, -apple-system, 'Segoe UI', sans-serif;
     font-feature-settings: 'cv11', 'ss01';
-    background-color: #0a0c0f;
-    color: #e6edf3;
+    background-color: rgb(var(--bg-primary));
+    color: rgb(var(--text-primary));
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
     -webkit-tap-highlight-color: transparent;
   }
 
   h1, h2, h3 {
-    font-family: 'Syne', 'Inter', system-ui, sans-serif;
+    font-family: 'Syne', 'Noto Sans Khmer', 'Inter', system-ui, sans-serif;
     letter-spacing: -0.01em;
+  }
+
+  /* Khmer script: stacked subscripts need more line height, and Latin-only
+     styling (uppercase, wide tracking) breaks or crowds the glyphs. */
+  :lang(km) body {
+    line-height: 1.6;
+  }
+  :lang(km) .uppercase {
+    text-transform: none;
+  }
+  :lang(km) [class*='tracking-'] {
+    letter-spacing: normal;
+  }
+  /* the tiny mono label sizes are too small for Khmer subscripts */
+  :lang(km) .text-\[10px\] {
+    font-size: 11px;
+  }
+  :lang(km) .text-\[11px\] {
+    font-size: 12px;
   }
 
   /* Numbers line up in tables, counters and stock figures */
@@ -37,12 +106,12 @@
   }
 
   ::selection {
-    background: rgba(88, 166, 255, 0.3);
+    background: rgb(var(--accent-blue) / 0.3);
   }
 
   /* Keyboard focus is always visible; mouse clicks stay clean */
   :focus-visible {
-    outline: 2px solid #58a6ff;
+    outline: 2px solid rgb(var(--accent-blue));
     outline-offset: 2px;
     border-radius: 4px;
   }
@@ -61,13 +130,13 @@
     background: transparent;
   }
   ::-webkit-scrollbar-thumb {
-    background: #262c36;
+    background: rgb(var(--bg-border));
     border-radius: 4px;
     border: 2px solid transparent;
     background-clip: padding-box;
   }
   ::-webkit-scrollbar-thumb:hover {
-    background: #3a414c;
+    background: rgb(var(--bg-border-strong));
     background-clip: padding-box;
   }
 
@@ -92,7 +161,7 @@
     @apply w-full bg-bg-elevated border border-bg-border rounded-md px-3 py-2
            text-text-primary font-mono text-sm min-h-[38px]
            placeholder:text-text-muted
-           hover:border-[#3a414c]
+           hover:border-bg-border-strong
            focus:outline-none focus:border-accent-blue focus:ring-2 focus:ring-accent-blue/25
            disabled:opacity-50 disabled:cursor-not-allowed
            transition-[border-color,box-shadow] duration-150;
@@ -102,9 +171,9 @@
      active control (previously a dimmed blue that looked clickable). */
   .btn-primary {
     @apply inline-flex items-center justify-center gap-2
-           bg-accent-blue text-bg-primary font-sans font-semibold text-sm
+           bg-accent-blue text-white dark:text-bg-primary font-sans font-semibold text-sm
            px-4 py-2 min-h-[38px] rounded-md border border-accent-blue
-           hover:bg-[#79b8ff] hover:border-[#79b8ff] active:scale-[0.99]
+           hover:bg-accent-blue-hover hover:border-accent-blue-hover active:scale-[0.99]
            disabled:bg-bg-elevated disabled:border-bg-border disabled:text-text-muted
            disabled:cursor-not-allowed disabled:active:scale-100
            transition-[background-color,border-color,transform] duration-150;
@@ -114,7 +183,7 @@
     @apply inline-flex items-center justify-center gap-2
            bg-transparent border border-bg-border text-text-secondary font-sans text-sm
            px-4 py-2 min-h-[38px] rounded-md
-           hover:border-[#3a414c] hover:bg-bg-hover hover:text-text-primary
+           hover:border-bg-border-strong hover:bg-bg-hover hover:text-text-primary
            disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:bg-transparent
            transition-colors duration-150;
   }
@@ -123,7 +192,7 @@
     @apply inline-flex items-center justify-center gap-2
            bg-accent-red text-white font-sans font-semibold text-sm
            px-4 py-2 min-h-[38px] rounded-md border border-accent-red
-           hover:bg-[#ff6a63] hover:border-[#ff6a63] active:scale-[0.99]
+           hover:bg-accent-red-hover hover:border-accent-red-hover active:scale-[0.99]
            disabled:bg-bg-elevated disabled:border-bg-border disabled:text-text-muted
            disabled:cursor-not-allowed disabled:active:scale-100
            transition-[background-color,border-color,transform] duration-150;

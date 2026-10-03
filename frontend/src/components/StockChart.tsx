@@ -4,23 +4,27 @@ import {
   Tooltip, ResponsiveContainer, Cell, ReferenceLine,
 } from 'recharts';
 import type { DashboardSummary } from '../api/dashboard';
+import { useI18n, districtLabel } from '../i18n';
+import { useThemeColors } from '../theme/ThemeContext';
 
 interface StockChartProps {
   districts:        DashboardSummary['districts'];
   centralWarehouse: DashboardSummary['centralWarehouse'];
 }
 
-function CustomTooltip({ active, payload, label }: {
+function CustomTooltip({ active, payload, label, centralLabel, reserveLabel }: {
   active?:  boolean;
   payload?: Array<{ name: string; value: number; color: string }>;
   label?:   string;
+  centralLabel: string;
+  reserveLabel: string;
 }) {
   if (!active || !payload?.length) return null;
-  const isCentral = label === 'Central';
+  const isCentral = label === centralLabel;
   return (
     <div className="bg-bg-elevated border border-bg-border rounded-lg px-4 py-3 shadow-2xl">
       <p className={`font-mono text-xs uppercase tracking-widest mb-2 ${isCentral ? 'text-accent-orange' : 'text-text-muted'}`}>
-        {label}{isCentral ? ' · reserve' : ''}
+        {label}{isCentral ? ` · ${reserveLabel}` : ''}
       </p>
       {payload.map((entry) => (
         <div key={entry.name} className="flex items-center gap-2 mb-1">
@@ -33,9 +37,6 @@ function CustomTooltip({ active, payload, label }: {
   );
 }
 
-// amber palette for central — warm, distinct, fits the dashboard
-const DISTRICT_COLORS = ['#58a6ff', '#3fb950', '#d29922'] as const;
-const SCARCE_COLOR    = '#f85149';
 const SCARCITY_THRESHOLD = 30;
 
 type ChartRow = {
@@ -52,14 +53,17 @@ type ChartRow = {
   emk3Remaining: number; emk3Total: number;
 };
 
-function XAxisTick({ x, y, payload }: { x?: number; y?: number; payload?: { value: string } }) {
-  const isCentral = payload?.value === 'Central';
+function XAxisTick({ x, y, payload, centralLabel, centralColor, color }: {
+  x?: number; y?: number; payload?: { value: string };
+  centralLabel: string; centralColor: string; color: string;
+}) {
+  const isCentral = payload?.value === centralLabel;
   return (
     <g transform={`translate(${x},${y})`}>
       <text
         x={0} y={0} dy={13}
         textAnchor="middle"
-        fill={isCentral ? '#f59e0b' : '#8b949e'}
+        fill={isCentral ? centralColor : color}
         fontSize={11}
         fontFamily="JetBrains Mono"
         fontWeight={isCentral ? 600 : 400}
@@ -71,6 +75,12 @@ function XAxisTick({ x, y, payload }: { x?: number; y?: number; payload?: { valu
 }
 
 export const StockChart = memo(function StockChart({ districts, centralWarehouse }: StockChartProps) {
+  const { t } = useI18n();
+  const color = useThemeColors();
+  const centralLabel = t('stock.central');
+  const emkColors = [color('accent-blue'), color('accent-green'), color('accent-yellow')] as const;
+  const scarceColor = color('accent-red');
+
   const chartData = useMemo<ChartRow[]>(() => {
     const rows: ChartRow[] = [];
 
@@ -80,7 +90,7 @@ export const StockChart = memo(function StockChart({ districts, centralWarehouse
       const e2 = cw.emk2Total > 0 ? Math.round((cw.emk2Remaining / cw.emk2Total) * 100) : 0;
       const e3 = cw.emk3Total > 0 ? Math.round((cw.emk3Remaining / cw.emk3Total) * 100) : 0;
       rows.push({
-        name: 'Central', isCentral: true,
+        name: centralLabel, isCentral: true,
         'EMK-1 %': e1, 'EMK-2 %': e2, 'EMK-3 %': e3,
         emk1Scarce: e1 < SCARCITY_THRESHOLD && cw.emk1Total > 0,
         emk2Scarce: e2 < SCARCITY_THRESHOLD && cw.emk2Total > 0,
@@ -97,7 +107,7 @@ export const StockChart = memo(function StockChart({ districts, centralWarehouse
       const e2 = s && s.emk2Total > 0 ? Math.round((s.emk2Remaining / s.emk2Total) * 100) : 0;
       const e3 = s && s.emk3Total > 0 ? Math.round((s.emk3Remaining / s.emk3Total) * 100) : 0;
       rows.push({
-        name: d.name.replace('District ', 'D'), isCentral: false,
+        name: districtLabel(t, d.name), isCentral: false,
         'EMK-1 %': e1, 'EMK-2 %': e2, 'EMK-3 %': e3,
         emk1Scarce: e1 < SCARCITY_THRESHOLD && (s?.emk1Total ?? 0) > 0,
         emk2Scarce: e2 < SCARCITY_THRESHOLD && (s?.emk2Total ?? 0) > 0,
@@ -109,16 +119,16 @@ export const StockChart = memo(function StockChart({ districts, centralWarehouse
     }
 
     return rows;
-  }, [districts, centralWarehouse]);
+  }, [districts, centralWarehouse, centralLabel, t]);
 
   return (
     <div className="card p-5">
       {/* Header */}
       <div className="flex items-center justify-between mb-4">
         <div>
-          <h2 className="font-display font-bold text-text-primary">Stock Levels</h2>
+          <h2 className="font-display font-bold text-text-primary">{t('stock.title')}</h2>
           <p className="font-mono text-[11px] text-text-muted mt-0.5">
-            % remaining per EMK type — red bars below 30% scarcity threshold
+            {t('stock.subtitle')}
           </p>
         </div>
         <div className="flex items-center gap-3">
@@ -126,15 +136,15 @@ export const StockChart = memo(function StockChart({ districts, centralWarehouse
             <>
               <div className="flex items-center gap-1.5">
                 <span className="w-1.5 h-3 rounded-sm inline-block bg-accent-orange opacity-85" />
-                <span className="font-mono text-[11px] text-accent-orange">Central</span>
+                <span className="font-mono text-[11px] text-accent-orange">{centralLabel}</span>
               </div>
               <span className="text-bg-border text-xs">|</span>
             </>
           )}
           {[
-            { color: '#58a6ff', label: 'EMK-1' },
-            { color: '#3fb950', label: 'EMK-2' },
-            { color: '#d29922', label: 'EMK-3' },
+            { color: emkColors[0], label: 'EMK-1' },
+            { color: emkColors[1], label: 'EMK-2' },
+            { color: emkColors[2], label: 'EMK-3' },
           ].map(({ color, label }) => (
             <div key={label} className="flex items-center gap-1.5">
               <span className="w-1.5 h-3 rounded-sm inline-block" style={{ background: color }} />
@@ -153,30 +163,30 @@ export const StockChart = memo(function StockChart({ districts, centralWarehouse
             barCategoryGap="30%"
             barGap={2}
           >
-            <CartesianGrid strokeDasharray="3 3" stroke="#21262d" vertical={false} />
+            <CartesianGrid strokeDasharray="3 3" stroke={color('bg-border')} vertical={false} />
             <XAxis
               dataKey="name"
-              tick={<XAxisTick />}
-              axisLine={{ stroke: '#21262d' }}
+              tick={<XAxisTick centralLabel={centralLabel} centralColor={color('accent-orange')} color={color('text-secondary')} />}
+              axisLine={{ stroke: color('bg-border') }}
               tickLine={false}
               interval={0}
             />
             <YAxis
               domain={[0, 100]}
-              tick={{ fill: '#8b949e', fontSize: 10, fontFamily: 'JetBrains Mono' }}
+              tick={{ fill: color('text-secondary'), fontSize: 10, fontFamily: 'JetBrains Mono' }}
               axisLine={false}
               tickLine={false}
               tickFormatter={(v) => `${v}%`}
               ticks={[0, 30, 60, 100]}
             />
-            <Tooltip content={<CustomTooltip />} cursor={{ fill: '#ffffff06' }} />
-            <ReferenceLine y={30} stroke="#f85149" strokeDasharray="4 4" strokeOpacity={0.4} />
+            <Tooltip content={<CustomTooltip centralLabel={centralLabel} reserveLabel={t('stock.reserve')} />} cursor={{ fill: color('text-primary', 0.04) }} />
+            <ReferenceLine y={30} stroke={scarceColor} strokeDasharray="4 4" strokeOpacity={0.4} />
 
             <Bar dataKey="EMK-1 %" radius={[2, 2, 0, 0]} maxBarSize={28}>
               {chartData.map((entry, i) => (
                 <Cell
                   key={i}
-                  fill={entry.emk1Scarce ? SCARCE_COLOR : DISTRICT_COLORS[0]}
+                  fill={entry.emk1Scarce ? scarceColor : emkColors[0]}
                   opacity={entry.emk1Scarce ? 1 : 0.85}
                 />
               ))}
@@ -185,7 +195,7 @@ export const StockChart = memo(function StockChart({ districts, centralWarehouse
               {chartData.map((entry, i) => (
                 <Cell
                   key={i}
-                  fill={entry.emk2Scarce ? SCARCE_COLOR : DISTRICT_COLORS[1]}
+                  fill={entry.emk2Scarce ? scarceColor : emkColors[1]}
                   opacity={entry.emk2Scarce ? 1 : 0.85}
                 />
               ))}
@@ -194,7 +204,7 @@ export const StockChart = memo(function StockChart({ districts, centralWarehouse
               {chartData.map((entry, i) => (
                 <Cell
                   key={i}
-                  fill={entry.emk3Scarce ? SCARCE_COLOR : DISTRICT_COLORS[2]}
+                  fill={entry.emk3Scarce ? scarceColor : emkColors[2]}
                   opacity={entry.emk3Scarce ? 1 : 0.85}
                 />
               ))}
@@ -205,9 +215,9 @@ export const StockChart = memo(function StockChart({ districts, centralWarehouse
 
       {/* Scarcity label */}
       <div className="flex items-center gap-2 mt-1 mb-3">
-        <div className="h-px flex-1" style={{ backgroundImage: 'repeating-linear-gradient(90deg, #f85149 0, #f85149 6px, transparent 6px, transparent 8px)' }} />
-        <span className="font-mono text-[10px] text-accent-red/60 flex-shrink-0">30% scarcity threshold</span>
-        <div className="h-px flex-1" style={{ backgroundImage: 'repeating-linear-gradient(90deg, #f85149 0, #f85149 6px, transparent 6px, transparent 8px)' }} />
+        <div className="h-px flex-1" style={{ backgroundImage: `repeating-linear-gradient(90deg, ${scarceColor} 0, ${scarceColor} 6px, transparent 6px, transparent 8px)` }} />
+        <span className="font-mono text-[10px] text-accent-red/60 flex-shrink-0">{t('stock.threshold')}</span>
+        <div className="h-px flex-1" style={{ backgroundImage: `repeating-linear-gradient(90deg, ${scarceColor} 0, ${scarceColor} 6px, transparent 6px, transparent 8px)` }} />
       </div>
 
       {/* Detail cards — equal width, one row of 4 */}
@@ -228,7 +238,7 @@ export const StockChart = memo(function StockChart({ districts, centralWarehouse
               d.isCentral ? 'text-accent-orange' : 'text-text-muted'
             }`}>
               {d.name}
-              {d.isCentral && <span className="ml-1 opacity-50">· reserve</span>}
+              {d.isCentral && <span className="ml-1 opacity-50">· {t('stock.reserve')}</span>}
             </p>
             <div className="space-y-0.5">
               {([

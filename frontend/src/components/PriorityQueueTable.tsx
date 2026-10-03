@@ -4,6 +4,7 @@ import { householdsApi } from '../api/households';
 import { queryKeys } from '../api/queryKeys';
 import type { Household } from '../api/households';
 import type { DashboardSummary } from '../api/dashboard';
+import { useI18n, bandLabel, districtLabel } from '../i18n';
 
 interface PriorityQueueTableProps {
   districts: DashboardSummary['districts'];
@@ -32,6 +33,7 @@ export const PriorityQueueTable = memo(function PriorityQueueTable({ districts }
   const [selectedDistrictId, setSelectedDistrictId] = useState<string>(districts[0]?.districtId ?? '');
   const [bandFilter, setBandFilter] = useState<string>('ALL');
   const [page, setPage] = useState(1);
+  const { t } = useI18n();
 
   const selectedDistrict = useMemo(
     () => districts.find(d => d.districtId === selectedDistrictId),
@@ -72,13 +74,13 @@ export const PriorityQueueTable = memo(function PriorityQueueTable({ districts }
       <div className="px-5 py-4 border-b border-bg-border">
         <div className="flex items-start justify-between gap-4 flex-wrap">
           <div>
-            <h2 className="font-display font-bold text-text-primary">Priority Queue</h2>
+            <h2 className="font-display font-bold text-text-primary">{t('queue.title')}</h2>
             <p className="font-mono text-[11px] text-text-muted mt-0.5">
-              Undelivered households — sorted by Section C tiebreaker rules
+              {t('queue.subtitle')}
             </p>
           </div>
           <div className="flex items-center gap-2">
-            <span className="font-mono text-[11px] text-text-muted uppercase tracking-widest">District</span>
+            <span className="font-mono text-[11px] text-text-muted uppercase tracking-widest">{t('common.district')}</span>
             <div className="flex gap-1">
               {districts.map((d) => (
                 <button key={d.districtId} onClick={() => setSelectedDistrictId(d.districtId)}
@@ -87,7 +89,7 @@ export const PriorityQueueTable = memo(function PriorityQueueTable({ districts }
                       ? 'bg-accent-blue/10 border-accent-blue/40 text-accent-blue'
                       : 'bg-transparent border-bg-border text-text-secondary hover:text-text-primary hover:border-text-muted'
                   }`}>
-                  {d.name.replace('District ', 'D')}
+                  {districtLabel(t, d.name)}
                 </button>
               ))}
             </div>
@@ -99,7 +101,7 @@ export const PriorityQueueTable = memo(function PriorityQueueTable({ districts }
             className={`font-mono text-[11px] px-2.5 py-1 rounded border transition-all ${
               bandFilter === 'ALL' ? 'bg-bg-elevated border-bg-border text-text-primary' : 'border-transparent text-text-muted hover:text-text-secondary'
             }`}>
-            ALL ({total})
+            {t('common.all')} ({total})
           </button>
           {(Object.keys(BAND_CONFIG) as Array<keyof typeof BAND_CONFIG>).map((band) => {
             const cfg = BAND_CONFIG[band];
@@ -108,7 +110,7 @@ export const PriorityQueueTable = memo(function PriorityQueueTable({ districts }
                 className={`font-mono text-[11px] px-2.5 py-1 rounded border transition-all ${
                   bandFilter === band ? `${cfg.bg} ${cfg.border} ${cfg.color}` : `border-transparent ${cfg.color} opacity-60 hover:opacity-100`
                 }`}>
-                {cfg.label} ({bandCounts[band]})
+                {bandLabel(t, cfg.label)} ({bandCounts[band]})
               </button>
             );
           })}
@@ -119,7 +121,7 @@ export const PriorityQueueTable = memo(function PriorityQueueTable({ districts }
         <table className="w-full">
           <thead>
             <tr className="border-b border-bg-border">
-              {['Band', 'Address', 'Score', 'Cat.1', 'EMK', 'Status'].map((h) => (
+              {[t('queue.col.band'), t('queue.col.address'), t('queue.col.score'), t('queue.col.cat1'), 'EMK', t('queue.col.status')].map((h) => (
                 <th key={h} className="px-4 py-2.5 text-left font-mono text-[11px] text-text-muted uppercase tracking-widest">{h}</th>
               ))}
             </tr>
@@ -132,11 +134,11 @@ export const PriorityQueueTable = memo(function PriorityQueueTable({ districts }
                 <tr>
                   <td colSpan={6} className="px-4 py-8 text-center">
                     {error
-                      ? <p className="font-mono text-xs text-accent-red">Failed to load priority queue.</p>
+                      ? <p className="font-mono text-xs text-accent-red">{t('queue.failed')}</p>
                       : <p className="font-mono text-xs text-text-muted">
                           {total === 0
-                            ? `No households assessed in ${selectedDistrict?.name ?? 'this district'} yet.`
-                            : 'No households match this filter on this page.'}
+                            ? t('queue.emptyDistrict', { district: selectedDistrict ? districtLabel(t, selectedDistrict.name) : t('queue.thisDistrict') })
+                            : t('queue.emptyFilter')}
                         </p>
                     }
                   </td>
@@ -149,7 +151,7 @@ export const PriorityQueueTable = memo(function PriorityQueueTable({ districts }
                       <td className="px-4 py-2.5">
                         <div className="flex items-center gap-1.5">
                           <span className={`w-1.5 h-1.5 rounded-full flex-shrink-0 ${cfg.dot}`} />
-                          <span className={`font-mono text-[11px] font-semibold ${cfg.color}`}>{cfg.label}</span>
+                          <span className={`font-mono text-[11px] font-semibold ${cfg.color}`}>{bandLabel(t, cfg.label)}</span>
                         </div>
                       </td>
                       <td className="px-4 py-2.5 max-w-[200px]">
@@ -175,8 +177,8 @@ export const PriorityQueueTable = memo(function PriorityQueueTable({ districts }
                       </td>
                       <td className="px-4 py-2.5">
                         {h.delivered
-                          ? <span className="font-mono text-[11px] text-accent-green">✓ Delivered</span>
-                          : <span className="font-mono text-[11px] text-text-muted">Pending</span>
+                          ? <span className="font-mono text-[11px] text-accent-green">✓ {t('status.delivered')}</span>
+                          : <span className="font-mono text-[11px] text-text-muted">{t('status.pending')}</span>
                         }
                       </td>
                     </tr>
@@ -192,11 +194,11 @@ export const PriorityQueueTable = memo(function PriorityQueueTable({ districts }
           <div className="flex items-center justify-between">
             <span className="font-mono text-[11px] text-text-muted">
               {bandFilter === 'ALL'
-                ? `${total} undelivered total — page ${page} of ${totalPages}`
-                : `Filtered to ${filtered.length} on this page`}
+                ? t('queue.footerAll', { total, page, pages: totalPages })
+                : t('queue.footerFiltered', { count: filtered.length })}
             </span>
             <span className="font-mono text-[11px] text-text-muted">
-              Sorted: band → score → cat.1 → submitted first
+              {t('queue.sortRule')}
             </span>
           </div>
 
@@ -206,7 +208,7 @@ export const PriorityQueueTable = memo(function PriorityQueueTable({ districts }
                 onClick={() => setPage(p => Math.max(1, p - 1))}
                 disabled={page === 1}
                 className="font-mono text-xs px-3 py-1.5 rounded border border-bg-border text-text-muted hover:text-text-primary disabled:opacity-30 transition-colors">
-                ← Prev
+                ← {t('common.prev')}
               </button>
               <span className="font-mono text-[11px] text-text-muted">
                 {page} / {totalPages}
@@ -215,7 +217,7 @@ export const PriorityQueueTable = memo(function PriorityQueueTable({ districts }
                 onClick={() => setPage(p => Math.min(totalPages, p + 1))}
                 disabled={page === totalPages}
                 className="font-mono text-xs px-3 py-1.5 rounded border border-bg-border text-text-muted hover:text-text-primary disabled:opacity-30 transition-colors">
-                Next →
+                {t('common.next')} →
               </button>
             </div>
           )}

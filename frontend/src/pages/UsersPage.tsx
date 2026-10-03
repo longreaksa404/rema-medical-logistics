@@ -5,6 +5,7 @@ import { DashboardLayout } from '../components/DashboardLayout';
 import { api } from '../api/client';
 import { queryKeys } from '../api/queryKeys';
 import { usePageTitle } from '../hooks/usePageTitle';
+import { useI18n, districtLabel, type MessageKey, type Translate } from '../i18n';
 
 type Role = 'SUPER_ADMIN' | 'EMERGENCY_COORDINATOR' | 'HUB_MANAGER' | 'VOLUNTEER' | 'VIEWER';
 interface District { id: string; name: string; }
@@ -26,17 +27,17 @@ const ROLE_COLORS: Record<Role, string> = {
   VOLUNTEER: 'text-accent-green border-accent-green/30 bg-accent-green/5',
   VIEWER: 'text-text-muted border-bg-border bg-bg-elevated',
 };
-const ROLE_LABELS: Record<Role, string> = {
-  SUPER_ADMIN: 'Super Admin', EMERGENCY_COORDINATOR: 'Emergency Coord.',
-  HUB_MANAGER: 'Hub Manager', VOLUNTEER: 'Volunteer', VIEWER: 'Viewer',
+const ROLE_LABELS: Record<Role, MessageKey> = {
+  SUPER_ADMIN: 'role.SUPER_ADMIN', EMERGENCY_COORDINATOR: 'role.EMERGENCY_COORDINATOR.short',
+  HUB_MANAGER: 'role.HUB_MANAGER', VOLUNTEER: 'role.VOLUNTEER', VIEWER: 'role.VIEWER',
 };
 
-function timeAgo(iso: string) {
+function timeAgo(t: Translate, iso: string) {
   const d = Math.floor((Date.now() - new Date(iso).getTime()) / 86400000);
-  if (d === 0) return 'today';
-  if (d === 1) return 'yesterday';
-  if (d < 30) return `${d}d ago`;
-  return `${Math.floor(d / 30)}mo ago`;
+  if (d === 0) return t('time.today');
+  if (d === 1) return t('time.yesterday');
+  if (d < 30) return t('time.daysAgo', { n: d });
+  return t('time.monthsAgo', { n: Math.floor(d / 30) });
 }
 function Badge({ label, color }: { label: string; color: string }) {
   return <span className={`font-mono text-[11px] px-2 py-0.5 rounded border ${color}`}>{label}</span>;
@@ -64,6 +65,7 @@ function CreateUserPanel({ districts, onSuccess, onClose }: {
   districts: District[]; onSuccess: (msg: string) => void; onClose: () => void;
 }) {
   const queryClient = useQueryClient();
+  const { t } = useI18n();
   const [email, setEmail] = useState('');
   const [name, setName] = useState('');
   const [role, setRole] = useState<Role>('VOLUNTEER');
@@ -77,7 +79,7 @@ function CreateUserPanel({ districts, onSuccess, onClose }: {
   const createMutation = useMutation({
     mutationFn: (payload: Record<string, unknown>) => api.post('/api/users', payload),
     onSuccess: (_, payload) => {
-      onSuccess(`User "${payload.name}" created. They must change their password on first login.`);
+      onSuccess(t('users.created', { name: String(payload.name) }));
       queryClient.invalidateQueries({ queryKey: queryKeys.users.list() });
       onClose();
     },
@@ -103,14 +105,14 @@ function CreateUserPanel({ districts, onSuccess, onClose }: {
   return (
     <div className="card p-5 space-y-4">
       <div>
-        <h3 className="font-display font-bold text-text-primary mb-0.5">Create User</h3>
-        <p className="font-mono text-[11px] text-text-muted">New users log in with the temporary password and must change it immediately.</p>
+        <h3 className="font-display font-bold text-text-primary mb-0.5">{t('users.create')}</h3>
+        <p className="font-mono text-[11px] text-text-muted">{t('users.createHint')}</p>
       </div>
       {createError && <ErrorBox msg={createError} onDismiss={() => createMutation.reset()} />}
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
         <div>
           <label className="label">Full Name</label>
-          <input type="text" className="input" placeholder="e.g. Sok Dara"
+          <input type="text" className="input" placeholder={t('users.namePlaceholder')}
             value={name} onChange={e => setName(e.target.value)} />
         </div>
         <div>
@@ -127,9 +129,9 @@ function CreateUserPanel({ districts, onSuccess, onClose }: {
               className={`font-mono text-[11px] py-2 px-2 rounded border transition-all text-left ${
                 role === r ? ROLE_COLORS[r] : 'bg-bg-elevated border-bg-border text-text-secondary hover:text-text-primary'
               }`}>
-              {ROLE_LABELS[r]}
+              {t(ROLE_LABELS[r])}
               {DISTRICT_REQUIRED_ROLES.includes(r) && (
-                <span className="block text-[10px] text-text-muted mt-0.5">Needs district</span>
+                <span className="block text-[10px] text-text-muted mt-0.5">{t('users.needsDistrict')}</span>
               )}
             </button>
           ))}
@@ -137,25 +139,25 @@ function CreateUserPanel({ districts, onSuccess, onClose }: {
       </div>
       {needsDistrict && (
         <div>
-          <label className="label">District <span className="text-accent-red">*</span></label>
+          <label className="label">{t('common.district')} <span className="text-accent-red">*</span></label>
           <select value={districtId} onChange={e => setDistrictId(e.target.value)} className="input">
-            <option value="">Select district...</option>
-            {districts.map(d => <option key={d.id} value={d.id}>{d.name}</option>)}
+            <option value="">{t('users.selectDistrict')}</option>
+            {districts.map(d => <option key={d.id} value={d.id}>{districtLabel(t, d.name)}</option>)}
           </select>
         </div>
       )}
       <div>
         <label className="label">
-          Phone <span className="font-mono text-[10px] text-text-muted normal-case ml-1">(optional — used for field contact)</span>
+          {t('profile.phone')} <span className="font-mono text-[10px] text-text-muted normal-case ml-1">({t('users.phoneOptionalField')})</span>
         </label>
         <input type="tel" className="input" placeholder="+855 12 345 678"
           value={phone} onChange={e => setPhone(e.target.value)} />
       </div>
       <div>
-        <label className="label">Temporary Password</label>
+        <label className="label">{t('users.tempPassword')}</label>
         <div className="relative">
           <input type={showPassword ? 'text' : 'password'} className="input pr-16"
-            placeholder="Min. 8 characters"
+            placeholder={t('password.minPlaceholder')}
             value={tempPassword} onChange={e => setTempPassword(e.target.value)} />
           <button type="button" onClick={() => setShowPassword(v => !v)}
             className="absolute right-3 top-1/2 -translate-y-1/2 font-mono text-[11px] text-text-muted hover:text-text-primary transition-colors">
@@ -164,13 +166,13 @@ function CreateUserPanel({ districts, onSuccess, onClose }: {
         </div>
         {tempPassword && tempPassword.length < 8 && (
           <p className="font-mono text-[11px] text-accent-red mt-1">
-            {8 - tempPassword.length} more character{8 - tempPassword.length !== 1 ? 's' : ''} needed
+            {t(8 - tempPassword.length === 1 ? 'users.moreChars.one' : 'users.moreChars.other', { count: 8 - tempPassword.length })}
           </p>
         )}
       </div>
       <div className="bg-bg-elevated border border-bg-border rounded px-3 py-2">
         <p className="font-mono text-[11px] text-text-muted">
-          <span className="text-accent-orange">Note:</span> SUPER_ADMIN accounts can only be created via the seed script — never via this form.
+          <span className="text-accent-orange">{t('users.note')}</span> {t('users.superAdminNote')}
         </p>
       </div>
       <button
@@ -180,7 +182,7 @@ function CreateUserPanel({ districts, onSuccess, onClose }: {
           !tempPassword || tempPassword.length < 8 || (needsDistrict && !districtId)
         }
         className="btn-primary w-full">
-        {createMutation.isPending ? 'Creating...' : 'Create User'}
+        {createMutation.isPending ? t('users.creating') : t('users.create')}
       </button>
     </div>
   );
@@ -193,6 +195,7 @@ function EditUserPanel({ user, districts, currentUserId, onSuccess, onClose }: {
   onSuccess: (msg: string) => void; onClose: () => void;
 }) {
   const queryClient = useQueryClient();
+  const { t } = useI18n();
   const [name, setName] = useState(user.name);
   const [email, setEmail] = useState(user.email);
   const [role, setRole] = useState<Role>(user.role);
@@ -211,7 +214,7 @@ function EditUserPanel({ user, districts, currentUserId, onSuccess, onClose }: {
   const updateMutation = useMutation({
     mutationFn: (payload: Record<string, unknown>) => api.patch(`/api/users/${user.id}`, payload),
     onSuccess: () => {
-      onSuccess(`User "${name}" updated.`);
+      onSuccess(t('users.updated', { name }));
       queryClient.invalidateQueries({ queryKey: queryKeys.users.list() });
       onClose();
     },
@@ -220,7 +223,7 @@ function EditUserPanel({ user, districts, currentUserId, onSuccess, onClose }: {
   const resetMutation = useMutation({
     mutationFn: (pwd: string) => api.post(`/api/users/${user.id}/reset-password`, { temporaryPassword: pwd }),
     onSuccess: () => {
-      onSuccess(`Password reset for ${user.email}. User must change it on next login.`);
+      onSuccess(t('users.pwReset', { email: user.email }));
       setResetMode(false); setNewTempPwd('');
     },
   });
@@ -233,14 +236,14 @@ function EditUserPanel({ user, districts, currentUserId, onSuccess, onClose }: {
     <div className="card border-accent-blue/20 p-5 space-y-4 animate-slide-in">
       <div className="flex items-start justify-between gap-3">
         <div>
-          <h3 className="font-display font-bold text-text-primary">Edit User</h3>
+          <h3 className="font-display font-bold text-text-primary">{t('users.edit')}</h3>
           <p className="font-mono text-[11px] text-text-muted">{user.email}</p>
         </div>
         <button
           onClick={onClose}
           className="flex items-center gap-1.5 px-2 py-1 -mr-2 font-mono text-[11px] uppercase tracking-wider hover:text-accent-red hover:bg-accent-red/10 rounded transition-all duration-200 flex-shrink-0">
           <span className="text-xs">✕</span>
-          <span>Close</span>
+          <span>{t('common.close')}</span>
         </button>
       </div>
 
@@ -250,7 +253,7 @@ function EditUserPanel({ user, districts, currentUserId, onSuccess, onClose }: {
 
       {isSuperAdmin ? (
         <div className="bg-accent-red/10 border border-accent-red/20 rounded px-3 py-2">
-          <p className="font-mono text-[11px] text-accent-red">SUPER_ADMIN accounts cannot be modified via this interface.</p>
+          <p className="font-mono text-[11px] text-accent-red">{t('users.superAdminLocked')}</p>
         </div>
       ) : (
         <>
@@ -272,35 +275,35 @@ function EditUserPanel({ user, districts, currentUserId, onSuccess, onClose }: {
                   className={`font-mono text-[11px] py-2 px-2 rounded border transition-all ${
                     role === r ? ROLE_COLORS[r] : 'bg-bg-elevated border-bg-border text-text-secondary hover:text-text-primary'
                   }`}>
-                  {ROLE_LABELS[r]}
+                  {t(ROLE_LABELS[r])}
                 </button>
               ))}
             </div>
           </div>
           {(needsDistrict || districtId) && (
             <div>
-              <label className="label">District {needsDistrict && <span className="text-accent-red">*</span>}</label>
+              <label className="label">{t('common.district')} {needsDistrict && <span className="text-accent-red">*</span>}</label>
               <select value={districtId} onChange={e => setDistrictId(e.target.value)} className="input">
-                <option value="">No district</option>
-                {districts.map(d => <option key={d.id} value={d.id}>{d.name}</option>)}
+                <option value="">{t('users.noDistrict')}</option>
+                {districts.map(d => <option key={d.id} value={d.id}>{districtLabel(t, d.name)}</option>)}
               </select>
             </div>
           )}
           <div>
             <label className="label">
-              Phone <span className="font-mono text-[10px] text-text-muted normal-case ml-1">(optional)</span>
+              {t('profile.phone')} <span className="font-mono text-[10px] text-text-muted normal-case ml-1">({t('common.optional')})</span>
             </label>
             <input type="tel" className="input" placeholder="+855 12 345 678"
               value={phone} onChange={e => setPhone(e.target.value)} />
           </div>
           <div className="flex items-center justify-between bg-bg-elevated rounded-lg border border-bg-border px-4 py-3">
             <div>
-              <p className="font-sans text-sm text-text-primary">Account Active</p>
-              <p className="font-mono text-[11px] text-text-muted">Inactive users cannot log in. Data is preserved.</p>
+              <p className="font-sans text-sm text-text-primary">{t('users.accountActive')}</p>
+              <p className="font-mono text-[11px] text-text-muted">{t('users.inactiveHint')}</p>
             </div>
             <button
               onClick={() => {
-                if (isSelf) { setLocalError('You cannot deactivate your own account.'); return; }
+                if (isSelf) { setLocalError(t('users.errSelfDeactivate')); return; }
                 setActive(v => !v);
               }}
               className={`relative w-11 h-6 rounded-full border transition-all duration-200 flex-shrink-0 flex items-center px-0.5 ${
@@ -315,8 +318,8 @@ function EditUserPanel({ user, districts, currentUserId, onSuccess, onClose }: {
           </div>
           <button
             onClick={() => {
-              if (!name.trim() || !email.trim()) { setLocalError('Name and email required.'); return; }
-              if (needsDistrict && !districtId) { setLocalError(`Role ${role} requires a district.`); return; }
+              if (!name.trim() || !email.trim()) { setLocalError(t('users.errNameEmail')); return; }
+              if (needsDistrict && !districtId) { setLocalError(t('users.errNeedsDistrict', { role: t(ROLE_LABELS[role]) })); return; }
               updateMutation.mutate({
                 name: name.trim(),
                 email: email.trim(),
@@ -328,24 +331,24 @@ function EditUserPanel({ user, districts, currentUserId, onSuccess, onClose }: {
             }}
             disabled={updateMutation.isPending || !name.trim() || !email.trim() || (needsDistrict && !districtId)}
             className="btn-primary w-full">
-            {updateMutation.isPending ? 'Saving...' : 'Save Changes'}
+            {updateMutation.isPending ? t('common.saving') : t('common.saveChanges')}
           </button>
           <div className="border-t border-bg-border pt-4">
             <div className="flex items-center justify-between mb-3">
               <div>
-                <p className="font-sans text-sm font-medium text-text-primary">Reset Password</p>
-                <p className="font-mono text-[11px] text-text-muted">Admin override — no current password needed</p>
+                <p className="font-sans text-sm font-medium text-text-primary">{t('users.resetPassword')}</p>
+                <p className="font-mono text-[11px] text-text-muted">{t('users.resetHint')}</p>
               </div>
               <button onClick={() => setResetMode(v => !v)}
                 className="font-mono text-xs text-accent-orange hover:text-accent-orange/80 transition-colors">
-                {resetMode ? 'Cancel' : 'Reset →'}
+                {resetMode ? t('common.cancel') : `${t('users.reset')} →`}
               </button>
             </div>
             {resetMode && (
               <div className="space-y-3 animate-slide-in">
                 <div className="relative">
                   <input type={showNewPwd ? 'text' : 'password'} className="input pr-16"
-                    placeholder="New temporary password (min. 8 chars)"
+                    placeholder={t('users.newTempPlaceholder')}
                     value={newTempPwd} onChange={e => setNewTempPwd(e.target.value)} />
                   <button type="button" onClick={() => setShowNewPwd(v => !v)}
                     className="absolute right-3 top-1/2 -translate-y-1/2 font-mono text-[11px] text-text-muted hover:text-text-primary">
@@ -356,7 +359,7 @@ function EditUserPanel({ user, districts, currentUserId, onSuccess, onClose }: {
                   onClick={() => newTempPwd.length >= 8 && resetMutation.mutate(newTempPwd)}
                   disabled={resetMutation.isPending || newTempPwd.length < 8}
                   className="btn-ghost w-full text-accent-orange border-accent-orange/30 hover:bg-accent-orange/10">
-                  {resetMutation.isPending ? 'Resetting...' : 'Confirm Password Reset'}
+                  {resetMutation.isPending ? t('users.resetting') : t('users.confirmReset')}
                 </button>
               </div>
             )}
@@ -370,7 +373,8 @@ function EditUserPanel({ user, districts, currentUserId, onSuccess, onClose }: {
 // ─── MAIN USERS PAGE ──────────────────────────────────────────────────────────
 
 export function UsersPage() {
-  usePageTitle('Users');
+  const { t } = useI18n();
+  usePageTitle(t('nav.users'));
   const [filterRole, setFilterRole] = useState<Role | ''>('');
   const [filterActive, setFilterActive] = useState<'all' | 'active' | 'inactive'>('all');
   const [search, setSearch] = useState('');
@@ -420,22 +424,22 @@ export function UsersPage() {
   }), [users]);
 
   const fetchError = (error as { response?: { data?: { error?: string } } })?.response?.data?.error ??
-    (error ? 'Failed to load users.' : '');
+    (error ? t('users.loadFailed') : '');
 
   return (
-    <DashboardLayout title="User Management">
+    <DashboardLayout title={t('users.title')}>
       <div className="space-y-5">
         {fetchError && <ErrorBox msg={fetchError} onDismiss={() => {}} />}
         {success && <SuccessBox msg={success} onDismiss={() => setSuccess('')} />}
 
         {/* stats row */}
         <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
-          <div className="card px-4 py-3"><p className="font-mono text-[11px] text-text-muted uppercase tracking-widest mb-1">Total</p><p className="font-mono text-2xl font-bold text-text-primary">{stats.total}</p></div>
-          <div className="card px-4 py-3"><p className="font-mono text-[11px] text-text-muted uppercase tracking-widest mb-1">Active</p><p className="font-mono text-2xl font-bold text-accent-green">{stats.active}</p></div>
-          <div className="card px-4 py-3"><p className="font-mono text-[11px] text-text-muted uppercase tracking-widest mb-1">Inactive</p><p className="font-mono text-2xl font-bold text-text-muted">{stats.inactive}</p></div>
+          <div className="card px-4 py-3"><p className="font-mono text-[11px] text-text-muted uppercase tracking-widest mb-1">{t('common.total')}</p><p className="font-mono text-2xl font-bold text-text-primary">{stats.total}</p></div>
+          <div className="card px-4 py-3"><p className="font-mono text-[11px] text-text-muted uppercase tracking-widest mb-1">{t('profile.active')}</p><p className="font-mono text-2xl font-bold text-accent-green">{stats.active}</p></div>
+          <div className="card px-4 py-3"><p className="font-mono text-[11px] text-text-muted uppercase tracking-widest mb-1">{t('users.inactive')}</p><p className="font-mono text-2xl font-bold text-text-muted">{stats.inactive}</p></div>
           {CREATABLE_ROLES.slice(0, 3).map(r => (
             <div key={r} className="card px-4 py-3">
-              <p className="font-mono text-[11px] text-text-muted uppercase tracking-widest mb-1">{ROLE_LABELS[r].split(' ')[0]}</p>
+              <p className="font-mono text-[11px] text-text-muted uppercase tracking-widest mb-1">{t(ROLE_LABELS[r])}</p>
               <p className={`font-mono text-2xl font-bold ${ROLE_COLORS[r].split(' ')[0]}`}>{stats.byRole[r] ?? 0}</p>
             </div>
           ))}
@@ -452,31 +456,31 @@ export function UsersPage() {
                       ? 'bg-bg-primary text-text-primary border border-bg-border shadow-sm'
                       : 'text-text-muted hover:text-text-secondary'
                   }`}>
-                  {r ? ROLE_LABELS[r as Role].split(' ')[0].toUpperCase() : 'ALL'}
+                  {r ? t(ROLE_LABELS[r as Role]) : t('common.all')}
                 </button>
               ))}
             </div>
             <div className="flex gap-1 bg-bg-elevated rounded-lg p-1 border border-bg-border">
               {(['all', 'active', 'inactive'] as const).map(f => (
                 <button key={f} onClick={() => setFilterActive(f)}
-                  className={`font-mono text-[11px] px-2.5 py-1 rounded transition-all capitalize ${
+                  className={`font-mono text-[11px] px-2.5 py-1 rounded transition-all ${
                     filterActive === f
                       ? 'bg-bg-primary text-text-primary border border-bg-border shadow-sm'
                       : 'text-text-muted hover:text-text-secondary'
                   }`}>
-                  {f}
+                  {t(f === 'all' ? 'common.all' : f === 'active' ? 'profile.active' : 'users.inactive')}
                 </button>
               ))}
             </div>
           </div>
           <div className="flex items-center gap-2">
             <input type="text" className="input text-xs py-1.5 w-48"
-              placeholder="Search name, email, district..."
+              placeholder={t('users.search')}
               value={search} onChange={e => setSearch(e.target.value)} />
             <button
               onClick={() => { setEditingUser(null); setShowCreate(v => !v); }}
               className={`btn-primary text-xs py-1.5 px-4 flex-shrink-0 ${showCreate ? 'opacity-60' : ''}`}>
-              {showCreate ? '✕ Cancel' : '+ New User'}
+              {showCreate ? `✕ ${t('common.cancel')}` : `+ ${t('users.new')}`}
             </button>
           </div>
         </div>
@@ -503,19 +507,19 @@ export function UsersPage() {
         <div className="card overflow-x-auto">
           {isLoading ? (
             <div className="py-20 text-center">
-              <p className="font-mono text-xs text-text-muted animate-pulse">Loading users...</p>
+              <p className="font-mono text-xs text-text-muted animate-pulse">{t('users.loading')}</p>
             </div>
           ) : filteredUsers.length === 0 ? (
             <div className="py-20 text-center">
               <p className="font-mono text-xs text-text-muted">
-                {search ? `No users matching "${search}".` : 'No users found.'}
+                {search ? t('users.noMatch', { q: search }) : t('users.none')}
               </p>
             </div>
           ) : (
             <table className="w-full">
               <thead>
                 <tr className="border-b border-bg-border">
-                  {['Name', 'Email', 'Role', 'District', 'Phone', 'Status', 'Created', 'Actions'].map(h => (
+                  {[t('profile.name'), t('login.email'), t('users.col.role'), t('common.district'), t('profile.phone'), t('queue.col.status'), t('users.col.created'), t('users.col.actions')].map(h => (
                     <th key={h} className="px-4 py-2.5 text-left font-mono text-[11px] text-text-muted uppercase tracking-widest whitespace-nowrap">{h}</th>
                   ))}
                 </tr>
@@ -525,15 +529,15 @@ export function UsersPage() {
                   <tr key={u.id} className={`border-b border-bg-border transition-colors ${!u.active ? 'opacity-50 bg-bg-elevated/30' : 'hover:bg-bg-elevated/40'}`}>
                     <td className="px-4 py-3 font-sans text-sm text-text-primary whitespace-nowrap">{u.name}</td>
                     <td className="px-4 py-3 font-mono text-xs text-text-secondary">{u.email}</td>
-                    <td className="px-4 py-3"><Badge label={ROLE_LABELS[u.role]} color={ROLE_COLORS[u.role]} /></td>
-                    <td className="px-4 py-3 font-mono text-xs text-text-muted">{u.district?.name ?? '—'}</td>
+                    <td className="px-4 py-3"><Badge label={t(ROLE_LABELS[u.role])} color={ROLE_COLORS[u.role]} /></td>
+                    <td className="px-4 py-3 font-mono text-xs text-text-muted">{u.district?.name ? districtLabel(t, u.district.name) : '—'}</td>
                     <td className="px-4 py-3 font-mono text-xs text-text-muted">{u.phone ?? '—'}</td>
                     <td className="px-4 py-3">
                       {u.active
-                        ? <Badge label="ACTIVE" color="text-accent-green border-accent-green/30 bg-accent-green/5" />
-                        : <Badge label="INACTIVE" color="text-text-muted border-bg-border bg-bg-elevated" />}
+                        ? <Badge label={t('profile.active')} color="text-accent-green border-accent-green/30 bg-accent-green/5" />
+                        : <Badge label={t('users.inactive')} color="text-text-muted border-bg-border bg-bg-elevated" />}
                     </td>
-                    <td className="px-4 py-3 font-mono text-[11px] text-text-muted">{timeAgo(u.createdAt)}</td>
+                    <td className="px-4 py-3 font-mono text-[11px] text-text-muted">{timeAgo(t, u.createdAt)}</td>
                     <td className="px-4 py-3">
                       {u.role !== 'SUPER_ADMIN' && (
                         <button
@@ -541,7 +545,7 @@ export function UsersPage() {
                           className={`font-mono text-xs transition-colors ${
                             editingUser?.id === u.id ? 'text-accent-blue' : 'text-text-muted hover:text-text-primary'
                           }`}>
-                          {editingUser?.id === u.id ? 'Editing ↑' : 'Edit →'}
+                          {editingUser?.id === u.id ? `${t('users.editing')} ↑` : `${t('common.edit')} →`}
                         </button>
                       )}
                     </td>
@@ -553,9 +557,9 @@ export function UsersPage() {
           {!isLoading && filteredUsers.length > 0 && (
             <div className="px-4 py-2 border-t border-bg-border">
               <p className="font-mono text-[11px] text-text-muted">
-                {filteredUsers.length} user{filteredUsers.length !== 1 ? 's' : ''}
-                {search && ` matching "${search}"`}
-                {' · '}Per REMA policy: accounts are deactivated, never deleted.
+                {t(filteredUsers.length === 1 ? 'users.count.one' : 'users.count.other', { count: filteredUsers.length })}
+                {search && ` ${t('users.matching', { q: search })}`}
+                {' · '}{t('users.policy')}
               </p>
             </div>
           )}

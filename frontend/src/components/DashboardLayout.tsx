@@ -1,5 +1,6 @@
 import { type ReactNode } from 'react';
 import { ArrowUpCircle, RefreshCw, RotateCcw, Sparkles, type LucideIcon } from 'lucide-react';
+import { useI18n } from '../i18n';
 
 // ─── PROPS ────────────────────────────────────────────────────────────────────
 
@@ -83,11 +84,12 @@ export function DashboardLayout({
   onAdvancePhase,
   advancePhaseLoading = false,
   showAdvancePhase = false,
-  advancePhaseLabel = 'Advance Phase',
+  advancePhaseLabel,
   onReset,
   resetLoading = false,
   showReset = false,
 }: DashboardLayoutProps) {
+  const { t, locale } = useI18n();
   const hasPhaseControls = (showAdvancePhase && onAdvancePhase) || (showReset && onReset);
 
   return (
@@ -103,7 +105,7 @@ export function DashboardLayout({
           </h1>
           {lastUpdated && (
             <span className="font-mono text-[11px] text-text-muted hidden sm:inline whitespace-nowrap">
-              updated {lastUpdated.toLocaleTimeString('en-GB', {
+              {t('layout.updated')} {lastUpdated.toLocaleTimeString(locale, {
                 hour: '2-digit',
                 minute: '2-digit',
                 second: '2-digit',
@@ -119,8 +121,8 @@ export function DashboardLayout({
             <button
               onClick={onRefresh}
               disabled={isRefreshing}
-              title="Refresh data"
-              aria-label="Refresh data"
+              title={t('layout.refresh')}
+              aria-label={t('layout.refresh')}
               className="inline-flex items-center justify-center w-8 h-8 rounded-md border border-bg-border text-text-secondary hover:text-text-primary hover:bg-bg-hover transition-colors duration-150 disabled:cursor-not-allowed disabled:opacity-60"
             >
               <RefreshCw size={14} className={isRefreshing ? 'animate-spin' : ''} />
@@ -133,9 +135,9 @@ export function DashboardLayout({
               loading={aiBriefLoading}
               tone="blue"
               Icon={Sparkles}
-              label="AI Brief"
-              loadingLabel="Generating…"
-              title="Generate AI operational brief"
+              label={t('layout.aiBrief')}
+              loadingLabel={t('layout.generating')}
+              title={t('layout.aiBriefTitle')}
             />
           )}
 
@@ -149,9 +151,9 @@ export function DashboardLayout({
               loading={advancePhaseLoading}
               tone="orange"
               Icon={ArrowUpCircle}
-              label={advancePhaseLabel}
-              loadingLabel="Advancing…"
-              title={advancePhaseLabel}
+              label={advancePhaseLabel ?? t('layout.advancePhase')}
+              loadingLabel={t('layout.advancing')}
+              title={advancePhaseLabel ?? t('layout.advancePhase')}
             />
           )}
 
@@ -161,9 +163,9 @@ export function DashboardLayout({
               loading={resetLoading}
               tone="red"
               Icon={RotateCcw}
-              label="Close Event"
-              loadingLabel="Closing…"
-              title="Close and archive the flood event, return to Phase 0 (SUPER_ADMIN only)"
+              label={t('layout.closeEvent')}
+              loadingLabel={t('layout.closing')}
+              title={t('layout.closeEventTitle')}
             />
           )}
 

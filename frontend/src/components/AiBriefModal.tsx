@@ -1,6 +1,7 @@
 import { useEffect, useRef } from 'react';
 import { Sparkles } from 'lucide-react';
 import type { AiBriefResponse } from '../api/ai';
+import { useI18n } from '../i18n';
 
 // ─── PROPS ────────────────────────────────────────────────────────────────────
 
@@ -52,6 +53,7 @@ function SnapshotRow({ label, value }: { label: string; value: string | number }
 
 export function AiBriefModal({ isOpen, isLoading, result, error, onClose }: AiBriefModalProps) {
   const backdropRef = useRef<HTMLDivElement>(null);
+  const { t, locale } = useI18n();
 
   // Close on Escape key
   useEffect(() => {
@@ -78,7 +80,7 @@ export function AiBriefModal({ isOpen, isLoading, result, error, onClose }: AiBr
       className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4"
       onClick={handleBackdropClick}
     >
-      <div role="dialog" aria-modal="true" aria-label="REMA AI Brief" className="w-full max-w-2xl bg-bg-secondary border border-bg-border rounded-xl shadow-2xl animate-fade-in flex flex-col max-h-[90vh]">
+      <div role="dialog" aria-modal="true" aria-label={t('ai.title')} className="w-full max-w-2xl bg-bg-secondary border border-bg-border rounded-xl shadow-2xl animate-fade-in flex flex-col max-h-[90vh]">
 
         {/* ── HEADER ── */}
         <div className="flex items-start justify-between px-6 pt-5 pb-4 border-b border-bg-border flex-shrink-0">
@@ -86,17 +88,17 @@ export function AiBriefModal({ isOpen, isLoading, result, error, onClose }: AiBr
             <div className="flex items-center gap-2 mb-1">
               <Sparkles size={15} className="text-accent-blue" aria-hidden="true" />
               <h2 className="font-mono text-sm font-semibold text-text-primary uppercase tracking-widest">
-                REMA AI Brief
+                {t('ai.title')}
               </h2>
             </div>
             <p className="font-mono text-[11px] text-text-muted">
-              Operational summary · Advisory only · Human decision required
+              {t('ai.subtitle')}
             </p>
           </div>
           <button
             onClick={onClose}
             className="text-text-muted hover:text-text-primary transition-colors ml-4 flex-shrink-0"
-            aria-label="Close modal"
+            aria-label={t('common.close')}
           >
             <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
               <path d="M12 4L4 12M4 4l8 8" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/>
@@ -107,10 +109,10 @@ export function AiBriefModal({ isOpen, isLoading, result, error, onClose }: AiBr
         {/* ── ADVISORY BANNER — always visible ── */}
         <div className="mx-6 mt-4 flex-shrink-0 bg-accent-red/10 border border-accent-red/30 rounded px-4 py-2.5">
           <p className="font-mono text-xs text-accent-red font-semibold">
-            ⚠ Advisory only — all decisions require human judgment and authority
+            ⚠ {t('ai.advisory')}
           </p>
           <p className="font-mono text-[11px] text-accent-red/70 mt-0.5">
-            This brief cannot trigger any system action. The Emergency Coordinator retains full decision authority.
+            {t('ai.advisoryBody')}
           </p>
         </div>
 
@@ -121,8 +123,8 @@ export function AiBriefModal({ isOpen, isLoading, result, error, onClose }: AiBr
           {isLoading && (
             <div className="flex flex-col items-center justify-center py-12 gap-3">
               <div className="w-6 h-6 border-2 border-text-muted border-t-accent-blue rounded-full animate-spin" />
-              <p className="font-mono text-xs text-text-muted">Generating operational brief...</p>
-              <p className="font-mono text-[11px] text-text-muted">Reading live dashboard data · Calling AI model</p>
+              <p className="font-mono text-xs text-text-muted">{t('ai.generating')}</p>
+              <p className="font-mono text-[11px] text-text-muted">{t('ai.generatingDetail')}</p>
             </div>
           )}
 
@@ -130,13 +132,13 @@ export function AiBriefModal({ isOpen, isLoading, result, error, onClose }: AiBr
           {!isLoading && error && (
             <div className="bg-accent-orange/10 border border-accent-orange/30 rounded p-4">
               <p className="font-mono text-xs text-accent-orange font-semibold mb-1">
-                AI Brief temporarily unavailable
+                {t('ai.unavailable')}
               </p>
               <p className="font-mono text-[11px] text-accent-orange/80">
                 {error}
               </p>
               <p className="font-mono text-[11px] text-text-muted mt-2">
-                Use the dashboard directly to assess the current situation.
+                {t('ai.useDashboard')}
               </p>
             </div>
           )}
@@ -146,19 +148,19 @@ export function AiBriefModal({ isOpen, isLoading, result, error, onClose }: AiBr
             <>
               {/* Three brief sections */}
               <BriefSection
-                label="Situation Summary"
+                label={t('ai.summary')}
                 icon="📊"
                 text={result.summary}
               />
               <BriefSection
-                label="Priority Alert"
+                label={t('ai.priorityAlert')}
                 icon="🔴"
                 text={result.priorityAlert}
                 color="text-accent-red"
                 borderColor="border-accent-red/20"
               />
               <BriefSection
-                label="Recommended Next Step"
+                label={t('ai.nextStep')}
                 icon="➡"
                 text={result.nextStep}
                 color="text-accent-blue"
@@ -169,18 +171,18 @@ export function AiBriefModal({ isOpen, isLoading, result, error, onClose }: AiBr
               {snap && (
                 <div className="rounded border border-bg-border bg-bg-elevated p-4">
                   <p className="font-mono text-[11px] uppercase tracking-widest text-text-muted mb-3">
-                    📋 Data used to generate this brief
+                    📋 {t('ai.dataUsed')}
                   </p>
                   <div>
-                    <SnapshotRow label="Response phase" value={`Phase ${snap.phase}`} />
-                    <SnapshotRow label="Critical households (undelivered)" value={snap.totalCritical} />
-                    <SnapshotRow label="High households (undelivered)" value={snap.totalHigh} />
-                    <SnapshotRow label="Active delivery runs" value={snap.activeDeliveryRuns} />
-                    <SnapshotRow label="Open incidents" value={snap.openIncidentCount} />
-                    <SnapshotRow label="Radio compliance today" value={`${snap.radioCompliancePct}%`} />
+                    <SnapshotRow label={t('ai.snap.phase')} value={t('common.phaseN', { n: snap.phase })} />
+                    <SnapshotRow label={t('ai.snap.critical')} value={snap.totalCritical} />
+                    <SnapshotRow label={t('ai.snap.high')} value={snap.totalHigh} />
+                    <SnapshotRow label={t('ai.snap.runs')} value={snap.activeDeliveryRuns} />
+                    <SnapshotRow label={t('ai.snap.incidents')} value={snap.openIncidentCount} />
+                    <SnapshotRow label={t('ai.snap.radio')} value={`${snap.radioCompliancePct}%`} />
                     <SnapshotRow
-                      label="Stock scarcity alert"
-                      value={snap.scarcityActive ? '⚠ YES — below 30%' : 'No'}
+                      label={t('ai.snap.scarcity')}
+                      value={snap.scarcityActive ? `⚠ ${t('ai.snap.scarcityYes')}` : t('common.no')}
                     />
                   </div>
                 </div>
@@ -193,14 +195,14 @@ export function AiBriefModal({ isOpen, isLoading, result, error, onClose }: AiBr
         <div className="px-6 py-4 border-t border-bg-border flex items-center justify-between flex-shrink-0">
           <p className="font-mono text-[11px] text-text-muted">
             {result
-              ? `Generated at ${new Date(result.generatedAt).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit', second: '2-digit' })} from live dashboard data`
-              : 'REMA AI · Powered by Claude · Anthropic'}
+              ? t('ai.generatedAt', { time: new Date(result.generatedAt).toLocaleTimeString(locale, { hour: '2-digit', minute: '2-digit', second: '2-digit' }) })
+              : t('ai.poweredBy')}
           </p>
           <button
             onClick={onClose}
             className="font-mono text-xs text-text-muted hover:text-text-primary transition-colors border border-bg-border rounded px-3 py-1.5"
           >
-            Close
+            {t('common.close')}
           </button>
         </div>
 

@@ -14,6 +14,7 @@ import { useAuth } from '../context/AuthContext';
 import type { DashboardSummary } from '../api/dashboard';
 import type { AiBriefResponse } from '../api/ai';
 import { usePageTitle } from '../hooks/usePageTitle';
+import { useI18n, enumLabel, districtLabel, type MessageKey } from '../i18n';
 
 // ─── TYPES ────────────────────────────────────────────────────────────────────
 
@@ -87,10 +88,10 @@ const StatCard = memo(function StatCard({
 // ─── PRIORITY BANDS CONFIG ────────────────────────────────────────────────────
 
 const BAND_DISPLAY = [
-  { key: 'critical' as const, label: 'Critical', color: 'text-accent-red',    border: 'border-accent-red/20',    bg: 'bg-accent-red/5',    dot: 'bg-accent-red'    },
-  { key: 'high'     as const, label: 'High',     color: 'text-accent-orange', border: 'border-accent-orange/20', bg: 'bg-accent-orange/5', dot: 'bg-accent-orange' },
-  { key: 'medium'   as const, label: 'Medium',   color: 'text-accent-yellow', border: 'border-accent-yellow/20', bg: 'bg-accent-yellow/5', dot: 'bg-accent-yellow' },
-  { key: 'standard' as const, label: 'Standard', color: 'text-accent-green',  border: 'border-accent-green/20',  bg: 'bg-accent-green/5',  dot: 'bg-accent-green'  },
+  { key: 'critical' as const, label: 'band.CRITICAL' as MessageKey, color: 'text-accent-red',    border: 'border-accent-red/20',    bg: 'bg-accent-red/5',    dot: 'bg-accent-red'    },
+  { key: 'high'     as const, label: 'band.HIGH' as MessageKey, color: 'text-accent-orange', border: 'border-accent-orange/20', bg: 'bg-accent-orange/5', dot: 'bg-accent-orange' },
+  { key: 'medium'   as const, label: 'band.MEDIUM' as MessageKey, color: 'text-accent-yellow', border: 'border-accent-yellow/20', bg: 'bg-accent-yellow/5', dot: 'bg-accent-yellow' },
+  { key: 'standard' as const, label: 'band.STANDARD' as MessageKey, color: 'text-accent-green',  border: 'border-accent-green/20',  bg: 'bg-accent-green/5',  dot: 'bg-accent-green'  },
 ] as const;
 
 // ─── INCIDENT PANEL ───────────────────────────────────────────────────────────
@@ -100,12 +101,13 @@ const IncidentPanel = memo(function IncidentPanel({
 }: {
   incidents: DashboardSummary['openIncidents'];
 }) {
+  const { t, locale } = useI18n();
   if (incidents.length === 0) return null;
 
   return (
     <div>
       <h2 className="font-mono text-xs text-text-muted uppercase tracking-widest mb-3">
-        Open Incidents
+        {t('dash.openIncidents')}
         <span className="ml-2 text-accent-red">{incidents.length}</span>
       </h2>
       <div className="card divide-y divide-bg-border overflow-hidden">
@@ -124,10 +126,10 @@ const IncidentPanel = memo(function IncidentPanel({
                 <span className={`font-mono text-[11px] font-semibold ${
                   inc.status === 'ESCALATED' ? 'text-accent-red' : 'text-accent-orange'
                 }`}>
-                  {inc.status}
+                  {enumLabel(t, 'incidentStatus', inc.status)}
                 </span>
                 <span className="font-mono text-[11px] text-text-muted">
-                  {inc.type.replace(/_/g, ' ')}
+                  {enumLabel(t, 'incidentType', inc.type)}
                 </span>
               </div>
               <p className="font-sans text-sm text-text-secondary truncate max-w-md">
@@ -135,7 +137,7 @@ const IncidentPanel = memo(function IncidentPanel({
               </p>
             </div>
             <span className="font-mono text-[11px] text-text-muted flex-shrink-0">
-              {new Date(inc.createdAt).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' })}
+              {new Date(inc.createdAt).toLocaleTimeString(locale, { hour: '2-digit', minute: '2-digit' })}
             </span>
           </div>
         ))}
@@ -151,6 +153,7 @@ const DistrictCard = memo(function DistrictCard({
 }: {
   d: DashboardSummary['districts'][number];
 }) {
+  const { t } = useI18n();
   const statusColors = {
     ACTIVE:           'text-accent-green border-accent-green/30 bg-accent-green/10',
     INACTIVE:         'text-text-muted border-bg-border bg-transparent',
@@ -179,22 +182,22 @@ const DistrictCard = memo(function DistrictCard({
       {/* Header */}
       <div className="flex items-start justify-between gap-2">
         <div>
-          <h3 className="font-display font-bold text-text-primary">{d.name}</h3>
+          <h3 className="font-display font-bold text-text-primary">{districtLabel(t, d.name)}</h3>
           <p className="font-mono text-xs text-text-muted mt-0.5">
-            {d.population.toLocaleString()} households
+            {t('dash.householdsCount', { count: d.population.toLocaleString() })}
           </p>
         </div>
         <span className={`font-mono text-[11px] px-2 py-0.5 rounded border flex-shrink-0 ${statusColor}`}>
-          {d.subWarehouseStatus ?? 'NO WAREHOUSE'}
+          {d.subWarehouseStatus ? enumLabel(t, 'warehouseStatus', d.subWarehouseStatus) : t('dash.noWarehouse')}
         </span>
       </div>
 
       {/* Stock bar + EMK breakdown */}
       <div>
         <div className="flex justify-between items-center mb-1.5">
-          <span className="font-mono text-[11px] text-text-muted uppercase tracking-widest">Stock Level</span>
+          <span className="font-mono text-[11px] text-text-muted uppercase tracking-widest">{t('dash.stockLevel')}</span>
           <span className={`font-mono text-xs ${stockTextColor}`}>
-            {d.stockPct}%{d.anyScarce ? ' ⚠ SCARCE' : ''}
+            {d.stockPct}%{d.anyScarce ? ` ⚠ ${t('dash.scarce')}` : ''}
           </span>
         </div>
         <div className="h-1.5 bg-bg-border rounded-full overflow-hidden mb-2">
@@ -234,17 +237,17 @@ const DistrictCard = memo(function DistrictCard({
       <div className="grid grid-cols-3 gap-2 pt-2 border-t border-bg-border">
         <div className="text-center">
           <p className="font-mono text-lg font-semibold text-text-primary">{d.householdsAssessed}</p>
-          <p className="font-mono text-[10px] text-text-muted uppercase tracking-wide">Assessed</p>
+          <p className="font-mono text-[10px] text-text-muted uppercase tracking-wide">{t('dash.assessed')}</p>
         </div>
         <div className="text-center">
           <p className="font-mono text-lg font-semibold text-accent-green">{d.deliveredCount}</p>
-          <p className="font-mono text-[10px] text-text-muted uppercase tracking-wide">Delivered</p>
+          <p className="font-mono text-[10px] text-text-muted uppercase tracking-wide">{t('status.delivered')}</p>
         </div>
         <div className="text-center">
           <p className={`font-mono text-lg font-semibold ${d.openIncidents > 0 ? 'text-accent-red' : 'text-text-muted'}`}>
             {d.openIncidents}
           </p>
-          <p className="font-mono text-[10px] text-text-muted uppercase tracking-wide">Incidents</p>
+          <p className="font-mono text-[10px] text-text-muted uppercase tracking-wide">{t('dash.incidents')}</p>
         </div>
       </div>
 
@@ -252,7 +255,7 @@ const DistrictCard = memo(function DistrictCard({
       {d.householdsAssessed > 0 && (
         <div>
           <div className="flex justify-between mb-1">
-            <span className="font-mono text-[10px] text-text-muted">Delivery progress</span>
+            <span className="font-mono text-[10px] text-text-muted">{t('dash.deliveryProgress')}</span>
             <span className="font-mono text-[10px] text-text-muted">{deliveryPct}%</span>
           </div>
           <div className="h-1 bg-bg-border rounded-full overflow-hidden">
@@ -278,10 +281,11 @@ function TriggerPanel({
   currentConditions: TriggerConditions;
   isLoading: boolean;
 }) {
+  const { t } = useI18n();
   const conditions: { key: TriggerConditionKey; label: string; desc: string }[] = [
-    { key: 'warningLevelTwo',      label: 'Warning Lv.2',    desc: 'City/provincial flood warning Level 2 or above' },
-    { key: 'rainfallExceeds100mm', label: '100mm Rain',      desc: 'Rainfall forecast exceeds 100mm in 24 hours' },
-    { key: 'streetFloodingReport', label: 'Street Flooding', desc: 'Any target district reports street-level flooding' },
+    { key: 'warningLevelTwo',      label: t('trigger.warningLevelTwo.short'), desc: t('trigger.warningLevelTwo.desc') },
+    { key: 'rainfallExceeds100mm', label: t('trigger.rainfall.short'),        desc: t('trigger.rainfall.desc') },
+    { key: 'streetFloodingReport', label: t('trigger.streetFlooding.short'),  desc: t('trigger.streetFlooding.desc') },
   ];
 
   const trueCount   = Object.values(currentConditions).filter(Boolean).length;
@@ -292,10 +296,10 @@ function TriggerPanel({
       <div className="flex items-start justify-between gap-4 mb-4">
         <div>
           <h3 className="font-mono text-xs text-accent-yellow uppercase tracking-widest">
-            Activation Required
+            {t('dash.activationRequired')}
           </h3>
           <p className="font-mono text-[11px] text-text-muted mt-0.5">
-            Submit any 2 of 3 conditions to activate REMA Phase 1
+            {t('dash.activationHint')}
           </p>
         </div>
         <span className={`font-mono text-xs px-2 py-0.5 rounded border flex-shrink-0 ${
@@ -303,7 +307,7 @@ function TriggerPanel({
             ? 'text-accent-green border-accent-green/30 bg-accent-green/10'
             : 'text-text-muted border-bg-border'
         }`}>
-          {trueCount}/3 met
+          {t('dash.conditionsMet', { count: trueCount })}
         </span>
       </div>
 
@@ -339,11 +343,11 @@ function TriggerPanel({
 
       {isLoading ? (
         <p className="font-mono text-[10px] text-text-muted mt-3 animate-pulse-slow">
-          Processing trigger condition...
+          {t('dash.processingTrigger')}
         </p>
       ) : trueCount === 1 ? (
         <p className="font-mono text-[10px] text-accent-yellow mt-3 animate-pulse-slow">
-          1 more condition needed to activate REMA
+          {t('dash.oneMore')}
         </p>
       ) : null}
     </div>
@@ -353,7 +357,8 @@ function TriggerPanel({
 // ─── MAIN DASHBOARD PAGE ──────────────────────────────────────────────────────
 
 export function DashboardPage() {
-  usePageTitle('Dashboard');
+  const { t } = useI18n();
+  usePageTitle(t('nav.dashboard'));
   const { user, onSocketEvent } = useAuth();
 
   const [data,             setData]             = useState<DashboardSummary | null>(null);
@@ -417,12 +422,12 @@ export function DashboardPage() {
       setLastUpdated(new Date());
       setError('');
     } catch {
-      if (!silent) setError('Failed to refresh. Showing cached data.');
+      if (!silent) setError(t('dash.refreshFailed'));
       setIsStale(true);
     } finally {
       if (!silent) setIsRefreshing(false);
     }
-  }, []);
+  }, [t]);
 
   const handleRefresh = useCallback(async () => { await fetchAll(false); }, [fetchAll]);
 
@@ -436,12 +441,12 @@ export function DashboardPage() {
       setAiBriefResult(result);
     } catch (err: unknown) {
       setAiBriefError(
-        err instanceof Error ? err.message : 'AI Brief temporarily unavailable — use dashboard directly.',
+        err instanceof Error ? err.message : t('ai.unavailableShort'),
       );
     } finally {
       setAiBriefLoading(false);
     }
-  }, []);
+  }, [t]);
 
   const handleCloseBrief = useCallback(() => setAiBriefOpen(false), []);
 
@@ -456,11 +461,11 @@ export function DashboardPage() {
       setLocalConditions({ warningLevelTwo: false, rainfallExceeds100mm: false, streetFloodingReport: false });
       await fetchAll(false);
     } catch (err: unknown) {
-      setPhaseError(err instanceof Error ? err.message : 'Reset failed');
+      setPhaseError(err instanceof Error ? err.message : t('dash.resetFailed'));
     } finally {
       setResetLoading(false);
     }
-  }, [fetchAll]);
+  }, [fetchAll, t]);
 
   const handleTrigger = useCallback(async (condition: TriggerConditionKey) => {
     setPhaseError('');
@@ -472,12 +477,12 @@ export function DashboardPage() {
       await fetchAll(false);
     } catch (err: unknown) {
       setLocalConditions(prev => ({ ...prev, [condition]: false }));
-      setPhaseError(err instanceof Error ? err.message : 'Failed to submit condition');
+      setPhaseError(err instanceof Error ? err.message : t('dash.triggerFailed'));
     } finally {
       isTriggeringRef.current = false;
       setTriggerLoading(false);
     }
-  }, [fetchAll]);
+  }, [fetchAll, t]);
 
   const handleAdvancePhase = useCallback(async () => {
     if (!data) return;
@@ -488,11 +493,11 @@ export function DashboardPage() {
       await alertApi.advancePhase(nextPhase);
       await fetchAll(false);
     } catch (err: unknown) {
-      setPhaseError(err instanceof Error ? err.message : 'Failed to advance phase');
+      setPhaseError(err instanceof Error ? err.message : t('dash.advanceFailed'));
     } finally {
       setAdvancePhaseLoading(false);
     }
-  }, [data, fetchAll]);
+  }, [data, fetchAll, t]);
 
   // ── Init + polling ────────────────────────────────────────────────────────
 
@@ -549,7 +554,7 @@ export function DashboardPage() {
 
   if (firstLoad && !data) {
     return (
-      <DashboardLayout title="Operations Dashboard">
+      <DashboardLayout title={t('dash.title')}>
         <DashboardSkeleton />
       </DashboardLayout>
     );
@@ -557,7 +562,7 @@ export function DashboardPage() {
 
   return (
     <DashboardLayout
-      title="Operations Dashboard"
+      title={t('dash.title')}
       onRefresh={handleRefresh}
       lastUpdated={lastUpdated}
       isRefreshing={isRefreshing}
@@ -567,7 +572,7 @@ export function DashboardPage() {
       showAdvancePhase={showAdvancePhase}
       onAdvancePhase={handleAdvancePhase}
       advancePhaseLoading={advancePhaseLoading}
-      advancePhaseLabel="Advance to Phase 2"
+      advancePhaseLabel={t('dash.advanceToPhase2')}
       showReset={showReset}
       onReset={handleReset}
       resetLoading={resetLoading}
@@ -582,16 +587,16 @@ export function DashboardPage() {
 
       <ConfirmModal
         isOpen={confirmResetOpen}
-        title="Close Flood Event"
+        title={t('dash.closeEvent.title')}
         description={
-          'Close this flood event and return REMA to standby (Phase 0)? The event is archived in Event History with all its data. '
+          t('dash.closeEvent.body')
+          + ' '
           + (data?.activeDeliveryRuns
-            ? `${data.activeDeliveryRuns} delivery run${data.activeDeliveryRuns === 1 ? '' : 's'} still in progress will be marked aborted, and `
+            ? t(data.activeDeliveryRuns === 1 ? 'dash.closeEvent.runs.one' : 'dash.closeEvent.runs.other', { count: data.activeDeliveryRuns }) + ' '
             : '')
-          + 'all deployed volunteers will be stood down.'
+          + t('dash.closeEvent.volunteers')
         }
-        confirmLabel="Close event & reset"
-        cancelLabel="Cancel"
+        confirmLabel={t('dash.closeEvent.confirm')}
         variant="danger"
         isLoading={resetLoading}
         onConfirm={handleConfirmReset}
@@ -603,7 +608,7 @@ export function DashboardPage() {
       {isStale && !isRefreshing && (
         <div className="mb-4 bg-accent-yellow/10 border border-accent-yellow/30 rounded px-4 py-2 animate-fade-in">
           <p className="font-mono text-xs text-accent-yellow">
-            Showing cached data — refreshing in background...
+            {t('dash.cached')}
           </p>
         </div>
       )}
@@ -641,30 +646,30 @@ export function DashboardPage() {
           {/* 3 ── KPI stat row */}
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
             <StatCard
-              label="Active Runs"
+              label={t('dash.activeRuns')}
               value={topStats.activeRuns}
-              sub={topStats.activeRuns > 0 ? 'Teams deployed' : 'No runs in progress'}
+              sub={topStats.activeRuns > 0 ? t('dash.teamsDeployed') : t('dash.noRuns')}
               color={topStats.activeRuns > 0 ? 'text-accent-green' : 'text-text-muted'}
               pulse={topStats.activeRuns > 0}
             />
             <StatCard
-              label="Pending Delivery"
+              label={t('dash.pendingDelivery')}
               value={topStats.pendingDelivery}
-              sub={`${topStats.total} total assessed`}
+              sub={t('dash.totalAssessed', { count: topStats.total })}
             />
             <StatCard
-              label="Delivered"
+              label={t('status.delivered')}
               value={topStats.delivered}
-              sub={`${topStats.deliveryPct}% complete`}
+              sub={t('dash.pctComplete', { pct: topStats.deliveryPct })}
               color="text-accent-green"
             />
             <StatCard
-              label="Check-ins"
+              label={t('dash.checkins')}
               value={`${topStats.todayCheckins}/${topStats.totalScheduled}`}
               sub={
                 topStats.todayCheckins === topStats.totalScheduled
-                  ? 'All slots filled'
-                  : `${topStats.totalScheduled - topStats.todayCheckins} slots missed`
+                  ? t('dash.allSlotsFilled')
+                  : t('dash.slotsMissed', { count: topStats.totalScheduled - topStats.todayCheckins })
               }
               color={
                 topStats.todayCheckins === 0
@@ -679,26 +684,26 @@ export function DashboardPage() {
           {/* 4 ── Priority bands */}
           <div>
             <p className="font-mono text-[11px] text-text-muted uppercase tracking-widest mb-2">
-              Household Priority Bands
-              <span className="ml-2 font-normal normal-case opacity-60">undelivered</span>
+              {t('dash.priorityBands')}
+              <span className="ml-2 font-normal normal-case opacity-60">{t('dash.undelivered')}</span>
             </p>
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
               {BAND_DISPLAY.map(({ key, label, color, border, bg, dot }) => (
                 <div key={key} className={`card border ${border} ${bg} px-4 py-3`}>
                   <div className="flex items-center gap-1.5 mb-2">
                     <span className={`w-1.5 h-1.5 rounded-full ${dot}`} />
-                    <p className={`font-mono text-[11px] uppercase tracking-widest ${color}`}>{label}</p>
+                    <p className={`font-mono text-[11px] uppercase tracking-widest ${color}`}>{t(label)}</p>
                   </div>
                   <p className={`font-mono text-3xl font-bold ${color}`}>
                     {data.households[key]}
                   </p>
                   {key === 'critical' && data.households.critical > 0 && (
                     <p className="font-mono text-[10px] text-accent-red mt-1.5 animate-pulse-slow">
-                      Deliver in current run
+                      {t('dash.deliverCurrentRun')}
                     </p>
                   )}
                   {data.households[key] === 0 && (
-                    <p className="font-mono text-[10px] text-text-muted/40 mt-1.5">All clear</p>
+                    <p className="font-mono text-[10px] text-text-muted/40 mt-1.5">{t('dash.allClear')}</p>
                   )}
                 </div>
               ))}
@@ -724,7 +729,7 @@ export function DashboardPage() {
           {/* 7 ── Districts */}
           <div>
             <p className="font-mono text-[11px] text-text-muted uppercase tracking-widest mb-3">
-              Districts
+              {t('dash.districts')}
             </p>
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
               {data.districts.filter(d => d.name !== '__central__').map((d) => (
@@ -736,7 +741,7 @@ export function DashboardPage() {
           {/* 8 ── Priority queue */}
           <div>
             <p className="font-mono text-[11px] text-text-muted uppercase tracking-widest mb-3">
-              Household Priority Queue
+              {t('dash.householdQueue')}
             </p>
             <PriorityQueueTable districts={data.districts.filter(d => d.name !== '__central__')} />
           </div>

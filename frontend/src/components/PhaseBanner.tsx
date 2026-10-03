@@ -1,3 +1,5 @@
+import { useI18n, type MessageKey } from '../i18n';
+
 interface PhaseBannerProps {
   phase: 0 | 1 | 2;
   activated: boolean;
@@ -11,42 +13,43 @@ interface PhaseBannerProps {
 
 const PHASE_CONFIG = {
   0: {
-    label: 'STANDBY',
-    description: 'Monitoring flood conditions — not yet activated',
+    label: 'phase.0.label',
+    description: 'phase.0.description',
     color: 'text-text-muted',
     bg: 'bg-bg-elevated',
     border: 'border-bg-border',
     dot: 'bg-text-muted',
   },
   1: {
-    label: 'PHASE 1 — ACTIVE',
-    description: 'Hours 0–24 · Pre-positioning supplies to sub-warehouses',
+    label: 'phase.1.label',
+    description: 'phase.1.description',
     color: 'text-accent-orange',
     bg: 'bg-accent-orange/10',
     border: 'border-accent-orange/30',
     dot: 'bg-accent-orange',
   },
   2: {
-    label: 'PHASE 2 — DELIVERY',
-    description: 'Hours 24–48 · Adaptive last-mile delivery in progress',
+    label: 'phase.2.label',
+    description: 'phase.2.description',
     color: 'text-accent-red',
     bg: 'bg-accent-red/10',
     border: 'border-accent-red/30',
     dot: 'bg-accent-red',
   },
-};
+} satisfies Record<0 | 1 | 2, { label: MessageKey; description: MessageKey; color: string; bg: string; border: string; dot: string }>;
 
-const TRIGGER_LABELS = {
-  warningLevelTwo: 'Warning Lv.2',
-  rainfallExceeds100mm: '100mm Rain',
-  streetFloodingReport: 'Street Flooding',
+const TRIGGER_LABELS: Record<string, MessageKey> = {
+  warningLevelTwo: 'trigger.warningLevelTwo.short',
+  rainfallExceeds100mm: 'trigger.rainfall.short',
+  streetFloodingReport: 'trigger.streetFlooding.short',
 };
 
 export function PhaseBanner({ phase, activated, activatedAt, triggerConditions }: PhaseBannerProps) {
   const config = PHASE_CONFIG[phase];
+  const { t, locale } = useI18n();
 
   const formattedActivatedAt = activatedAt
-    ? new Date(activatedAt).toLocaleString('en-GB', {
+    ? new Date(activatedAt).toLocaleString(locale, {
         day: '2-digit',
         month: 'short',
         hour: '2-digit',
@@ -67,10 +70,10 @@ export function PhaseBanner({ phase, activated, activatedAt, triggerConditions }
         />
         <div className="min-w-0">
           <p className={`font-mono text-xs font-semibold tracking-widest ${config.color}`}>
-            {config.label}
+            {t(config.label)}
           </p>
           <p className="font-sans text-xs text-text-muted truncate">
-            {config.description}
+            {t(config.description)}
           </p>
         </div>
       </div>
@@ -97,7 +100,7 @@ export function PhaseBanner({ phase, activated, activatedAt, triggerConditions }
                       : 'text-text-muted border-bg-border bg-transparent'
                   }`}
                 >
-                  {TRIGGER_LABELS[key]}
+                  {t(TRIGGER_LABELS[key])}
                 </span>
               ))}
           </div>
@@ -105,7 +108,7 @@ export function PhaseBanner({ phase, activated, activatedAt, triggerConditions }
 
         {formattedActivatedAt && (
           <div className="text-right">
-            <p className="font-mono text-[11px] text-text-muted">Activated</p>
+            <p className="font-mono text-[11px] text-text-muted">{t('phase.activated')}</p>
             <p className="font-mono text-xs text-text-secondary">{formattedActivatedAt}</p>
           </div>
         )}

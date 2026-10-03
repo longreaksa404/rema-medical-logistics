@@ -16,61 +16,66 @@ import {
   ChevronLeft,
   ChevronDown,
   X,
+  Sun,
+  Moon,
   type LucideIcon,
 } from 'lucide-react';
 import { Avatar } from './Avatar';
 import { useOutbox } from '../offline';
 import { useMediaQuery } from '../hooks/useMediaQuery';
+import { useI18n, type MessageKey } from '../i18n';
+import { LanguageToggle, ThemeToggle } from './PreferenceToggles';
+import { useTheme } from '../theme/ThemeContext';
 
 const COLLAPSE_KEY = 'rema.sidebar.collapsed';
 
-const ROLE_LABEL: Record<Role, string> = {
-  SUPER_ADMIN: 'Super Admin',
-  EMERGENCY_COORDINATOR: 'Emergency Coord.',
-  HUB_MANAGER: 'Hub Manager',
-  VOLUNTEER: 'Volunteer',
-  VIEWER: 'Viewer',
+const ROLE_LABEL: Record<Role, MessageKey> = {
+  SUPER_ADMIN: 'role.SUPER_ADMIN',
+  EMERGENCY_COORDINATOR: 'role.EMERGENCY_COORDINATOR.short',
+  HUB_MANAGER: 'role.HUB_MANAGER',
+  VOLUNTEER: 'role.VOLUNTEER',
+  VIEWER: 'role.VIEWER',
 };
 
 type Role = 'SUPER_ADMIN' | 'EMERGENCY_COORDINATOR' | 'HUB_MANAGER' | 'VOLUNTEER' | 'VIEWER';
 
 interface NavItem {
-  label: string;
+  label: MessageKey;
   to: string;
   roles?: Role[];
   Icon: LucideIcon;
 }
 
 interface NavGroup {
-  label: string;
+  label: MessageKey;
   collapsible?: boolean;
   items: NavItem[];
 }
 
 const NAV_GROUPS: NavGroup[] = [
   {
-    label: 'Operations',
+    label: 'nav.group.operations',
     items: [
-      { label: 'Dashboard', to: '/dashboard', Icon: LayoutDashboard },
-      { label: 'Routing',   to: '/routing',   Icon: Map,       roles: ['EMERGENCY_COORDINATOR', 'HUB_MANAGER', 'SUPER_ADMIN'] },
-      { label: 'Hub Portal',to: '/hub',       Icon: Building2, roles: ['HUB_MANAGER', 'SUPER_ADMIN', 'EMERGENCY_COORDINATOR'] },
-      { label: 'Volunteer', to: '/volunteer', Icon: UserCheck,  roles: ['VOLUNTEER', 'HUB_MANAGER', 'SUPER_ADMIN'] },
-      { label: 'Event History', to: '/history', Icon: History, roles: ['EMERGENCY_COORDINATOR', 'SUPER_ADMIN', 'VIEWER', 'HUB_MANAGER'] },
+      { label: 'nav.dashboard', to: '/dashboard', Icon: LayoutDashboard },
+      { label: 'nav.routing', to: '/routing',   Icon: Map,       roles: ['EMERGENCY_COORDINATOR', 'HUB_MANAGER', 'SUPER_ADMIN'] },
+      { label: 'nav.hub', to: '/hub',       Icon: Building2, roles: ['HUB_MANAGER', 'SUPER_ADMIN', 'EMERGENCY_COORDINATOR'] },
+      { label: 'nav.volunteer', to: '/volunteer', Icon: UserCheck,  roles: ['VOLUNTEER', 'HUB_MANAGER', 'SUPER_ADMIN'] },
+      { label: 'nav.history', to: '/history', Icon: History, roles: ['EMERGENCY_COORDINATOR', 'SUPER_ADMIN', 'VIEWER', 'HUB_MANAGER'] },
     ],
   },
   {
-    label: 'Reference',
+    label: 'nav.group.reference',
     collapsible: true,
     items: [
-      { label: 'Warehouse',   to: '/warehouse',    Icon: Warehouse },
-      { label: 'Stakeholder', to: '/stakeholders', Icon: GitFork },
-      { label: 'Protocol',    to: '/protocol',     Icon: FileText },
+      { label: 'nav.warehouse', to: '/warehouse',    Icon: Warehouse },
+      { label: 'nav.stakeholders', to: '/stakeholders', Icon: GitFork },
+      { label: 'nav.protocol', to: '/protocol',     Icon: FileText },
     ],
   },
   {
-    label: 'Admin',
+    label: 'nav.group.admin',
     items: [
-      { label: 'Users', to: '/users', Icon: Users, roles: ['SUPER_ADMIN'] },
+      { label: 'nav.users', to: '/users', Icon: Users, roles: ['SUPER_ADMIN'] },
     ],
   },
 ];
@@ -85,6 +90,8 @@ export function Sidebar({ mobileOpen, onMobileClose }: SidebarProps) {
   const navigate = useNavigate();
   const location = useLocation();
   const isDesktop = useMediaQuery('(min-width: 768px)');
+  const { t } = useI18n();
+  const { theme, setPreference } = useTheme();
 
   const [collapsedPref, setCollapsedPref] = useState(() => {
     try { return localStorage.getItem(COLLAPSE_KEY) === '1'; } catch { return false; }
@@ -131,15 +138,13 @@ export function Sidebar({ mobileOpen, onMobileClose }: SidebarProps) {
             className="bg-bg-secondary border border-bg-border rounded-xl p-6 w-80 max-w-[calc(100vw-2rem)] shadow-xl"
             onClick={(e) => e.stopPropagation()}
           >
-            <p className="font-sans text-sm text-text-primary mb-1">Sign out of REMA?</p>
+            <p className="font-sans text-sm text-text-primary mb-1">{t('sidebar.signOutConfirm')}</p>
             <p className="font-mono text-[11px] text-text-muted mb-6">
-              You are signed in as <span className="text-accent-blue">{user?.email}</span>
+              {t('sidebar.signedInAs')} <span className="text-accent-blue">{user?.email}</span>
             </p>
             {unsynced.length > 0 && (
               <p className="font-mono text-[11px] text-accent-orange -mt-4 mb-5 leading-relaxed">
-                {unsynced.length} item{unsynced.length === 1 ? '' : 's'} recorded offline {unsynced.length === 1 ? 'has' : 'have'} not
-                synced yet. {unsynced.length === 1 ? 'It stays' : 'They stay'} on this device and will be sent the next time
-                you sign in here.
+                {t(unsynced.length === 1 ? 'sidebar.unsynced.one' : 'sidebar.unsynced.other', { count: unsynced.length })}
               </p>
             )}
             <div className="flex gap-3">
@@ -147,13 +152,13 @@ export function Sidebar({ mobileOpen, onMobileClose }: SidebarProps) {
                 onClick={handleLogout}
                 className="flex-1 py-2 rounded bg-accent-red/10 border border-accent-red/30 text-accent-red font-mono text-xs hover:bg-accent-red/20 transition-colors"
               >
-                sign out
+                {t('sidebar.signOut')}
               </button>
               <button
                 onClick={() => setShowLogoutConfirm(false)}
                 className="flex-1 py-2 rounded bg-bg-elevated border border-bg-border text-text-secondary font-mono text-xs hover:text-text-primary transition-colors"
               >
-                cancel
+                {t('common.cancel')}
               </button>
             </div>
           </div>
@@ -171,7 +176,7 @@ export function Sidebar({ mobileOpen, onMobileClose }: SidebarProps) {
 
       {/* sidebar */}
       <aside
-        aria-label="Main navigation"
+        aria-label={t('sidebar.mainNav')}
         className={[
           'bg-bg-secondary border-r border-bg-border flex flex-col h-[100dvh] flex-shrink-0',
           'fixed inset-y-0 left-0 z-50 w-64 shadow-2xl transition-transform duration-200',
@@ -196,20 +201,20 @@ export function Sidebar({ mobileOpen, onMobileClose }: SidebarProps) {
                 <span className="font-display font-extrabold text-text-primary text-lg tracking-tight">REMA</span>
                 <span className="w-1.5 h-1.5 rounded-full bg-accent-green animate-pulse-slow" />
               </div>
-              <p className="font-mono text-[11px] text-text-muted">Emergency Medical Access</p>
+              <p className="font-mono text-[11px] text-text-muted">{t('app.tagline')}</p>
             </div>
           )}
           <button
             onClick={toggleCollapsed}
-            title={collapsed ? 'Expand sidebar' : 'Collapse sidebar'}
-            aria-label={collapsed ? 'Expand sidebar' : 'Collapse sidebar'}
+            title={collapsed ? t('sidebar.expand') : t('sidebar.collapse')}
+            aria-label={collapsed ? t('sidebar.expand') : t('sidebar.collapse')}
             className="hidden md:flex w-7 h-7 items-center justify-center rounded-md border border-bg-border text-text-secondary hover:text-text-primary hover:bg-bg-hover transition-colors duration-100 flex-shrink-0"
           >
             {collapsed ? <ChevronRight size={14} /> : <ChevronLeft size={14} />}
           </button>
           <button
             onClick={onMobileClose}
-            aria-label="Close navigation"
+            aria-label={t('sidebar.closeNav')}
             className="md:hidden w-9 h-9 -mr-2 flex items-center justify-center rounded-md text-text-secondary hover:text-text-primary hover:bg-bg-hover"
           >
             <X size={18} />
@@ -219,7 +224,7 @@ export function Sidebar({ mobileOpen, onMobileClose }: SidebarProps) {
         {/* nav groups */}
         <nav
           className="flex-1 px-2 py-3 overflow-y-auto"
-          style={{ scrollbarWidth: 'thin', scrollbarColor: 'rgba(255,255,255,0.08) transparent' }}
+          style={{ scrollbarWidth: 'thin', scrollbarColor: 'rgb(var(--bg-border)) transparent' }}
         >
           {NAV_GROUPS.map((group, gi) => {
             const visibleItems = group.items.filter(
@@ -242,7 +247,7 @@ export function Sidebar({ mobileOpen, onMobileClose }: SidebarProps) {
                       aria-expanded={referenceOpen}
                     >
                       <span className="font-mono text-[10px] text-text-muted uppercase tracking-widest select-none group-hover:text-text-secondary transition-colors duration-100">
-                        {group.label}
+                        {t(group.label)}
                       </span>
                       <ChevronDown
                         size={11}
@@ -253,7 +258,7 @@ export function Sidebar({ mobileOpen, onMobileClose }: SidebarProps) {
                     </button>
                   ) : (
                     <p className="font-mono text-[10px] text-text-muted uppercase tracking-widest px-2 pt-2 pb-1 select-none">
-                      {group.label}
+                      {t(group.label)}
                     </p>
                   )
                 )}
@@ -267,7 +272,7 @@ export function Sidebar({ mobileOpen, onMobileClose }: SidebarProps) {
                     <NavLink
                       key={to}
                       to={to}
-                      title={collapsed ? label : undefined}
+                      title={collapsed ? t(label) : undefined}
                       className={({ isActive }) =>
                         [
                           'relative flex items-center gap-3 px-2.5 py-2 min-h-[38px] rounded-md text-sm transition-colors duration-100',
@@ -288,7 +293,7 @@ export function Sidebar({ mobileOpen, onMobileClose }: SidebarProps) {
                             className={`flex-shrink-0 ${isActive ? 'text-accent-blue' : 'text-text-muted'}`}
                             strokeWidth={1.75}
                           />
-                          {!collapsed && <span className={`font-sans text-sm ${isActive ? 'font-medium' : ''}`}>{label}</span>}
+                          {!collapsed && <span className={`font-sans text-sm ${isActive ? 'font-medium' : ''}`}>{t(label)}</span>}
                         </>
                       )}
                     </NavLink>
@@ -304,14 +309,23 @@ export function Sidebar({ mobileOpen, onMobileClose }: SidebarProps) {
           <div className="px-2 py-4 border-t border-bg-border flex flex-col items-center gap-3">
             <button
               onClick={() => navigate('/profile')}
-              title={`${user?.name} — My Profile`}
+              title={`${user?.name} — ${t('sidebar.myProfile')}`}
               className="hover:opacity-80 transition-opacity duration-100"
             >
               <Avatar name={user?.name} avatarBase64={user?.avatarBase64} size="sm" />
             </button>
             <button
+              onClick={() => setPreference(theme === 'dark' ? 'light' : 'dark')}
+              title={theme === 'dark' ? t('prefs.theme.light') : t('prefs.theme.dark')}
+              aria-label={theme === 'dark' ? t('prefs.theme.light') : t('prefs.theme.dark')}
+              className="text-text-muted hover:text-text-primary transition-colors duration-100"
+            >
+              {theme === 'dark' ? <Sun size={13} strokeWidth={1.75} /> : <Moon size={13} strokeWidth={1.75} />}
+            </button>
+            <button
               onClick={() => setShowLogoutConfirm(true)}
-              title="Sign out"
+              title={t('sidebar.signOut')}
+              aria-label={t('sidebar.signOut')}
               className="text-text-muted hover:text-accent-red transition-colors duration-100"
             >
               <LogOut size={13} strokeWidth={1.75} />
@@ -331,18 +345,22 @@ export function Sidebar({ mobileOpen, onMobileClose }: SidebarProps) {
                   </p>
                   {user?.role && (
                     <p className="font-mono text-[10px] text-text-muted uppercase tracking-wider truncate">
-                      {ROLE_LABEL[user.role as Role] ?? user.role}
+                      {ROLE_LABEL[user.role as Role] ? t(ROLE_LABEL[user.role as Role]) : user.role}
                     </p>
                   )}
                 </div>
               </div>
             </button>
+            <div className="flex items-center justify-between gap-2 px-1 mb-2">
+              <LanguageToggle />
+              <ThemeToggle />
+            </div>
             <button
               onClick={() => setShowLogoutConfirm(true)}
               className="flex items-center gap-1.5 font-mono text-xs text-text-muted hover:text-accent-red transition-colors duration-100 py-1 px-3"
             >
               <LogOut size={12} strokeWidth={1.75} />
-              sign out
+              {t('sidebar.signOut')}
             </button>
           </div>
         )}

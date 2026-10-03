@@ -20,23 +20,24 @@ import type {
 } from '../api/hub';
 import type { DistrictCard } from '../api/dashboard.types';
 import { usePageTitle } from '../hooks/usePageTitle';
+import { useI18n, districtLabel, enumLabel, zoneLabel, type Translate } from '../i18n';
 
 type TabId = 'central' | 'stock' | 'volunteers' | 'deliveries' | 'incidents' | 'radio';
 
 // ─── HELPERS ──────────────────────────────────────────────────────────────────
 
 function fmt(n: number) { return n.toLocaleString(); }
-function timeAgo(iso: string) {
+function timeAgo(t: Translate, iso: string) {
   const diff = Date.now() - new Date(iso).getTime();
   const m = Math.floor(diff / 60000);
-  if (m < 1) return 'just now';
-  if (m < 60) return `${m}m ago`;
+  if (m < 1) return t('time.justNow');
+  if (m < 60) return t('time.minutesAgo', { n: m });
   const h = Math.floor(m / 60);
-  if (h < 24) return `${h}h ago`;
-  return `${Math.floor(h / 24)}d ago`;
+  if (h < 24) return t('time.hoursAgo', { n: h });
+  return t('time.daysAgo', { n: Math.floor(h / 24) });
 }
-function fmtTime(iso: string) {
-  return new Date(iso).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' });
+function fmtTime(iso: string, locale: string) {
+  return new Date(iso).toLocaleTimeString(locale, { hour: '2-digit', minute: '2-digit' });
 }
 
 // ─── SKELETON ─────────────────────────────────────────────────────────────────
@@ -110,6 +111,7 @@ function StockTab({ districtId, subWarehouseId }: {
   subWarehouseId: string | null;
 }) {
   const queryClient = useQueryClient();
+  const { t } = useI18n();
   const [success, setSuccess] = useState('');
   const [movPage, setMovPage] = useState(1);
 
@@ -179,7 +181,7 @@ function StockTab({ districtId, subWarehouseId }: {
   const dispatchMutation = useMutation({
     mutationFn: hubApi.dispatch,
     onSuccess: (_, vars) => {
-      setSuccess(`Dispatched ${vars.quantity}× ${vars.emkType} from central to sub-warehouse.`);
+      setSuccess(t('hub.stock.dispatched', { qty: vars.quantity, emk: vars.emkType }));
       setDispQty(''); setDispReason('');
       invalidateStock();
     },
@@ -188,7 +190,7 @@ function StockTab({ districtId, subWarehouseId }: {
   const adjustMutation = useMutation({
     mutationFn: hubApi.adjust,
     onSuccess: (_, vars) => {
-      setSuccess(`Adjustment: ${Number(vars.quantity) > 0 ? '+' : ''}${vars.quantity}× ${vars.emkType}.`);
+      setSuccess(t('hub.stock.adjusted', { qty: `${Number(vars.quantity) > 0 ? '+' : ''}${vars.quantity}`, emk: vars.emkType }));
       setAdjQty(''); setAdjReason('');
       invalidateStock();
     },
@@ -198,7 +200,7 @@ function StockTab({ districtId, subWarehouseId }: {
     mutationFn: hubApi.reallocate,
     onSuccess: (_, vars) => {
       const target = otherSubWarehouses.find(s => s.subWarehouseId === vars.toSubWarehouseId);
-      setSuccess(`Reallocated ${vars.quantity}× ${vars.emkType} to ${target?.districtName ?? 'other district'}.`);
+      setSuccess(t('hub.stock.reallocated', { qty: vars.quantity, emk: vars.emkType, district: target?.districtName ? districtLabel(t, target.districtName) : t('hub.stock.otherDistrict') }));
       setRealQty(''); setRealReason(''); setRealToSwId('');
       invalidateStock();
     },
@@ -264,8 +266,8 @@ function StockTab({ districtId, subWarehouseId }: {
 
       {/* ── SUB-WAREHOUSE STOCK LEVELS ─────────────────────────────────────── */}
       <div>
-        <SectionTitle sub="Remaining / Total allocation for this sub-warehouse">
-          Sub-Warehouse Stock Levels
+        <SectionTitle sub={t('hub.stock.levelsSub')}>
+          {t('hub.stock.levels')}
         </SectionTitle>
         {stock ? (
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
@@ -282,17 +284,17 @@ function StockTab({ districtId, subWarehouseId }: {
                     <span className={`font-mono text-sm font-bold ${EMK_COLORS[type]}`}>{type}</span>
                     {scarce && (
                       <span className="font-mono text-[10px] text-accent-red bg-accent-red/10 px-1.5 py-0.5 rounded border border-accent-red/30 animate-pulse">
-                        ⚠ SCARCE
+                        ⚠ {t('dash.scarce')}
                       </span>
                     )}
                     {!scarce && above && (
                       <span className="font-mono text-[10px] text-accent-blue bg-accent-blue/10 px-1.5 py-0.5 rounded border border-accent-blue/30">
-                        ↑ EXTRA
+                        ↑ {t('hub.stock.extra')}
                       </span>
                     )}
                   </div>
                   <p className="font-mono text-2xl font-bold text-text-primary">{fmt(rem)}</p>
-                  <p className="font-mono text-[11px] text-text-muted mt-0.5">of {fmt(total)} · {pct}%</p>
+                  <p className="font-mono text-[11px] text-text-muted mt-0.5">{t('hub.stock.ofTotal', { total: fmt(total) })} · {pct}%</p>
                   <div className="mt-2 h-1.5 bg-bg-border rounded-full overflow-hidden">
                     <div
                       className={`h-full rounded-full transition-all duration-500 ${
@@ -303,12 +305,12 @@ function StockTab({ districtId, subWarehouseId }: {
                   </div>
                   {above && (
                     <p className="font-mono text-[10px] text-accent-blue mt-1.5">
-                      ↑ Above allocation — extra resupply received
+                      ↑ {t('hub.stock.aboveAllocation')}
                     </p>
                   )}
                   {type === 'EMK3' && total === 0 && (
                     <p className="font-mono text-[10px] text-text-muted mt-1.5">
-                      MoH cold storage — transferred at activation
+                      {t('hub.stock.mohCold')}
                     </p>
                   )}
                 </div>
@@ -316,7 +318,7 @@ function StockTab({ districtId, subWarehouseId }: {
             })}
           </div>
         ) : (
-          <Empty message="No stock record found for this district." />
+          <Empty message={t('hub.stock.noRecord')} />
         )}
       </div>
 
@@ -325,16 +327,16 @@ function StockTab({ districtId, subWarehouseId }: {
 
         {/* Dispatch */}
         <div className="card p-5 flex flex-col">
-          <SectionTitle sub="Moves stock from central warehouse → this sub-warehouse">
-            Record Dispatch
+          <SectionTitle sub={t('hub.stock.dispatchSub')}>
+            {t('hub.stock.dispatch')}
           </SectionTitle>
 
           {centralAvailable !== null && (
             <div className="mb-3 bg-bg-elevated rounded px-3 py-2 border border-bg-border">
               <p className="font-mono text-[11px] text-text-muted">
-                Central available —{' '}
+                {t('hub.stock.centralAvailable')} —{' '}
                 <span className={EMK_COLORS[dispEmkType]}>
-                  {dispEmkType}: {fmt(centralAvailable)} units
+                  {dispEmkType}: {t('hub.stock.units', { n: fmt(centralAvailable) })}
                 </span>
               </p>
             </div>
@@ -343,23 +345,23 @@ function StockTab({ districtId, subWarehouseId }: {
           <div className="space-y-3 flex flex-col flex-1">
             <div className="grid grid-cols-2 gap-3">
               <div>
-                <label className="label">EMK Type</label>
+                <label className="label">{t('hub.emkType')}</label>
                 <select
                   value={dispEmkType}
                   onChange={e => setDispEmkType(e.target.value as 'EMK1' | 'EMK2' | 'EMK3')}
                   className="input">
-                  {EMK_TYPES.map(t => <option key={t} value={t}>{t}</option>)}
+                  {EMK_TYPES.map(et => <option key={et} value={et}>{et}</option>)}
                 </select>
               </div>
               <div>
-                <label className="label">Quantity</label>
+                <label className="label">{t('hub.quantity')}</label>
                 <input type="number" min="1" className="input" placeholder="e.g. 200"
                   value={dispQty} onChange={e => setDispQty(e.target.value)} />
               </div>
             </div>
             <div>
-              <label className="label">Reason (optional)</label>
-              <input type="text" className="input" placeholder="Phase 1 resupply..."
+              <label className="label">{t('hub.reasonOptional')}</label>
+              <input type="text" className="input" placeholder={t('hub.stock.dispatchReasonPh')}
                 value={dispReason} onChange={e => setDispReason(e.target.value)} />
             </div>
             <div className="mt-auto pt-2">
@@ -375,10 +377,10 @@ function StockTab({ districtId, subWarehouseId }: {
                 }}
                 disabled={dispatchMutation.isPending || !dispQty || !subWarehouseId}
                 className="btn-primary w-full">
-                {dispatchMutation.isPending ? 'Dispatching...' : 'Dispatch to Sub-Warehouse'}
+                {dispatchMutation.isPending ? t('hub.stock.dispatching') : t('hub.stock.dispatchBtn')}
               </button>
               {!subWarehouseId && (
-                <p className="font-mono text-[11px] text-accent-orange mt-2">No sub-warehouse assigned.</p>
+                <p className="font-mono text-[11px] text-accent-orange mt-2">{t('hub.noSubWarehouse')}</p>
               )}
             </div>
           </div>
@@ -386,47 +388,47 @@ function StockTab({ districtId, subWarehouseId }: {
 
         {/* Reallocate */}
         <div className="card p-5 flex flex-col">
-          <SectionTitle sub="Send surplus stock to another district's sub-warehouse">
-            Reallocate to District
+          <SectionTitle sub={t('hub.stock.reallocSub')}>
+            {t('hub.stock.realloc')}
           </SectionTitle>
           <div className="space-y-3 flex flex-col flex-1">
 
             <div className="grid grid-cols-2 gap-3">
               <div>
-                <label className="label">EMK Type</label>
+                <label className="label">{t('hub.emkType')}</label>
                 <select
                   value={realEmkType}
                   onChange={e => setRealEmkType(e.target.value as 'EMK1' | 'EMK2' | 'EMK3')}
                   className="input">
-                  {EMK_TYPES.map(t => <option key={t} value={t}>{t}</option>)}
+                  {EMK_TYPES.map(et => <option key={et} value={et}>{et}</option>)}
                 </select>
               </div>
               <div>
-                <label className="label">Quantity</label>
+                <label className="label">{t('hub.quantity')}</label>
                 <input
                   type="number" min="1" className="input" placeholder="e.g. 100"
                   value={realQty} onChange={e => setRealQty(e.target.value)} />
                 {realQty && realFromRemaining !== null && Number(realQty) > realFromRemaining && (
                   <p className="font-mono text-[11px] text-accent-red mt-1">
-                    Exceeds available ({fmt(realFromRemaining)}).
+                    {t('hub.stock.exceeds', { n: fmt(realFromRemaining) })}
                   </p>
                 )}
               </div>
             </div>
 
             <div>
-              <label className="label">To District</label>
+              <label className="label">{t('hub.stock.toDistrict')}</label>
               {otherSubWarehouses.length === 0 ? (
-                <p className="font-mono text-[11px] text-text-muted">No other sub-warehouses found.</p>
+                <p className="font-mono text-[11px] text-text-muted">{t('hub.stock.noOthers')}</p>
               ) : (
                 <select
                   value={realToSwId}
                   onChange={e => setRealToSwId(e.target.value)}
                   className="input">
-                  <option value="">Select destination...</option>
+                  <option value="">{t('hub.stock.selectDest')}</option>
                   {otherSubWarehouses.map(s => (
                     <option key={s.subWarehouseId} value={s.subWarehouseId}>
-                      {s.districtName}
+                      {districtLabel(t, s.districtName)}
                     </option>
                   ))}
                 </select>
@@ -434,10 +436,10 @@ function StockTab({ districtId, subWarehouseId }: {
             </div>
 
             <div>
-              <label className="label">Reason (required)</label>
+              <label className="label">{t('hub.reasonRequired')}</label>
               <input
                 type="text" className="input"
-                placeholder="e.g. Mean Chey critically low on EMK1"
+                placeholder={t('hub.stock.reallocReasonPh')}
                 value={realReason} onChange={e => setRealReason(e.target.value)} />
             </div>
 
@@ -459,10 +461,10 @@ function StockTab({ districtId, subWarehouseId }: {
                   (realFromRemaining !== null && Number(realQty) > realFromRemaining)
                 }
                 className="w-full font-mono text-xs py-2.5 rounded border border-accent-blue/40 text-accent-blue hover:bg-accent-blue/10 transition-all disabled:opacity-40">
-                {reallocateMutation.isPending ? 'Reallocating...' : '⇄ Reallocate Stock'}
+                {reallocateMutation.isPending ? t('hub.stock.reallocating') : `⇄ ${t('hub.stock.reallocBtn')}`}
               </button>
               {!subWarehouseId && (
-                <p className="font-mono text-[11px] text-accent-orange mt-2">No sub-warehouse assigned.</p>
+                <p className="font-mono text-[11px] text-accent-orange mt-2">{t('hub.noSubWarehouse')}</p>
               )}
             </div>
           </div>
@@ -470,29 +472,29 @@ function StockTab({ districtId, subWarehouseId }: {
 
         {/* Adjust */}
         <div className="card p-5 flex flex-col">
-          <SectionTitle sub="Manual correction with mandatory reason">
-            Manual Adjustment
+          <SectionTitle sub={t('hub.stock.adjustSub')}>
+            {t('hub.stock.adjust')}
           </SectionTitle>
           <div className="space-y-3 flex flex-col flex-1">
             <div className="grid grid-cols-2 gap-3">
               <div>
-                <label className="label">EMK Type</label>
+                <label className="label">{t('hub.emkType')}</label>
                 <select
                   value={adjEmkType}
                   onChange={e => setAdjEmkType(e.target.value as 'EMK1' | 'EMK2' | 'EMK3')}
                   className="input">
-                  {EMK_TYPES.map(t => <option key={t} value={t}>{t}</option>)}
+                  {EMK_TYPES.map(et => <option key={et} value={et}>{et}</option>)}
                 </select>
               </div>
               <div>
-                <label className="label">Quantity (+/−)</label>
-                <input type="number" className="input" placeholder="-5 or +10"
+                <label className="label">{t('hub.stock.qtyPlusMinus')}</label>
+                <input type="number" className="input" placeholder={t('hub.stock.adjustQtyPh')}
                   value={adjQty} onChange={e => setAdjQty(e.target.value)} />
               </div>
             </div>
             <div>
-              <label className="label">Reason (required)</label>
-              <input type="text" className="input" placeholder="e.g. Water-damaged kits removed"
+              <label className="label">{t('hub.reasonRequired')}</label>
+              <input type="text" className="input" placeholder={t('hub.stock.adjustReasonPh')}
                 value={adjReason} onChange={e => setAdjReason(e.target.value)} />
             </div>
             <div className="mt-auto pt-2">
@@ -508,7 +510,7 @@ function StockTab({ districtId, subWarehouseId }: {
                 }}
                 disabled={adjustMutation.isPending || !adjQty || !adjReason.trim() || !subWarehouseId}
                 className="btn-ghost w-full">
-                {adjustMutation.isPending ? 'Adjusting...' : 'Record Adjustment'}
+                {adjustMutation.isPending ? t('hub.stock.adjusting') : t('hub.stock.adjustBtn')}
               </button>
             </div>
           </div>
@@ -517,17 +519,17 @@ function StockTab({ districtId, subWarehouseId }: {
 
       {/* ── AUDIT LOG ──────────────────────────────────────────────────────── */}
       <div>
-        <SectionTitle sub={`Page ${movPage} of ${movTotalPages} — 20 per page`}>Audit Log</SectionTitle>
+        <SectionTitle sub={t('hub.pageOf', { page: movPage, pages: movTotalPages })}>{t('hub.auditLog')}</SectionTitle>
         <div className="card divide-y divide-bg-border">
           {movements.length === 0 ? (
-            <Empty message="No movements yet." />
+            <Empty message={t('hub.noMovements')} />
           ) : (
             movements.map((m: StockMovement) => (
               <div key={m.id} className="px-4 py-3 flex items-start justify-between gap-3">
                 <div className="min-w-0 flex-1">
                   <div className="flex items-center gap-2 flex-wrap mb-0.5">
                     <span className={`font-mono text-[11px] px-1.5 py-0.5 rounded border ${MOVE_COLORS[m.movementType] ?? 'text-text-muted border-bg-border'}`}>
-                      {m.movementType}
+                      {enumLabel(t, 'movementType', m.movementType)}
                     </span>
                     <span className={`font-mono text-xs font-semibold ${EMK_COLORS[m.emkType]}`}>{m.emkType}</span>
                     <span className={`font-mono text-sm font-bold ${m.quantity > 0 ? 'text-accent-green' : 'text-accent-red'}`}>
@@ -535,9 +537,9 @@ function StockTab({ districtId, subWarehouseId }: {
                     </span>
                   </div>
                   {m.reason && <p className="font-mono text-[11px] text-text-muted truncate">{m.reason}</p>}
-                  <p className="font-mono text-[11px] text-text-muted mt-0.5">by {m.performedBy?.name ?? '—'}</p>
+                  <p className="font-mono text-[11px] text-text-muted mt-0.5">{t('hub.by', { name: m.performedBy?.name ?? '—' })}</p>
                 </div>
-                <span className="font-mono text-[11px] text-text-muted flex-shrink-0">{timeAgo(m.createdAt)}</span>
+                <span className="font-mono text-[11px] text-text-muted flex-shrink-0">{timeAgo(t, m.createdAt)}</span>
               </div>
             ))
           )}
@@ -549,17 +551,17 @@ function StockTab({ districtId, subWarehouseId }: {
               onClick={() => setMovPage(p => Math.max(1, p - 1))}
               disabled={movPage === 1}
               className="font-mono text-xs px-3 py-1.5 rounded border border-bg-border text-text-muted hover:text-text-primary disabled:opacity-30 transition-colors">
-              ← Prev
+              ← {t('common.prev')}
             </button>
             <span className="font-mono text-[11px] text-text-muted">
               {movPage} / {movTotalPages}
-              {movResult && <span className="ml-2 text-text-muted">({movResult.total} total)</span>}
+              {movResult && <span className="ml-2 text-text-muted">({t('hub.nTotal', { n: movResult.total })})</span>}
             </span>
             <button
               onClick={() => setMovPage(p => Math.min(movTotalPages, p + 1))}
               disabled={movPage === movTotalPages}
               className="font-mono text-xs px-3 py-1.5 rounded border border-bg-border text-text-muted hover:text-text-primary disabled:opacity-30 transition-colors">
-              Next →
+              {t('common.next')} →
             </button>
           </div>
         )}
@@ -573,6 +575,7 @@ function StockTab({ districtId, subWarehouseId }: {
 
 function VolunteersTab({ districtId, subWarehouseId }: { districtId: string; subWarehouseId: string | null }) {
   const queryClient = useQueryClient();
+  const { t, locale } = useI18n();
   const [success, setSuccess] = useState('');
 
   const [selectedTeamNum, setSelectedTeamNum] = useState<number | 'new'>(1);
@@ -679,7 +682,7 @@ function VolunteersTab({ districtId, subWarehouseId }: { districtId: string; sub
       memberIds: selectedMemberIds,
     }),
     onSuccess: () => {
-      setSuccess(`Team ${resolvedTeamNum} deployed to ${selectedZone}.`);
+      setSuccess(t('hub.vol.deployed', { n: resolvedTeamNum, zone: zoneLabel(t, selectedZone) }));
       setSelectedLeaderId('');
       setSelectedMemberIds([]);
       invalidateRoster();
@@ -690,7 +693,7 @@ function VolunteersTab({ districtId, subWarehouseId }: { districtId: string; sub
     mutationFn: ({ id, role }: { id: string; role: 'TEAM_LEADER' | 'VOLUNTEER' }) =>
       hubApi.setVolunteerRole(id, role),
     onSuccess: (_, vars) => {
-      setSuccess(vars.role === 'TEAM_LEADER' ? 'Promoted to Team Leader.' : 'Returned to Volunteer.');
+      setSuccess(vars.role === 'TEAM_LEADER' ? t('hub.vol.promoted') : t('hub.vol.demoted'));
       invalidateRoster();
     },
   });
@@ -699,7 +702,7 @@ function VolunteersTab({ districtId, subWarehouseId }: { districtId: string; sub
     mutationFn: ({ id, status }: { id: string; status: 'AVAILABLE' | 'INACTIVE' }) =>
       hubApi.updateVolunteer(id, { status }),
     onSuccess: (_, vars) => {
-      setSuccess(`Volunteer set to ${vars.status}.`);
+      setSuccess(t('hub.vol.statusSet', { status: enumLabel(t, 'volunteerStatus', vars.status) }));
       invalidateRoster();
     },
   });
@@ -711,7 +714,7 @@ function VolunteersTab({ districtId, subWarehouseId }: { districtId: string; sub
       phone: communityPhone.trim(),
     }),
     onSuccess: () => {
-      setSuccess(`${communityName.trim()} added as community volunteer.`);
+      setSuccess(t('hub.vol.communityAdded', { name: communityName.trim() }));
       setCommunityName('');
       setCommunityPhone('');
       invalidateRoster();
@@ -721,7 +724,7 @@ function VolunteersTab({ districtId, subWarehouseId }: { districtId: string; sub
   const deleteTeamMutation = useMutation({
     mutationFn: (teamNum: number) => hubApi.deleteTeam(districtId, alertId, teamNum),
     onSuccess: (_, teamNum) => {
-      setSuccess(`Team ${teamNum} removed.`);
+      setSuccess(t('hub.vol.teamRemoved', { n: teamNum }));
       // if deleted team was selected, fall back to team 1
       if (selectedTeamNum === teamNum) setSelectedTeamNum(1);
       invalidateRoster();
@@ -757,8 +760,8 @@ function VolunteersTab({ districtId, subWarehouseId }: { districtId: string; sub
   const removableTeams = localExtraTeams.filter(n => !existingTeamNumbers.includes(n));
 
   const teamOptions: Array<{ label: string; value: number | 'new' }> = [
-    ...allTeamNums.map(n => ({ label: `Team ${n}`, value: n as number })),
-    { label: `+ New Team (Team ${nextTeamNumber})`, value: 'new' as const },
+    ...allTeamNums.map(n => ({ label: t('hub.team', { n }), value: n as number })),
+    { label: `+ ${t('hub.vol.newTeam', { n: nextTeamNumber })}`, value: 'new' as const },
   ];
 
   if ((rosterPending && !roster) || (runsPending && !runsResult)) {
@@ -795,22 +798,22 @@ function VolunteersTab({ districtId, subWarehouseId }: { districtId: string; sub
       {roster && (
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
           <div className="card px-4 py-3">
-            <p className="font-mono text-[11px] text-text-muted uppercase tracking-widest mb-1">Total</p>
+            <p className="font-mono text-[11px] text-text-muted uppercase tracking-widest mb-1">{t('common.total')}</p>
             <p className={`font-mono text-2xl font-bold ${roster.belowMinimum ? 'text-accent-red' : 'text-text-primary'}`}>
               {roster.total}
             </p>
-            <p className="font-mono text-[11px] text-text-muted">min. 12</p>
+            <p className="font-mono text-[11px] text-text-muted">{t('hub.vol.min12')}</p>
           </div>
           <div className="card px-4 py-3">
-            <p className="font-mono text-[11px] text-text-muted uppercase tracking-widest mb-1">Team Leaders</p>
+            <p className="font-mono text-[11px] text-text-muted uppercase tracking-widest mb-1">{t('hub.vol.teamLeaders')}</p>
             <p className="font-mono text-2xl font-bold text-accent-blue">{roster.teamLeaders}</p>
           </div>
           <div className="card px-4 py-3">
-            <p className="font-mono text-[11px] text-text-muted uppercase tracking-widest mb-1">Available</p>
+            <p className="font-mono text-[11px] text-text-muted uppercase tracking-widest mb-1">{t('volunteerStatus.AVAILABLE')}</p>
             <p className="font-mono text-2xl font-bold text-accent-green">{availableVols.length}</p>
           </div>
           <div className="card px-4 py-3">
-            <p className="font-mono text-[11px] text-text-muted uppercase tracking-widest mb-1">Deployed</p>
+            <p className="font-mono text-[11px] text-text-muted uppercase tracking-widest mb-1">{t('volunteerStatus.DEPLOYED')}</p>
             <p className="font-mono text-2xl font-bold text-accent-orange">{deployedCount}</p>
           </div>
         </div>
@@ -829,14 +832,14 @@ function VolunteersTab({ districtId, subWarehouseId }: { districtId: string; sub
         <div className="card p-5">
           <div className="flex items-center justify-between mb-4">
             <div>
-              <h3 className="font-display font-bold text-text-primary">Team Setup</h3>
+              <h3 className="font-display font-bold text-text-primary">{t('hub.vol.teamSetup')}</h3>
               <p className="font-mono text-[11px] text-text-muted mt-0.5">
-                Assign a team leader and members before starting a delivery run
+                {t('hub.vol.teamSetupSub')}
               </p>
             </div>
             {!alertId && (
               <span className="font-mono text-[10px] text-accent-orange bg-accent-orange/10 px-2 py-0.5 rounded border border-accent-orange/30 flex-shrink-0">
-                Activate REMA first
+                {t('hub.vol.activateFirst')}
               </span>
             )}
           </div>
@@ -845,7 +848,7 @@ function VolunteersTab({ districtId, subWarehouseId }: { districtId: string; sub
             {/* team + zone row */}
             <div className="grid grid-cols-2 gap-3">
               <div className="relative">
-                <label className="label">Team</label>
+                <label className="label">{t('hub.teamLabel')}</label>
                 {/* custom dropdown — needed so each row can have a delete button */}
                 <div className="relative">
                   <button
@@ -854,8 +857,8 @@ function VolunteersTab({ districtId, subWarehouseId }: { districtId: string; sub
                     className="input w-full text-left flex items-center justify-between">
                     <span>
                       {selectedTeamNum === 'new'
-                        ? `+ New Team (Team ${nextTeamNumber})`
-                        : `Team ${selectedTeamNum}`}
+                        ? `+ ${t('hub.vol.newTeam', { n: nextTeamNumber })}`
+                        : t('hub.team', { n: selectedTeamNum })}
                     </span>
                     <span className="text-text-muted text-xs">▾</span>
                   </button>
@@ -873,7 +876,7 @@ function VolunteersTab({ districtId, subWarehouseId }: { districtId: string; sub
                             <span
                               className="flex-1 font-mono text-sm"
                               onClick={() => { setSelectedTeamNum(n); setTeamDropdownOpen(false); }}>
-                              Team {n}
+                              {t('hub.team', { n })}
                             </span>
                             {isRemovable ? (
                               // locally added, not in DB yet
@@ -885,7 +888,7 @@ function VolunteersTab({ districtId, subWarehouseId }: { districtId: string; sub
                                   setTeamDropdownOpen(false);
                                 }}
                                 className="ml-2 font-mono text-[11px] text-accent-red hover:text-accent-red/70 px-1 py-0.5 rounded hover:bg-accent-red/10 transition-colors"
-                                title="Remove team">
+                                title={t('hub.vol.removeTeam')}>
                                 ✕
                               </button>
                             ) : n > 3 ? (
@@ -898,7 +901,7 @@ function VolunteersTab({ districtId, subWarehouseId }: { districtId: string; sub
                                 }}
                                 disabled={deleteTeamMutation.isPending}
                                 className="ml-2 font-mono text-[11px] text-accent-red hover:text-accent-red/70 px-1 py-0.5 rounded hover:bg-accent-red/10 transition-colors"
-                                title="Remove team">
+                                title={t('hub.vol.removeTeam')}>
                                 ✕
                               </button>
                             ) : null}
@@ -914,20 +917,20 @@ function VolunteersTab({ districtId, subWarehouseId }: { districtId: string; sub
                           setTeamDropdownOpen(false);
                         }}
                         className="flex items-center px-3 py-2 cursor-pointer hover:bg-bg-elevated text-accent-green border-t border-bg-border transition-colors">
-                        <span className="font-mono text-sm">+ New Team (Team {nextTeamNumber})</span>
+                        <span className="font-mono text-sm">+ {t('hub.vol.newTeam', { n: nextTeamNumber })}</span>
                       </div>
                     </div>
                   )}
                 </div>
               </div>
               <div>
-                <label className="label">Zone</label>
+                <label className="label">{t('hub.zoneLabel')}</label>
                 <select
                   value={selectedZone}
                   onChange={e => setSelectedZone(e.target.value)}
                   disabled={isTeamCurrentlyDeployed}
                   className="input">
-                  {['Zone A', 'Zone B', 'Zone C'].map(z => <option key={z}>{z}</option>)}
+                  {['Zone A', 'Zone B', 'Zone C'].map(z => <option key={z} value={z}>{zoneLabel(t, z)}</option>)}
                 </select>
               </div>
             </div>
@@ -938,20 +941,20 @@ function VolunteersTab({ districtId, subWarehouseId }: { districtId: string; sub
                 {removableTeams.map(n => (
                   <span key={n}
                     className="flex items-center gap-1 font-mono text-[11px] px-2 py-0.5 rounded border border-bg-border text-text-muted bg-bg-elevated">
-                    Team {n}
+                    {t('hub.team', { n })}
                     <button
                       onClick={() => {
                         setLocalExtraTeams(p => p.filter(x => x !== n));
                         if (selectedTeamNum === n) setSelectedTeamNum(1);
                       }}
                       className="ml-0.5 text-accent-red hover:text-accent-red/80 transition-colors"
-                      title="Remove team">
+                      title={t('hub.vol.removeTeam')}>
                       ✕
                     </button>
                   </span>
                 ))}
                 <p className="font-mono text-[10px] text-text-muted">
-                  Unsaved — disappears on reload if not deployed
+                  {t('hub.vol.unsaved')}
                 </p>
               </div>
             )}
@@ -967,18 +970,18 @@ function VolunteersTab({ districtId, subWarehouseId }: { districtId: string; sub
                 }`}>
                   <div className="flex items-center justify-between mb-1">
                     <p className="font-mono text-[11px] text-text-muted uppercase tracking-widest">
-                      Current Team {resolvedTeamNum}
+                      {t('hub.vol.currentTeam', { n: resolvedTeamNum })}
                     </p>
                     {isTeamLocked && (
                       <span className="font-mono text-[10px] px-1.5 py-0.5 rounded border text-accent-green border-accent-green/30 bg-accent-green/5">
-                        IN FIELD
+                        {t('hub.vol.inField')}
                       </span>
                     )}
                   </div>
                   {existingTeamTL && (
                     <div className="flex items-center gap-2">
                       <span className="font-mono text-[10px] px-1.5 py-0.5 rounded border text-accent-blue border-accent-blue/30 bg-accent-blue/5 flex-shrink-0">
-                        TL
+                        {t('hub.vol.tl')}
                       </span>
                       <span className="font-sans text-sm text-text-primary">{existingTeamTL.name}</span>
                     </div>
@@ -986,16 +989,16 @@ function VolunteersTab({ districtId, subWarehouseId }: { districtId: string; sub
                   {existingTeamVols.map((v: Volunteer) => (
                     <div key={v.id} className="flex items-center gap-2">
                       <span className="font-mono text-[10px] px-1.5 py-0.5 rounded border text-text-muted border-bg-border flex-shrink-0">
-                        V
+                        {t('hub.vol.v')}
                       </span>
                       <span className="font-sans text-sm text-text-secondary">{v.name}</span>
                     </div>
                   ))}
                   <div className="pt-2 border-t border-bg-border">
                     <p className="font-mono text-[10px] text-text-muted">
-                      {existingZone}
+                      {zoneLabel(t, existingZone)}
                       {activeRunForTeam && (
-                        ` · departed ${fmtTime(activeRunForTeam.departedAt)} · ${new Set(activeRunForTeam.receipts?.map(r => r.householdId) ?? []).size} delivered`
+                        ` · ${t('hub.departedAt', { time: fmtTime(activeRunForTeam.departedAt, locale) })} · ${new Set(activeRunForTeam.receipts?.map(r => r.householdId) ?? []).size} ${t('routing.delivered')}`
                       )}
                     </p>
                   </div>
@@ -1003,7 +1006,7 @@ function VolunteersTab({ districtId, subWarehouseId }: { districtId: string; sub
                 {isTeamLocked && (
                   <div className="bg-accent-orange/10 border border-accent-orange/20 rounded px-3 py-2">
                     <p className="font-mono text-[11px] text-accent-orange">
-                      Team {resolvedTeamNum} is in the field. Complete or abort their run in the Deliveries tab to redeploy.
+                      {t('hub.vol.inFieldHint', { n: resolvedTeamNum })}
                     </p>
                   </div>
                 )}
@@ -1012,17 +1015,17 @@ function VolunteersTab({ districtId, subWarehouseId }: { districtId: string; sub
               // setup form — new team or team returned from field
               <div className="space-y-3">
                 <div>
-                  <label className="label">Team Leader</label>
+                  <label className="label">{t('volunteerRole.TEAM_LEADER')}</label>
                   {availableTLs.length === 0 ? (
                     <p className="font-mono text-[11px] text-accent-orange">
-                      No available team leaders. Promote one in the roster below.
+                      {t('hub.vol.noTLs')}
                     </p>
                   ) : (
                     <select
                       value={selectedLeaderId}
                       onChange={e => setSelectedLeaderId(e.target.value)}
                       className="input">
-                      <option value="">Select team leader...</option>
+                      <option value="">{t('hub.vol.selectTL')}</option>
                       {availableTLs.map((v: Volunteer) => (
                         <option key={v.id} value={v.id}>{v.name}</option>
                       ))}
@@ -1032,14 +1035,14 @@ function VolunteersTab({ districtId, subWarehouseId }: { districtId: string; sub
 
                 <div>
                   <label className="label">
-                    Members
+                    {t('hub.vol.members')}
                     <span className="font-mono text-[10px] text-text-muted normal-case ml-2">
-                      {selectedMemberIds.length} selected
+                      {t('hub.vol.nSelected', { n: selectedMemberIds.length })}
                     </span>
                   </label>
                   {availableMembers.length === 0 ? (
                     <p className="font-mono text-[11px] text-text-muted">
-                      No available volunteers.
+                      {t('hub.vol.noAvailable')}
                     </p>
                   ) : (
                     <div className="space-y-1 max-h-44 overflow-y-auto">
@@ -1077,13 +1080,13 @@ function VolunteersTab({ districtId, subWarehouseId }: { districtId: string; sub
                   disabled={!canDeploy || deployTeamMutation.isPending}
                   className="btn-primary w-full">
                   {deployTeamMutation.isPending
-                    ? 'Deploying...'
-                    : `Deploy Team ${resolvedTeamNum} → ${selectedZone}`}
+                    ? t('hub.vol.deploying')
+                    : t('hub.vol.deployBtn', { n: resolvedTeamNum, zone: zoneLabel(t, selectedZone) })}
                 </button>
 
                 {!alertId && (
                   <p className="font-mono text-[10px] text-text-muted text-center">
-                    REMA must be activated before deploying teams
+                    {t('hub.vol.mustActivate')}
                   </p>
                 )}
               </div>
@@ -1094,28 +1097,28 @@ function VolunteersTab({ districtId, subWarehouseId }: { districtId: string; sub
         {/* add community volunteer */}
         <div className="card p-5">
           <div className="mb-4">
-            <h3 className="font-display font-bold text-text-primary">Add Community Volunteer</h3>
+            <h3 className="font-display font-bold text-text-primary">{t('hub.vol.addCommunity')}</h3>
             <p className="font-mono text-[11px] text-text-muted mt-0.5">
-              Field helper with no login account
+              {t('hub.vol.addCommunitySub')}
             </p>
           </div>
           <div className="space-y-3">
             <div>
-              <label className="label">Full Name</label>
+              <label className="label">{t('users.fullName')}</label>
               <input
                 type="text"
                 className="input"
-                placeholder="e.g. Sok Dara"
+                placeholder={t('users.namePlaceholder')}
                 value={communityName}
                 onChange={e => setCommunityName(e.target.value)}
               />
             </div>
             <div>
-              <label className="label">Phone</label>
+              <label className="label">{t('profile.phone')}</label>
               <input
                 type="tel"
                 className="input"
-                placeholder="e.g. 012 345 678"
+                placeholder={t('hub.vol.phonePh')}
                 value={communityPhone}
                 onChange={e => setCommunityPhone(e.target.value)}
               />
@@ -1124,11 +1127,10 @@ function VolunteersTab({ districtId, subWarehouseId }: { districtId: string; sub
               onClick={() => communityMutation.mutate()}
               disabled={communityMutation.isPending || !communityName.trim() || !communityPhone.trim()}
               className="btn-primary w-full">
-              {communityMutation.isPending ? 'Adding...' : 'Add to Roster'}
+              {communityMutation.isPending ? t('hub.vol.adding') : t('hub.vol.addToRoster')}
             </button>
             <p className="font-mono text-[11px] text-text-muted">
-              Community volunteers appear in the roster but cannot log in to REMA.
-              For full access, ask SUPER_ADMIN to create a VOLUNTEER account instead.
+              {t('hub.vol.communityNote')}
             </p>
           </div>
         </div>
@@ -1136,12 +1138,12 @@ function VolunteersTab({ districtId, subWarehouseId }: { districtId: string; sub
 
       {/* ── FULL ROSTER TABLE ─────────────────────────────────────────────── */}
       <div>
-        <SectionTitle>Full Roster</SectionTitle>
+        <SectionTitle>{t('hub.vol.roster')}</SectionTitle>
         <div className="card overflow-x-auto">
           <table className="w-full">
             <thead>
               <tr className="border-b border-bg-border">
-                {['Name', 'Phone', 'Field Role', 'Status', 'Last Assignment', 'Actions'].map(h => (
+                {[t('profile.name'), t('profile.phone'), t('hub.vol.col.fieldRole'), t('queue.col.status'), t('hub.vol.col.lastAssignment'), t('users.col.actions')].map(h => (
                   <th key={h} className="px-4 py-2.5 text-left font-mono text-[11px] text-text-muted uppercase tracking-widest">
                     {h}
                   </th>
@@ -1153,7 +1155,7 @@ function VolunteersTab({ districtId, subWarehouseId }: { districtId: string; sub
                 <tr>
                   <td colSpan={6} className="px-4 py-8 text-center">
                     <p className="font-mono text-xs text-text-muted">
-                      No volunteers yet. Ask SUPER_ADMIN to create VOLUNTEER accounts for this district.
+                      {t('hub.vol.noVolunteers')}
                     </p>
                   </td>
                 </tr>
@@ -1166,30 +1168,30 @@ function VolunteersTab({ districtId, subWarehouseId }: { districtId: string; sub
                     {v.user ? (
                       <p className="font-mono text-[10px] text-text-muted">{v.user.email}</p>
                     ) : (
-                      <p className="font-mono text-[10px] text-text-muted italic">community volunteer</p>
+                      <p className="font-mono text-[10px] text-text-muted italic">{t('hub.vol.communityTag')}</p>
                     )}
                   </td>
                   <td className="px-4 py-3 font-mono text-xs text-text-secondary">{v.phone || '—'}</td>
                   <td className="px-4 py-3">
                     {v.role === 'TEAM_LEADER' ? (
                       <span className="font-mono text-[11px] px-2 py-0.5 rounded border text-accent-blue border-accent-blue/30 bg-accent-blue/5">
-                        Team Leader
+                        {t('volunteerRole.TEAM_LEADER')}
                       </span>
                     ) : (
-                      <span className="font-mono text-[11px] text-text-muted">Volunteer</span>
+                      <span className="font-mono text-[11px] text-text-muted">{t('volunteerRole.VOLUNTEER')}</span>
                     )}
                   </td>
                   <td className="px-4 py-3">
-                    <Badge label={v.status} color={STATUS_COLORS[v.status]} />
+                    <Badge label={enumLabel(t, 'volunteerStatus', v.status)} color={STATUS_COLORS[v.status]} />
                   </td>
                   <td className="px-4 py-3 font-mono text-[11px] text-text-muted">
                     {v.assignments?.[0]
-                      ? `${v.assignments[0].zone} · T${v.assignments[0].teamNumber}`
+                      ? `${zoneLabel(t, v.assignments[0].zone)} · ${t('hub.team', { n: v.assignments[0].teamNumber })}`
                       : '—'}
                   </td>
                   <td className="px-4 py-3">
                     {v.status === 'DEPLOYED' ? (
-                      <span className="font-mono text-[10px] text-text-muted">in field</span>
+                      <span className="font-mono text-[10px] text-text-muted">{t('hub.vol.inFieldLower')}</span>
                     ) : (
                       <div className="flex items-center gap-1.5 flex-wrap">
                         {v.role === 'TEAM_LEADER' ? (
@@ -1197,14 +1199,14 @@ function VolunteersTab({ districtId, subWarehouseId }: { districtId: string; sub
                             onClick={() => roleMutation.mutate({ id: v.id, role: 'VOLUNTEER' })}
                             disabled={roleMutation.isPending}
                             className="font-mono text-[11px] px-2 py-0.5 rounded border border-accent-orange/30 text-accent-orange hover:bg-accent-orange/10 transition-colors">
-                            Demote
+                            {t('hub.vol.demote')}
                           </button>
                         ) : (
                           <button
                             onClick={() => roleMutation.mutate({ id: v.id, role: 'TEAM_LEADER' })}
                             disabled={roleMutation.isPending}
                             className="font-mono text-[11px] px-2 py-0.5 rounded border border-accent-blue/30 text-accent-blue hover:bg-accent-blue/10 transition-colors">
-                            Promote TL
+                            {t('hub.vol.promote')}
                           </button>
                         )}
                         {v.status === 'AVAILABLE' ? (
@@ -1212,14 +1214,14 @@ function VolunteersTab({ districtId, subWarehouseId }: { districtId: string; sub
                             onClick={() => statusMutation.mutate({ id: v.id, status: 'INACTIVE' })}
                             disabled={statusMutation.isPending}
                             className="font-mono text-[11px] px-2 py-0.5 rounded border border-bg-border text-text-muted hover:border-accent-red/30 hover:text-accent-red transition-colors">
-                            Deactivate
+                            {t('hub.vol.deactivate')}
                           </button>
                         ) : (
                           <button
                             onClick={() => statusMutation.mutate({ id: v.id, status: 'AVAILABLE' })}
                             disabled={statusMutation.isPending}
                             className="font-mono text-[11px] px-2 py-0.5 rounded border border-accent-green/30 text-accent-green hover:bg-accent-green/10 transition-colors">
-                            Reactivate
+                            {t('hub.vol.reactivate')}
                           </button>
                         )}
                       </div>
@@ -1239,6 +1241,7 @@ function VolunteersTab({ districtId, subWarehouseId }: { districtId: string; sub
 
 function DeliveriesTab({ districtId, subWarehouseId }: { districtId: string; subWarehouseId: string | null }) {
   const queryClient = useQueryClient();
+  const { t, locale } = useI18n();
   const [success, setSuccess] = useState('');
   const [team, setTeam] = useState(1);
   const [abortId, setAbortId] = useState('');
@@ -1311,14 +1314,14 @@ function DeliveriesTab({ districtId, subWarehouseId }: { districtId: string; sub
   const startMutation = useMutation({
     mutationFn: hubApi.startRun,
     onSuccess: (_, vars) => {
-      setSuccess(`Team ${vars.teamNumber} departed for ${selectedTeamData?.zone ?? ''}.`);
+      setSuccess(t('hub.del.departed', { n: vars.teamNumber, zone: zoneLabel(t, selectedTeamData?.zone) }));
       invalidateDeliveries();
     },
   });
   const completeMutation = useMutation({
     mutationFn: hubApi.completeRun,
     onSuccess: () => {
-      setSuccess('Run marked complete. Team returned to base.');
+      setSuccess(t('hub.del.completed'));
       invalidateDeliveries();
       queryClient.invalidateQueries({ queryKey: queryKeys.hub.volunteers(districtId) });
     },
@@ -1326,7 +1329,7 @@ function DeliveriesTab({ districtId, subWarehouseId }: { districtId: string; sub
   const abortMutation = useMutation({
     mutationFn: ({ id, reason }: { id: string; reason: string }) => hubApi.abortRun(id, reason),
     onSuccess: () => {
-      setSuccess('Run aborted. Team standing down.');
+      setSuccess(t('hub.del.aborted'));
       setAbortId(''); setAbortReason('');
       invalidateDeliveries();
       queryClient.invalidateQueries({ queryKey: queryKeys.hub.volunteers(districtId) });
@@ -1368,15 +1371,15 @@ function DeliveriesTab({ districtId, subWarehouseId }: { districtId: string; sub
 
         {/* start run */}
         <div className="card p-5">
-          <SectionTitle sub="Fixed departure times: 07:00 / 11:00 / 15:00">Start Delivery Run</SectionTitle>
+          <SectionTitle sub={t('hub.del.startSub')}>{t('hub.del.start')}</SectionTitle>
           <div className="space-y-3">
 
             <div>
-              <label className="label">Team #</label>
+              <label className="label">{t('hub.teamNum')}</label>
               {deployedTeamNumbers.length === 0 ? (
                 <div className="bg-accent-orange/10 border border-accent-orange/20 rounded px-3 py-2">
                   <p className="font-mono text-[11px] text-accent-orange">
-                    No teams deployed yet. Go to Volunteers tab and deploy a team first.
+                    {t('hub.del.noTeams')}
                   </p>
                 </div>
               ) : (
@@ -1385,7 +1388,7 @@ function DeliveriesTab({ districtId, subWarehouseId }: { districtId: string; sub
                   onChange={e => setTeam(Number(e.target.value))}
                   className="input">
                   {deployedTeamNumbers.map(n => (
-                    <option key={n} value={n}>Team {n}</option>
+                    <option key={n} value={n}>{t('hub.team', { n })}</option>
                   ))}
                 </select>
               )}
@@ -1394,33 +1397,33 @@ function DeliveriesTab({ districtId, subWarehouseId }: { districtId: string; sub
             {/* zone — auto-filled from team assignment, read only */}
             {selectedTeamData && (
               <div>
-                <label className="label">Zone</label>
+                <label className="label">{t('hub.zoneLabel')}</label>
                 <div className="bg-bg-elevated rounded border border-bg-border px-3 py-2">
-                  <span className="font-mono text-sm text-text-primary">{selectedTeamData.zone}</span>
-                  <span className="font-mono text-[11px] text-text-muted ml-2">from team assignment</span>
+                  <span className="font-mono text-sm text-text-primary">{zoneLabel(t, selectedTeamData.zone)}</span>
+                  <span className="font-mono text-[11px] text-text-muted ml-2">{t('hub.del.fromAssignment')}</span>
                 </div>
               </div>
             )}
 
             {/* team lead — auto-filled from team assignment, read only */}
             <div>
-              <label className="label">Team Lead</label>
+              <label className="label">{t('volunteerRole.TEAM_LEADER')}</label>
               {selectedTeamData ? (
                 <div className="bg-bg-elevated rounded border border-bg-border px-3 py-2 flex items-center justify-between">
                   <div>
                     <span className="font-sans text-sm text-text-primary">{selectedTeamData.tl.name}</span>
                     <span className={`ml-2 font-mono text-[11px] ${
                       selectedTeamData.tl.status === 'DEPLOYED' ? 'text-accent-blue' : 'text-accent-green'
-                    }`}>· {selectedTeamData.tl.status}</span>
+                    }`}>· {enumLabel(t, 'volunteerStatus', selectedTeamData.tl.status)}</span>
                   </div>
                   <span className="font-mono text-[10px] px-1.5 py-0.5 rounded border text-accent-blue border-accent-blue/30 bg-accent-blue/5">
-                    TL
+                    {t('hub.vol.tl')}
                   </span>
                 </div>
               ) : (
                 <div className="bg-bg-elevated rounded border border-accent-orange/20 px-3 py-2">
                   <p className="font-mono text-[11px] text-accent-orange">
-                    No team leader assigned to Team {team}.
+                    {t('hub.del.noTL', { n: team })}
                   </p>
                 </div>
               )}
@@ -1429,7 +1432,7 @@ function DeliveriesTab({ districtId, subWarehouseId }: { districtId: string; sub
             {activeRunForTeam ? (
               <div className="bg-accent-orange/10 border border-accent-orange/20 rounded px-3 py-2">
                 <p className="font-mono text-[11px] text-accent-orange">
-                  Team {team} already has an active run. Complete or abort it first.
+                  {t('hub.del.alreadyActive', { n: team })}
                 </p>
               </div>
             ) : (
@@ -1442,7 +1445,7 @@ function DeliveriesTab({ districtId, subWarehouseId }: { districtId: string; sub
                 })}
                 disabled={startMutation.isPending || !selectedTeamData || !subWarehouseId}
                 className="btn-primary w-full">
-                {startMutation.isPending ? 'Departing...' : '▶ Start Run'}
+                {startMutation.isPending ? t('hub.del.departing') : `▶ ${t('hub.del.startBtn')}`}
               </button>
             )}
           </div>
@@ -1450,11 +1453,11 @@ function DeliveriesTab({ districtId, subWarehouseId }: { districtId: string; sub
 
         {/* active runs */}
         <div className="card p-5">
-          <SectionTitle sub={`${activeRuns.length} team${activeRuns.length !== 1 ? 's' : ''} currently in field`}>
-            Active Runs
+          <SectionTitle sub={t(activeRuns.length === 1 ? 'hub.del.inField.one' : 'hub.del.inField.other', { count: activeRuns.length })}>
+            {t('dash.activeRuns')}
           </SectionTitle>
           {activeRuns.length === 0 ? (
-            <Empty message="No active delivery runs." />
+            <Empty message={t('hub.del.noActive')} />
           ) : (
             <div className="space-y-3">
               {activeRuns.map((r: DeliveryRun) => (
@@ -1462,25 +1465,25 @@ function DeliveriesTab({ districtId, subWarehouseId }: { districtId: string; sub
                   <div className="flex items-start justify-between gap-2 mb-1">
                     <div>
                       <p className="font-sans text-sm font-semibold text-text-primary">
-                        Team {r.teamNumber} · {r.zone}
+                        {t('vol.teamZone', { n: r.teamNumber, zone: zoneLabel(t, r.zone) })}
                       </p>
                       <p className="font-mono text-[11px] text-text-muted">
-                        {r.leadVolunteer?.name ?? '—'} · departed {fmtTime(r.departedAt)}
+                        {r.leadVolunteer?.name ?? '—'} · {t('hub.departedAt', { time: fmtTime(r.departedAt, locale) })}
                       </p>
                     </div>
                     <span className="font-mono text-[10px] px-1.5 py-0.5 rounded border text-accent-green border-accent-green/30 bg-accent-green/5 flex-shrink-0">
-                      IN PROGRESS
+                      {t('runStatus.IN_PROGRESS')}
                     </span>
                   </div>
                   <p className="font-mono text-[11px] text-text-muted mb-3">
-                    {new Set(r.receipts?.map(rec => rec.householdId) ?? []).size} deliveries recorded
+                    {t('hub.del.recorded', { count: new Set(r.receipts?.map(rec => rec.householdId) ?? []).size })}
                   </p>
                   <div className="flex gap-2">
                     <button
                       onClick={() => completeMutation.mutate(r.id)}
                       disabled={completeMutation.isPending}
                       className="flex-1 font-mono text-xs py-2 rounded border border-accent-green/40 text-accent-green bg-accent-green/5 hover:bg-accent-green/15 transition-colors font-semibold">
-                      ✓ Mark Complete
+                      ✓ {t('hub.del.markComplete')}
                     </button>
                     <button
                       onClick={() => setAbortId(abortId === r.id ? '' : r.id)}
@@ -1489,25 +1492,25 @@ function DeliveriesTab({ districtId, subWarehouseId }: { districtId: string; sub
                           ? 'border-accent-red/40 text-accent-red bg-accent-red/10'
                           : 'border-bg-border text-text-muted hover:border-accent-red/30 hover:text-accent-red'
                       }`}>
-                      Abort
+                      {t('hub.del.abort')}
                     </button>
                   </div>
                   {abortId === r.id && (
                     <div className="mt-3 space-y-2 pt-3 border-t border-bg-border">
                       <input type="text" className="input text-xs"
-                        placeholder="Abort reason — required (e.g. water depth >80cm)"
+                        placeholder={t('hub.del.abortPh')}
                         value={abortReason} onChange={e => setAbortReason(e.target.value)} />
                       <div className="flex gap-2">
                         <button
                           onClick={() => abortReason.trim() && abortMutation.mutate({ id: r.id, reason: abortReason })}
                           disabled={!abortReason.trim() || abortMutation.isPending}
                           className="flex-1 font-mono text-xs py-1.5 rounded border border-accent-red/40 text-accent-red bg-accent-red/10 hover:bg-accent-red/20 transition-colors">
-                          {abortMutation.isPending ? 'Aborting...' : 'Confirm Abort'}
+                          {abortMutation.isPending ? t('hub.del.aborting') : t('hub.del.confirmAbort')}
                         </button>
                         <button
                           onClick={() => { setAbortId(''); setAbortReason(''); }}
                           className="font-mono text-xs py-1.5 px-3 rounded border border-bg-border text-text-muted hover:text-text-primary transition-colors">
-                          Cancel
+                          {t('common.cancel')}
                         </button>
                       </div>
                     </div>
@@ -1521,12 +1524,12 @@ function DeliveriesTab({ districtId, subWarehouseId }: { districtId: string; sub
 
       {/* run history */}
       <div>
-        <SectionTitle sub={`${historyTotal} completed and aborted runs total`}>
-          Run History
+        <SectionTitle sub={t('hub.del.historySub', { count: historyTotal })}>
+          {t('hub.del.history')}
         </SectionTitle>
         {historyData.length === 0 ? (
           <div className="card">
-            <Empty message="No completed or aborted runs yet." />
+            <Empty message={t('hub.del.noHistory')} />
           </div>
         ) : (
           <>
@@ -1540,27 +1543,27 @@ function DeliveriesTab({ districtId, subWarehouseId }: { districtId: string; sub
                     <div className="min-w-0 flex-1">
                       <div className="flex items-center gap-2 mb-0.5">
                         <p className="font-sans text-sm text-text-primary">
-                          Team {r.teamNumber} · {r.zone}
+                          {t('vol.teamZone', { n: r.teamNumber, zone: zoneLabel(t, r.zone) })}
                         </p>
                         {r.status === 'COMPLETE' ? (
                           <span className="font-mono text-[10px] px-1.5 py-0.5 rounded border text-accent-green border-accent-green/30 bg-accent-green/5">
-                            COMPLETE
+                            {t('runStatus.COMPLETE')}
                           </span>
                         ) : (
                           <span className="font-mono text-[10px] px-1.5 py-0.5 rounded border text-accent-red border-accent-red/30 bg-accent-red/5">
-                            ABORTED
+                            {t('runStatus.ABORTED')}
                           </span>
                         )}
                       </div>
                       <p className="font-mono text-[11px] text-text-muted">
-                        {r.leadVolunteer?.name ?? '—'} · {fmtTime(r.departedAt)}
-                        {r.returnedAt ? ` → ${fmtTime(r.returnedAt)}` : ''}
-                        {duration !== null ? ` · ${duration}m` : ''}
-                        {' · '}{new Set(r.receipts?.map(rec => rec.householdId) ?? []).size} delivered
+                        {r.leadVolunteer?.name ?? '—'} · {fmtTime(r.departedAt, locale)}
+                        {r.returnedAt ? ` → ${fmtTime(r.returnedAt, locale)}` : ''}
+                        {duration !== null ? ` · ${t('duration.m', { m: duration })}` : ''}
+                        {' · '}{new Set(r.receipts?.map(rec => rec.householdId) ?? []).size} {t('routing.delivered')}
                       </p>
                       {r.status === 'ABORTED' && r.abortReason && (
                         <p className="font-mono text-[11px] text-accent-red mt-0.5 break-words">
-                          Reason: {r.abortReason}
+                          {t('hub.reason')} {r.abortReason}
                         </p>
                       )}
                     </div>
@@ -1575,16 +1578,16 @@ function DeliveriesTab({ districtId, subWarehouseId }: { districtId: string; sub
                   onClick={() => setHistoryPage(p => Math.max(1, p - 1))}
                   disabled={historyPage === 1}
                   className="font-mono text-xs px-3 py-1.5 rounded border border-bg-border text-text-muted hover:text-text-primary disabled:opacity-30 transition-colors">
-                  ← Prev
+                  ← {t('common.prev')}
                 </button>
                 <span className="font-mono text-[11px] text-text-muted">
-                  {historyPage} / {historyTotalPages} · {historyTotal} total
+                  {historyPage} / {historyTotalPages} · {t('hub.nTotal', { n: historyTotal })}
                 </span>
                 <button
                   onClick={() => setHistoryPage(p => Math.min(historyTotalPages, p + 1))}
                   disabled={historyPage === historyTotalPages}
                   className="font-mono text-xs px-3 py-1.5 rounded border border-bg-border text-text-muted hover:text-text-primary disabled:opacity-30 transition-colors">
-                  Next →
+                  {t('common.next')} →
                 </button>
               </div>
             )}
@@ -1599,6 +1602,7 @@ function DeliveriesTab({ districtId, subWarehouseId }: { districtId: string; sub
 
 function IncidentsTab({ districtId }: { districtId: string }) {
   const queryClient = useQueryClient();
+  const { t } = useI18n();
   const [success, setSuccess] = useState('');
   const [incType, setIncType] = useState<Incident['type']>('ROUTE_BLOCKED');
   const [incDesc, setIncDesc] = useState('');
@@ -1626,8 +1630,8 @@ function IncidentsTab({ districtId }: { districtId: string }) {
   const reportMutation = useMutation({
     mutationFn: hubApi.reportIncident,
     onSuccess: (result) => {
-      const autoMsg = (result as Incident).autoEscalated ? ' Auto-escalated to Operations Center.' : '';
-      setSuccess(`Incident reported.${autoMsg}`);
+      const autoMsg = (result as Incident).autoEscalated ? ` ${t('hub.inc.autoEscalatedMsg')}` : '';
+      setSuccess(`${t('hub.inc.reported')}${autoMsg}`);
       setIncDesc('');
       invalidateIncidents();
     },
@@ -1635,7 +1639,7 @@ function IncidentsTab({ districtId }: { districtId: string }) {
 
   const resolveMutation = useMutation({
     mutationFn: hubApi.resolveIncident,
-    onSuccess: () => { setSuccess('Incident marked resolved.'); invalidateIncidents(); },
+    onSuccess: () => { setSuccess(t('hub.inc.resolvedMsg')); invalidateIncidents(); },
   });
 
   const STATUS_COLORS: Record<string, string> = {
@@ -1662,64 +1666,64 @@ function IncidentsTab({ districtId }: { districtId: string }) {
       {success && <SuccessBox msg={success} onDismiss={() => setSuccess('')} />}
 
       <div className="card p-5">
-        <SectionTitle sub="VOLUNTEER_SAFETY incidents are auto-escalated to Operations Center">
-          Report Incident
+        <SectionTitle sub={t('hub.inc.reportSub')}>
+          {t('hub.inc.report')}
         </SectionTitle>
         <div className="space-y-3">
           <div>
-            <label className="label">Incident Type</label>
+            <label className="label">{t('vol.incidentType')}</label>
             <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
-              {INCIDENT_TYPES.map(t => (
-                <button key={t} onClick={() => setIncType(t)}
+              {INCIDENT_TYPES.map(it => (
+                <button key={it} onClick={() => setIncType(it)}
                   className={`font-mono text-[11px] py-2 px-2 rounded border transition-all text-left ${
-                    incType === t
-                      ? t === 'VOLUNTEER_SAFETY'
+                    incType === it
+                      ? it === 'VOLUNTEER_SAFETY'
                         ? 'bg-accent-red/10 border-accent-red/40 text-accent-red'
                         : 'bg-accent-blue/10 border-accent-blue/40 text-accent-blue'
                       : 'bg-bg-elevated border-bg-border text-text-secondary hover:text-text-primary'
                   }`}>
-                  {t.replace(/_/g, ' ')}
-                  {t === 'VOLUNTEER_SAFETY' && (
-                    <span className="block text-[10px] text-accent-red mt-0.5">Auto-escalates</span>
+                  {enumLabel(t, 'incidentType', it)}
+                  {it === 'VOLUNTEER_SAFETY' && (
+                    <span className="block text-[10px] text-accent-red mt-0.5">{t('hub.inc.autoEscalates')}</span>
                   )}
                 </button>
               ))}
             </div>
           </div>
           <div>
-            <label className="label">Description</label>
-            <textarea rows={3} className="input resize-none" placeholder="Describe the incident clearly..."
+            <label className="label">{t('vol.description')}</label>
+            <textarea rows={3} className="input resize-none" placeholder={t('hub.inc.descPh')}
               value={incDesc} onChange={e => setIncDesc(e.target.value)} />
           </div>
           <button
             onClick={() => incDesc.trim() && reportMutation.mutate({ districtId, type: incType, description: incDesc.trim() })}
             disabled={reportMutation.isPending || !incDesc.trim()}
             className="btn-primary w-full">
-            {reportMutation.isPending ? 'Reporting...' : 'Report Incident'}
+            {reportMutation.isPending ? t('vol.reporting') : t('hub.inc.report')}
           </button>
         </div>
       </div>
 
       <div>
-        <SectionTitle sub={`${open.length} open or escalated`}>Active Incidents</SectionTitle>
+        <SectionTitle sub={t('hub.inc.openSub', { count: open.length })}>{t('hub.inc.active')}</SectionTitle>
         <div className="card divide-y divide-bg-border">
-          {open.length === 0 ? <Empty message="No open incidents." /> : open.map((inc: Incident) => (
+          {open.length === 0 ? <Empty message={t('hub.inc.noOpen')} /> : open.map((inc: Incident) => (
             <div key={inc.id} className="px-4 py-4">
               <div className="flex items-start justify-between gap-3 mb-2">
                 <div className="min-w-0 flex-1">
                   <div className="flex items-center gap-2 flex-wrap mb-1">
-                    <Badge label={inc.status} color={STATUS_COLORS[inc.status]} />
-                    <span className="font-mono text-[11px] text-text-muted">{inc.type.replace(/_/g, ' ')}</span>
-                    <span className="font-mono text-[11px] text-text-muted">{timeAgo(inc.createdAt)}</span>
+                    <Badge label={enumLabel(t, 'incidentStatus', inc.status)} color={STATUS_COLORS[inc.status]} />
+                    <span className="font-mono text-[11px] text-text-muted">{enumLabel(t, 'incidentType', inc.type)}</span>
+                    <span className="font-mono text-[11px] text-text-muted">{timeAgo(t, inc.createdAt)}</span>
                   </div>
                   <p className="font-sans text-sm text-text-primary">{inc.description}</p>
                   <p className="font-mono text-[11px] text-text-muted mt-1">
-                    Reported by {inc.reportedBy?.name ?? '—'}
+                    {t('hub.inc.reportedBy', { name: inc.reportedBy?.name ?? '—' })}
                   </p>
                 </div>
                 <button onClick={() => resolveMutation.mutate(inc.id)} disabled={resolveMutation.isPending}
                   className="flex-shrink-0 font-mono text-xs py-1.5 px-3 rounded border border-accent-green/40 text-accent-green hover:bg-accent-green/10 transition-colors">
-                  ✓ Resolve
+                  ✓ {t('hub.inc.resolve')}
                 </button>
               </div>
 
@@ -1732,9 +1736,7 @@ function IncidentsTab({ districtId }: { districtId: string }) {
                   )}
                   {inc.type === 'VOLUNTEER_SAFETY' && (
                     <p className="font-mono text-[11px] text-accent-red font-bold">
-                      ⚡ Contact civil defense immediately for evacuation support.
-                      Water may exceed 80cm — all volunteers must return to sub-warehouse or shelter in place.
-                      Do NOT send more teams to this zone.
+                      ⚡ {t('hub.inc.civilDefense')}
                     </p>
                   )}
                 </div>
@@ -1745,10 +1747,10 @@ function IncidentsTab({ districtId }: { districtId: string }) {
       </div>
 
       <div>
-        <SectionTitle sub={`${resolvedTotal} resolved total`}>Resolved Incidents</SectionTitle>
+        <SectionTitle sub={t('hub.inc.resolvedSub', { count: resolvedTotal })}>{t('hub.inc.resolved')}</SectionTitle>
         {resolved.length === 0 ? (
           <div className="card">
-            <Empty message="No resolved incidents yet." />
+            <Empty message={t('hub.inc.noResolved')} />
           </div>
         ) : (
           <>
@@ -1756,12 +1758,12 @@ function IncidentsTab({ districtId }: { districtId: string }) {
               {resolved.map((inc: Incident) => (
                 <div key={inc.id} className="px-4 py-3 opacity-60">
                   <div className="flex items-center gap-2 mb-0.5">
-                    <Badge label="RESOLVED" color={STATUS_COLORS.RESOLVED} />
-                    <span className="font-mono text-[11px] text-text-muted">{inc.type.replace(/_/g, ' ')}</span>
+                    <Badge label={t('incidentStatus.RESOLVED')} color={STATUS_COLORS.RESOLVED} />
+                    <span className="font-mono text-[11px] text-text-muted">{enumLabel(t, 'incidentType', inc.type)}</span>
                   </div>
                   <p className="font-sans text-xs text-text-secondary">{inc.description}</p>
                   <p className="font-mono text-[11px] text-text-muted mt-0.5">
-                    Resolved {inc.resolvedAt ? timeAgo(inc.resolvedAt) : '—'} by {inc.resolvedBy?.name ?? '—'}
+                    {t('hub.inc.resolvedBy', { when: inc.resolvedAt ? timeAgo(t, inc.resolvedAt) : '—', name: inc.resolvedBy?.name ?? '—' })}
                   </p>
                 </div>
               ))}
@@ -1773,16 +1775,16 @@ function IncidentsTab({ districtId }: { districtId: string }) {
                   onClick={() => setResolvedPage(p => Math.max(1, p - 1))}
                   disabled={resolvedPage === 1}
                   className="font-mono text-xs px-3 py-1.5 rounded border border-bg-border text-text-muted hover:text-text-primary disabled:opacity-30 transition-colors">
-                  ← Prev
+                  ← {t('common.prev')}
                 </button>
                 <span className="font-mono text-[11px] text-text-muted">
-                  {resolvedPage} / {resolvedTotalPages} · {resolvedTotal} total
+                  {resolvedPage} / {resolvedTotalPages} · {t('hub.nTotal', { n: resolvedTotal })}
                 </span>
                 <button
                   onClick={() => setResolvedPage(p => Math.min(resolvedTotalPages, p + 1))}
                   disabled={resolvedPage === resolvedTotalPages}
                   className="font-mono text-xs px-3 py-1.5 rounded border border-bg-border text-text-muted hover:text-text-primary disabled:opacity-30 transition-colors">
-                  Next →
+                  {t('common.next')} →
                 </button>
               </div>
             )}
@@ -1797,16 +1799,17 @@ function IncidentsTab({ districtId }: { districtId: string }) {
 
 function RadioTab({ districtId }: { districtId: string }) {
   const queryClient = useQueryClient();
+  const { t } = useI18n();
   const [success, setSuccess] = useState('');
   const [slot, setSlot] = useState<'T0800' | 'T1200' | 'T1600' | 'T2000'>('T0800');
   const [status, setStatus] = useState<'OK' | 'ISSUE_REPORTED'>('OK');
   const [notes, setNotes] = useState('');
 
   const SLOTS = [
-    { value: 'T0800' as const, label: '08:00', desc: 'Stock levels, overnight incidents, morning plan' },
-    { value: 'T1200' as const, label: '12:00', desc: 'Delivery progress, new critical cases, route issues' },
-    { value: 'T1600' as const, label: '16:00', desc: 'Afternoon delivery summary, resupply needs' },
-    { value: 'T2000' as const, label: '20:00', desc: 'End-of-day stock count, next-day plan' },
+    { value: 'T0800' as const, label: '08:00', desc: t('protocol.radio.0800') },
+    { value: 'T1200' as const, label: '12:00', desc: t('protocol.radio.1200') },
+    { value: 'T1600' as const, label: '16:00', desc: t('protocol.radio.1600') },
+    { value: 'T2000' as const, label: '20:00', desc: t('protocol.radio.2000') },
   ];
 
   const { data: checkins = [], isPending } = useQuery({
@@ -1818,7 +1821,7 @@ function RadioTab({ districtId }: { districtId: string }) {
   const submitMutation = useMutation({
     mutationFn: hubApi.submitCheckin,
     onSuccess: (_, vars) => {
-      setSuccess(`${SLOTS.find(s => s.value === vars.scheduledTime)?.label} check-in recorded — ${vars.status}.`);
+      setSuccess(t('hub.radio.recorded', { slot: SLOTS.find(s => s.value === vars.scheduledTime)?.label ?? '', status: enumLabel(t, 'radioStatus', vars.status) }));
       setNotes('');
       queryClient.invalidateQueries({ queryKey: queryKeys.hub.radio(districtId) });
       queryClient.invalidateQueries({ queryKey: queryKeys.radio.compliance() });
@@ -1847,13 +1850,12 @@ function RadioTab({ districtId }: { districtId: string }) {
       {/* FIX: clarified subtitle explaining relationship to physical radio */}
       <div className="bg-bg-elevated border border-bg-border rounded px-4 py-3">
         <p className="font-mono text-[11px] text-text-muted">
-          <span className="text-text-secondary font-bold">How this works:</span> At each scheduled time, make the real radio call to Operations Center first.
-          Then log it here to record compliance. This is the digital record — the radio call is the actual communication.
+          <span className="text-text-secondary font-bold">{t('hub.radio.howTitle')}</span> {t('hub.radio.howBody')}
         </p>
       </div>
 
       <div>
-        <SectionTitle sub="Fixed schedule: 08:00, 12:00, 16:00, 20:00">Today's Check-in Schedule</SectionTitle>
+        <SectionTitle sub={t('hub.radio.scheduleSub')}>{t('hub.radio.schedule')}</SectionTitle>
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
           {SLOTS.map(s => {
             const done = completedSlots.includes(s.value);
@@ -1869,7 +1871,7 @@ function RadioTab({ districtId }: { districtId: string }) {
                 {done && checkin ? (
                   <>
                     <Badge
-                      label={checkin.status === 'OK' ? 'OK' : 'ISSUE'}
+                      label={checkin.status === 'OK' ? t('radioStatus.OK') : t('radio.issue')}
                       color={checkin.status === 'OK'
                         ? 'text-accent-green border-accent-green/30 bg-accent-green/5'
                         : 'text-accent-red border-accent-red/30 bg-accent-red/5'}
@@ -1888,10 +1890,10 @@ function RadioTab({ districtId }: { districtId: string }) {
       </div>
 
       <div className="card p-5">
-        <SectionTitle sub="Submit after completing the real radio call">Submit Check-in</SectionTitle>
+        <SectionTitle sub={t('hub.radio.submitSub')}>{t('hub.radio.submit')}</SectionTitle>
         <div className="space-y-4">
           <div>
-            <label className="label">Scheduled Time</label>
+            <label className="label">{t('hub.radio.scheduledTime')}</label>
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
               {SLOTS.map(s => {
                 const done = completedSlots.includes(s.value);
@@ -1904,14 +1906,14 @@ function RadioTab({ districtId }: { districtId: string }) {
                           ? 'bg-accent-green/5 border-accent-green/20 text-accent-green'
                           : 'bg-bg-elevated border-bg-border text-text-secondary hover:text-text-primary'
                     }`}>
-                    {s.label}{done && <span className="block text-[10px]">✓ done</span>}
+                    {s.label}{done && <span className="block text-[10px]">✓ {t('hub.radio.done')}</span>}
                   </button>
                 );
               })}
             </div>
           </div>
           <div>
-            <label className="label">Status</label>
+            <label className="label">{t('queue.col.status')}</label>
             <div className="flex gap-2">
               {(['OK', 'ISSUE_REPORTED'] as const).map(s => (
                 <button key={s} onClick={() => setStatus(s)}
@@ -1922,20 +1924,20 @@ function RadioTab({ districtId }: { districtId: string }) {
                         : 'bg-accent-red/10 border-accent-red/40 text-accent-red'
                       : 'bg-bg-elevated border-bg-border text-text-secondary hover:text-text-primary'
                   }`}>
-                  {s === 'OK' ? '✓ All OK' : '⚠ Issue Reported'}
+                  {s === 'OK' ? `✓ ${t('hub.radio.allOk')}` : `⚠ ${t('radioStatus.ISSUE_REPORTED')}`}
                 </button>
               ))}
             </div>
           </div>
           <div>
             <label className="label">
-              Notes {status === 'ISSUE_REPORTED' && <span className="text-accent-red">(describe issue)</span>}
+              {t('hub.radio.notes')} {status === 'ISSUE_REPORTED' && <span className="text-accent-red">({t('hub.radio.describeIssue')})</span>}
             </label>
             <textarea rows={3} className="input resize-none"
               placeholder={
                 status === 'OK'
-                  ? 'e.g. EMK1: 4,800 remaining. 3 teams deployed. No overnight incidents.'
-                  : 'Describe the issue clearly for Operations Center...'
+                  ? t('hub.radio.okPh')
+                  : t('hub.radio.issuePh')
               }
               value={notes} onChange={e => setNotes(e.target.value)} />
           </div>
@@ -1946,18 +1948,18 @@ function RadioTab({ districtId }: { districtId: string }) {
             disabled={submitMutation.isPending}
             className="btn-primary w-full">
             {submitMutation.isPending
-              ? 'Submitting...'
-              : `Submit ${SLOTS.find(s => s.value === slot)?.label} Check-in`}
+              ? t('vol.submitting')
+              : t('hub.radio.submitSlot', { slot: SLOTS.find(s => s.value === slot)?.label ?? '' })}
           </button>
           <p className="font-mono text-[11px] text-text-muted text-center">
-            If internet/phone fails, submit retroactively when contact restored.
+            {t('hub.radio.retro')}
           </p>
         </div>
       </div>
 
       {checkins.length > 0 && (
         <div>
-          <SectionTitle>Today's Submissions</SectionTitle>
+          <SectionTitle>{t('hub.radio.todaySubmissions')}</SectionTitle>
           <div className="card divide-y divide-bg-border">
             {checkins.map((c: RadioCheckin) => (
               <div key={c.id} className="px-4 py-3 flex items-start justify-between gap-3">
@@ -1967,13 +1969,13 @@ function RadioTab({ districtId }: { districtId: string }) {
                       {SLOTS.find(s => s.value === c.scheduledTime)?.label ?? c.scheduledTime}
                     </span>
                     <Badge
-                      label={c.status === 'OK' ? 'OK' : 'ISSUE'}
+                      label={c.status === 'OK' ? t('radioStatus.OK') : t('radio.issue')}
                       color={c.status === 'OK' ? 'text-accent-green border-accent-green/30' : 'text-accent-red border-accent-red/30'}
                     />
                   </div>
                   {c.notes && <p className="font-mono text-[11px] text-text-secondary">{c.notes}</p>}
                   <p className="font-mono text-[11px] text-text-muted mt-0.5">
-                    by {c.submittedBy?.name ?? '—'} · {timeAgo(c.createdAt)}
+                    {t('hub.by', { name: c.submittedBy?.name ?? '—' })} · {timeAgo(t, c.createdAt)}
                   </p>
                 </div>
               </div>
@@ -2005,6 +2007,7 @@ function CentralTab({ subWarehouseId, allSubWarehouses }: {
   const isSuperAdmin = isRole('SUPER_ADMIN');
 
   const queryClient = useQueryClient();
+  const { t } = useI18n();
   const [success, setSuccess] = useState('');
   const [centralMovPage, setCentralMovPage] = useState(1);
 
@@ -2061,7 +2064,7 @@ const centralMovTotalPages = movResult?.totalPages ?? 1;
   const replenishMutation = useMutation({
     mutationFn: hubApi.replenishCentral,
     onSuccess: (_, vars) => {
-      setSuccess(`Central replenished: +${vars.quantity}× ${vars.emkType}.`);
+      setSuccess(t('hub.central.replenished', { qty: vars.quantity, emk: vars.emkType }));
       setRepQty(''); setRepReason('');
       invalidateCentral();
     },
@@ -2070,7 +2073,7 @@ const centralMovTotalPages = movResult?.totalPages ?? 1;
   const adjustMutation = useMutation({
     mutationFn: hubApi.adjustCentral,
     onSuccess: (_, vars) => {
-      setSuccess(`Central adjusted: ${Number(vars.quantity) > 0 ? '+' : ''}${vars.quantity}× ${vars.emkType}.`);
+      setSuccess(t('hub.central.adjusted', { qty: `${Number(vars.quantity) > 0 ? '+' : ''}${vars.quantity}`, emk: vars.emkType }));
       setCadQty(''); setCadReason('');
       invalidateCentral();
     },
@@ -2079,8 +2082,8 @@ const centralMovTotalPages = movResult?.totalPages ?? 1;
   const allocationMutation = useMutation({
     mutationFn: hubApi.setAllocation,
     onSuccess: (_, vars) => {
-      const target = vars.target === 'central' ? 'Central' : 'Sub-warehouse';
-      setSuccess(`${target} ${vars.emkType} allocation set to ${vars.newTotal.toLocaleString()}.`);
+      const target = vars.target === 'central' ? t('stock.central') : t('hub.subWarehouse');
+      setSuccess(t('hub.central.allocSet', { target, emk: vars.emkType, total: vars.newTotal.toLocaleString() }));
       setAllocNewTotal(''); setAllocReason('');
       invalidateCentral();  // already invalidates centralMovements — this is sufficient
       if (vars.target === 'subWarehouse') {
@@ -2143,13 +2146,13 @@ const centralMovTotalPages = movResult?.totalPages ?? 1;
       <div className="card p-5 border-accent-blue/20 bg-bg-elevated/40">
         <div className="flex items-start justify-between mb-4">
           <div>
-            <h3 className="font-display font-bold text-text-primary">Central Warehouse — Stock Levels</h3>
+            <h3 className="font-display font-bold text-text-primary">{t('hub.central.levels')}</h3>
             <p className="font-mono text-[11px] text-text-muted mt-0.5">
-              Remaining = available to dispatch · Total = allocation reference
+              {t('hub.central.levelsSub')}
             </p>
           </div>
           <span className="font-mono text-[11px] text-text-muted bg-bg-elevated px-2 py-1 rounded border border-bg-border">
-            30% reserve
+            {t('hub.central.reserve')}
           </span>
         </div>
 
@@ -2168,17 +2171,17 @@ const centralMovTotalPages = movResult?.totalPages ?? 1;
                     <span className={`font-mono text-sm font-bold ${EMK_COLORS[type]}`}>{type}</span>
                     {scarce && (
                       <span className="font-mono text-[10px] text-accent-red bg-accent-red/10 px-1.5 py-0.5 rounded border border-accent-red/30 animate-pulse">
-                        ⚠ SCARCE
+                        ⚠ {t('dash.scarce')}
                       </span>
                     )}
                     {!scarce && above && (
                       <span className="font-mono text-[10px] text-accent-blue bg-accent-blue/10 px-1.5 py-0.5 rounded border border-accent-blue/30">
-                        ↑ EXTRA
+                        ↑ {t('hub.stock.extra')}
                       </span>
                     )}
                   </div>
                   <p className="font-mono text-2xl font-bold text-text-primary">{fmt(rem)}</p>
-                  <p className="font-mono text-[11px] text-text-muted mt-0.5">of {fmt(total)} · {pct}%</p>
+                  <p className="font-mono text-[11px] text-text-muted mt-0.5">{t('hub.stock.ofTotal', { total: fmt(total) })} · {pct}%</p>
                   <div className="mt-2 h-1.5 bg-bg-border rounded-full overflow-hidden">
                     <div
                       className={`h-full rounded-full transition-all duration-500 ${
@@ -2189,7 +2192,7 @@ const centralMovTotalPages = movResult?.totalPages ?? 1;
                   </div>
                   {type === 'EMK3' && total === 0 && (
                     <p className="font-mono text-[10px] text-text-muted mt-1.5">
-                      MoH cold storage — transferred at activation
+                      {t('hub.stock.mohCold')}
                     </p>
                   )}
                 </div>
@@ -2199,7 +2202,7 @@ const centralMovTotalPages = movResult?.totalPages ?? 1;
         ) : (
           <div className="bg-accent-orange/10 border border-accent-orange/30 rounded px-3 py-2">
             <p className="font-mono text-xs text-accent-orange">
-              Central warehouse not found. Run <code>npm run seed</code>.
+              {t('hub.central.notFound')} <code>npm run seed</code>.
             </p>
           </div>
         )}
@@ -2210,79 +2213,79 @@ const centralMovTotalPages = movResult?.totalPages ?? 1;
         <>
           <div className="flex items-center gap-2">
             <span className="font-mono text-[11px] text-text-muted uppercase tracking-widest">
-              Stock Management
+              {t('hub.central.management')}
             </span>
             <span className="font-mono text-[10px] text-accent-blue bg-accent-blue/10 px-2 py-0.5 rounded border border-accent-blue/30">
-              SUPER_ADMIN
+              {t('role.SUPER_ADMIN')}
             </span>
           </div>
 
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
             {/* Replenish */}
             <div className="card p-5 border-accent-green/20">
-              <SectionTitle sub="New shipment — increases Remaining only. Total stays fixed.">
-                Replenish Central Stock
+              <SectionTitle sub={t('hub.central.replenishSub')}>
+                {t('hub.central.replenish')}
               </SectionTitle>
               <div className="space-y-3">
                 <div className="grid grid-cols-2 gap-3">
                   <div>
-                    <label className="label">EMK Type</label>
+                    <label className="label">{t('hub.emkType')}</label>
                     <select value={repEmkType} onChange={e => setRepEmkType(e.target.value as 'EMK1' | 'EMK2' | 'EMK3')} className="input">
-                      {EMK_TYPES.map(t => <option key={t} value={t}>{t}</option>)}
+                      {EMK_TYPES.map(et => <option key={et} value={et}>{et}</option>)}
                     </select>
                   </div>
                   <div>
-                    <label className="label">Quantity</label>
+                    <label className="label">{t('hub.quantity')}</label>
                     <input type="number" min="1" className="input" placeholder="e.g. 1000"
                       value={repQty} onChange={e => setRepQty(e.target.value)} />
                   </div>
                 </div>
                 <div>
-                  <label className="label">Reason (required)</label>
-                  <input type="text" className="input" placeholder="e.g. UNICEF donation batch 3"
+                  <label className="label">{t('hub.reasonRequired')}</label>
+                  <input type="text" className="input" placeholder={t('hub.central.replenishPh')}
                     value={repReason} onChange={e => setRepReason(e.target.value)} />
                 </div>
                 <button
                   onClick={() => { if (!repQty || !repReason.trim()) return; replenishMutation.mutate({ emkType: repEmkType, quantity: Number(repQty), reason: repReason.trim() }); }}
                   disabled={replenishMutation.isPending || !repQty || !repReason.trim()}
                   className="btn-primary w-full">
-                  {replenishMutation.isPending ? 'Recording...' : '+ Replenish'}
+                  {replenishMutation.isPending ? t('hub.central.recording') : `+ ${t('hub.central.replenishBtn')}`}
                 </button>
               </div>
             </div>
 
             {/* Adjust */}
             <div className="card p-5">
-              <SectionTitle sub="Signed correction — changes Remaining only (not Total)">
-                Adjust Central Stock
+              <SectionTitle sub={t('hub.central.adjustSub')}>
+                {t('hub.central.adjust')}
               </SectionTitle>
               <p className="font-mono text-[11px] text-text-muted mb-3">
-                For damaged, lost, or miscounted kits. Use Replenish for new stock.
+                {t('hub.central.adjustHint')}
               </p>
               <div className="space-y-3">
                 <div className="grid grid-cols-2 gap-3">
                   <div>
-                    <label className="label">EMK Type</label>
+                    <label className="label">{t('hub.emkType')}</label>
                     <select value={cadEmkType} onChange={e => setCadEmkType(e.target.value as 'EMK1' | 'EMK2' | 'EMK3')} className="input">
-                      {EMK_TYPES.map(t => <option key={t} value={t}>{t}</option>)}
+                      {EMK_TYPES.map(et => <option key={et} value={et}>{et}</option>)}
                     </select>
                   </div>
                   <div>
-                    <label className="label">Quantity (+/−)</label>
-                    <input type="number" className="input" placeholder="-10 or +5"
+                    <label className="label">{t('hub.stock.qtyPlusMinus')}</label>
+                    <input type="number" className="input" placeholder={t('hub.central.adjustQtyPh')}
                       value={cadQty} onChange={e => setCadQty(e.target.value)} />
                   </div>
                 </div>
                 <div>
-                  <label className="label">Reason (required)</label>
-                  <input type="text" className="input" placeholder="e.g. 10 EMK2 kits water-damaged"
+                  <label className="label">{t('hub.reasonRequired')}</label>
+                  <input type="text" className="input" placeholder={t('hub.central.adjustReasonPh')}
                     value={cadReason} onChange={e => setCadReason(e.target.value)} />
                 </div>
                 <button
                   onClick={() => { if (!cadQty || !cadReason.trim()) return; adjustMutation.mutate({ emkType: cadEmkType, quantity: Number(cadQty), reason: cadReason.trim() }); }}
                   disabled={adjustMutation.isPending || !cadQty || !cadReason.trim()}
                   className="btn-ghost w-full">
-                  {adjustMutation.isPending ? 'Adjusting...' : 'Record Adjustment'}
+                  {adjustMutation.isPending ? t('hub.stock.adjusting') : t('hub.stock.adjustBtn')}
                 </button>
               </div>
             </div>
@@ -2290,27 +2293,25 @@ const centralMovTotalPages = movResult?.totalPages ?? 1;
 
           {/* Set Allocation */}
           <div className="card p-5 border-accent-orange/20">
-            <SectionTitle sub="Changes Total reference only — Remaining is unaffected">
-              Set Stock Allocation
+            <SectionTitle sub={t('hub.central.allocSub')}>
+              {t('hub.central.alloc')}
             </SectionTitle>
             <p className="font-mono text-[11px] text-text-muted mb-4">
-              Use when a formal capacity decision changes — new donor agreement, reallocation plan,
-              or correcting seed data. Changes the <span className="text-text-primary">Total</span> used
-              for the scarcity % bar.
+              {t('hub.central.allocHint')}
             </p>
             <div className="space-y-3">
               {/* Target toggle */}
               <div>
-                <label className="label">Target</label>
+                <label className="label">{t('hub.central.target')}</label>
                 <div className="flex gap-2">
-                  {(['central', 'subWarehouse'] as const).map(t => (
-                    <button key={t} onClick={() => setAllocTarget(t)}
+                  {(['central', 'subWarehouse'] as const).map(target => (
+                    <button key={target} onClick={() => setAllocTarget(target)}
                       className={`flex-1 font-mono text-xs py-2 rounded border transition-all ${
-                        allocTarget === t
+                        allocTarget === target
                           ? 'bg-accent-orange/10 border-accent-orange/40 text-accent-orange'
                           : 'bg-bg-elevated border-bg-border text-text-secondary hover:text-text-primary'
                       }`}>
-                      {t === 'central' ? '🏛 Central Warehouse' : '🏪 Sub-Warehouse'}
+                      {target === 'central' ? `🏛 ${t('alerts.central')}` : `🏪 ${t('hub.subWarehouse')}`}
                     </button>
                   ))}
                 </div>
@@ -2319,12 +2320,12 @@ const centralMovTotalPages = movResult?.totalPages ?? 1;
               {/* Sub-warehouse selector — only shown when target = subWarehouse */}
               {allocTarget === 'subWarehouse' && (
                 <div>
-                  <label className="label">Sub-Warehouse</label>
+                  <label className="label">{t('hub.subWarehouse')}</label>
                   <select value={allocSwId} onChange={e => setAllocSwId(e.target.value)} className="input">
-                    <option value="">Select sub-warehouse...</option>
+                    <option value="">{t('hub.central.selectSub')}</option>
                     {allSubWarehouses.map(sw => (
                       <option key={sw.subWarehouseId} value={sw.subWarehouseId}>
-                        {sw.districtName} — {sw.name}
+                        {districtLabel(t, sw.districtName)} — {t('hub.subWarehouse')}
                       </option>
                     ))}
                   </select>
@@ -2333,17 +2334,17 @@ const centralMovTotalPages = movResult?.totalPages ?? 1;
 
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="label">EMK Type</label>
+                  <label className="label">{t('hub.emkType')}</label>
                   <select value={allocEmkType} onChange={e => setAllocEmkType(e.target.value as 'EMK1' | 'EMK2' | 'EMK3')} className="input">
-                    {EMK_TYPES.map(t => <option key={t} value={t}>{t}</option>)}
+                    {EMK_TYPES.map(et => <option key={et} value={et}>{et}</option>)}
                   </select>
                 </div>
                 <div>
                   <label className="label">
-                    New Total
+                    {t('hub.central.newTotal')}
                     {currentAllocTotal !== null && (
                       <span className="ml-2 font-mono text-[11px] text-text-muted normal-case">
-                        current: {fmt(currentAllocTotal)}
+                        {t('hub.central.current', { n: fmt(currentAllocTotal) })}
                       </span>
                     )}
                   </label>
@@ -2353,9 +2354,9 @@ const centralMovTotalPages = movResult?.totalPages ?? 1;
               </div>
 
               <div>
-                <label className="label">Reason (required)</label>
+                <label className="label">{t('hub.reasonRequired')}</label>
                 <input type="text" className="input"
-                  placeholder="e.g. New donor agreement increases allocation to 8,000"
+                  placeholder={t('hub.central.allocReasonPh')}
                   value={allocReason} onChange={e => setAllocReason(e.target.value)} />
               </div>
 
@@ -2366,8 +2367,7 @@ const centralMovTotalPages = movResult?.totalPages ?? 1;
                 return newT < curRem ? (
                   <div className="bg-accent-orange/10 border border-accent-orange/30 rounded px-3 py-2">
                     <p className="font-mono text-[11px] text-accent-orange">
-                      ⚠ New total ({fmt(newT)}) is less than current remaining ({fmt(curRem)}).
-                      The ↑ EXTRA badge will appear until stock is consumed or adjusted.
+                      ⚠ {t('hub.central.allocWarning', { total: fmt(newT), remaining: fmt(curRem) })}
                     </p>
                   </div>
                 ) : null;
@@ -2392,7 +2392,7 @@ const centralMovTotalPages = movResult?.totalPages ?? 1;
                   (allocTarget === 'subWarehouse' && !allocSwId)
                 }
                 className="w-full font-mono text-xs py-2.5 rounded border border-accent-orange/40 text-accent-orange hover:bg-accent-orange/10 transition-all disabled:opacity-40">
-                {allocationMutation.isPending ? 'Updating...' : 'Set Allocation'}
+                {allocationMutation.isPending ? t('password.updating') : t('hub.central.allocBtn')}
               </button>
             </div>
           </div>
@@ -2401,12 +2401,12 @@ const centralMovTotalPages = movResult?.totalPages ?? 1;
 
       {/* ── CENTRAL AUDIT LOG ────────────────────────────────────────────── */}
       <div>
-        <SectionTitle sub={`Page ${centralMovPage} of ${centralMovTotalPages} — 20 per page`}>
-          Central Warehouse Audit Log
+        <SectionTitle sub={t('hub.pageOf', { page: centralMovPage, pages: centralMovTotalPages })}>
+          {t('hub.central.auditLog')}
         </SectionTitle>
         <div className="card divide-y divide-bg-border">
           {movements.length === 0 ? (
-            <Empty message="No central warehouse movements yet." />
+            <Empty message={t('hub.central.noMovements')} />
           ) : (
             movements.map((m: CentralMovement) => {
               const isAlloc = m.movementType === 'ALLOCATION_CHANGE';
@@ -2415,14 +2415,14 @@ const centralMovTotalPages = movResult?.totalPages ?? 1;
                   <div className="min-w-0 flex-1">
                     <div className="flex items-center gap-2 flex-wrap mb-0.5">
                       <span className={`font-mono text-[11px] px-1.5 py-0.5 rounded border ${MOV_COLORS[m.movementType] ?? 'text-text-muted border-bg-border'}`}>
-                        {m.movementType.replace('_', ' ')}
+                        {enumLabel(t, 'movementType', m.movementType)}
                       </span>
                       <span className={`font-mono text-xs font-semibold ${EMK_COLORS[m.emkType]}`}>
                         {m.emkType}
                       </span>
                       {isAlloc ? (
                         <span className="font-mono text-sm font-bold text-text-muted">
-                          → {fmt(m.quantity)} total
+                          → {t('hub.nTotal', { n: fmt(m.quantity) })}
                         </span>
                       ) : (
                         <span className={`font-mono text-sm font-bold ${m.quantity > 0 ? 'text-accent-green' : 'text-accent-red'}`}>
@@ -2434,11 +2434,11 @@ const centralMovTotalPages = movResult?.totalPages ?? 1;
                       <p className="font-mono text-[11px] text-text-muted truncate">{m.reason}</p>
                     )}
                     <p className="font-mono text-[11px] text-text-muted mt-0.5">
-                      by {m.performedBy?.name ?? '—'}
+                      {t('hub.by', { name: m.performedBy?.name ?? '—' })}
                     </p>
                   </div>
                   <span className="font-mono text-[11px] text-text-muted flex-shrink-0">
-                    {timeAgo(m.createdAt)}
+                    {timeAgo(t, m.createdAt)}
                   </span>
                 </div>
               );
@@ -2453,17 +2453,17 @@ const centralMovTotalPages = movResult?.totalPages ?? 1;
               onClick={() => setCentralMovPage(p => Math.max(1, p - 1))}
               disabled={centralMovPage === 1}
               className="font-mono text-xs px-3 py-1.5 rounded border border-bg-border text-text-muted hover:text-text-primary disabled:opacity-30 transition-colors">
-              ← Prev
+              ← {t('common.prev')}
             </button>
             <span className="font-mono text-[11px] text-text-muted">
               {centralMovPage} / {centralMovTotalPages}
-              {movResult && <span className="ml-2">({movResult.total} total)</span>}
+              {movResult && <span className="ml-2">({t('hub.nTotal', { n: movResult.total })})</span>}
             </span>
             <button
               onClick={() => setCentralMovPage(p => Math.min(centralMovTotalPages, p + 1))}
               disabled={centralMovPage === centralMovTotalPages}
               className="font-mono text-xs px-3 py-1.5 rounded border border-bg-border text-text-muted hover:text-text-primary disabled:opacity-30 transition-colors">
-              Next →
+              {t('common.next')} →
             </button>
           </div>
         )}
@@ -2475,7 +2475,8 @@ const centralMovTotalPages = movResult?.totalPages ?? 1;
 // ─── MAIN HUB PAGE ────────────────────────────────────────────────────────────
 
 export function HubPage() {
-  usePageTitle('Hub Portal');
+  const { t } = useI18n();
+  usePageTitle(t('nav.hub'));
   const { user, isRole } = useAuth();
   const isSuperAdminOrEC = isRole('SUPER_ADMIN') || isRole('EMERGENCY_COORDINATOR');
   const [activeTab, setActiveTab] = useState<TabId>(isSuperAdminOrEC ? 'central' : 'stock');
@@ -2519,7 +2520,7 @@ export function HubPage() {
       .filter(d => d.subWarehouseId)
       .map(d => ({
         subWarehouseId: d.subWarehouseId!,
-        name: `Sub-Warehouse`,
+        name: 'Sub-Warehouse',
         districtName: d.name,
       })),
     [districts]
@@ -2528,11 +2529,11 @@ export function HubPage() {
   const isCentralActive = activeTab === 'central';
 
   const SUB_TABS: Array<{ id: TabId; label: string; Icon: LucideIcon }> = [
-    { id: 'stock',      label: 'Stock',      Icon: Package },
-    { id: 'volunteers', label: 'Volunteers', Icon: Users },
-    { id: 'deliveries', label: 'Deliveries', Icon: Truck },
-    { id: 'incidents',  label: 'Incidents',  Icon: AlertTriangle },
-    { id: 'radio',      label: 'Radio',      Icon: Radio },
+    { id: 'stock',      label: t('hub.tab.stock'),      Icon: Package },
+    { id: 'volunteers', label: t('hub.tab.volunteers'), Icon: Users },
+    { id: 'deliveries', label: t('hub.tab.deliveries'), Icon: Truck },
+    { id: 'incidents',  label: t('dash.incidents'),     Icon: AlertTriangle },
+    { id: 'radio',      label: t('hub.tab.radio'),      Icon: Radio },
   ];
 
   // clicking a district while Central is active switches to stock tab
@@ -2542,11 +2543,11 @@ export function HubPage() {
   };
 
   if (summaryPending && !summaryData) {
-    return <DashboardLayout title="Hub Manager Portal"><HubSkeleton /></DashboardLayout>;
+    return <DashboardLayout title={t('hub.title')}><HubSkeleton /></DashboardLayout>;
   }
 
   return (
-    <DashboardLayout title="Hub Manager Portal">
+    <DashboardLayout title={t('hub.title')}>
       <div className="space-y-4">
 
         {/* ── ROW 1: scope selector ── */}
@@ -2562,9 +2563,9 @@ export function HubPage() {
                     ? 'bg-accent-blue/10 border-accent-blue/40 text-accent-blue'
                     : 'bg-bg-elevated border-bg-border text-text-secondary hover:text-text-primary'
                 }`}>
-                🏛 Central
+                🏛 {t('stock.central')}
                 <span className="font-mono text-[10px] text-accent-blue bg-accent-blue/10 px-1 py-0.5 rounded border border-accent-blue/20">
-                  HQ
+                  {t('hub.hq')}
                 </span>
               </button>
             )}
@@ -2576,7 +2577,7 @@ export function HubPage() {
                   <span className="font-mono text-[11px] text-bg-border select-none px-1">/</span>
                 )}
                 <span className="font-mono text-[11px] text-text-muted uppercase tracking-widest mr-1">
-                  District
+                  {t('common.district')}
                 </span>
                 {districts.map(d => {
                   const districtId = d.districtId ?? '';
@@ -2590,7 +2591,7 @@ export function HubPage() {
                           ? 'bg-accent-blue/10 border-accent-blue/40 text-accent-blue'
                           : 'bg-bg-elevated border-bg-border text-text-secondary hover:text-text-primary'
                       }`}>
-                      {d.name}
+                      {districtLabel(t, d.name)}
                     </button>
                   );
                 })}
@@ -2599,9 +2600,9 @@ export function HubPage() {
               // HUB_MANAGER — fixed district, no switcher
               <div className="flex items-center gap-2">
                 <span className="font-mono text-sm font-bold text-text-primary">
-                  {selectedDistrict?.name ?? 'Your District'}
+                  {selectedDistrict ? districtLabel(t, selectedDistrict.name) : t('vol.yourDistrict')}
                 </span>
-                <span className="font-mono text-[11px] text-text-muted">Hub Manager view</span>
+                <span className="font-mono text-[11px] text-text-muted">{t('hub.managerView')}</span>
               </div>
             )}
           </div>
@@ -2615,7 +2616,7 @@ export function HubPage() {
                 : 'bg-bg-elevated border-bg-border text-text-muted'
             }`}>
               <span className={`w-1.5 h-1.5 rounded-full ${alertStatus.activated ? 'bg-accent-orange animate-pulse-slow' : 'bg-text-muted'}`} />
-              {alertStatus.activated ? `PHASE ${alertStatus.phase} ACTIVE` : 'STANDBY'}
+              {alertStatus.activated ? t('hub.phaseActive', { n: alertStatus.phase }) : t('hub.standby')}
             </div>
           )}
         </div>
@@ -2626,7 +2627,7 @@ export function HubPage() {
             {!subWarehouseId && resolvedDistrictId && (
               <div className="bg-accent-orange/10 border border-accent-orange/30 rounded px-4 py-2">
                 <p className="font-mono text-xs text-accent-orange">
-                  No sub-warehouse found for this district. Stock and delivery operations require a sub-warehouse record.
+                  {t('hub.noSubWarehouseLong')}
                 </p>
               </div>
             )}
@@ -2681,7 +2682,7 @@ export function HubPage() {
 
           {!resolvedDistrictId && !isCentralActive && (
             <div className="py-20 text-center">
-              <p className="font-mono text-sm text-text-muted">Select a district to begin.</p>
+              <p className="font-mono text-sm text-text-muted">{t('hub.selectDistrict')}</p>
             </div>
           )}
         </div>

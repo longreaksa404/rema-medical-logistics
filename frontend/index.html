@@ -7,6 +7,21 @@
     <meta name="theme-color" content="#0a0c0f" />
     <link rel="manifest" href="/manifest.webmanifest" />
     <title>REMA</title>
+    <script>
+      // Apply saved theme + language before first paint (no dark→light flash).
+      // Keys match THEME_KEY / LANG_KEY in src/theme and src/i18n.
+      (function () {
+        var root = document.documentElement;
+        try {
+          var pref = localStorage.getItem('rema.theme') || 'dark';
+          var dark = pref === 'system' ? window.matchMedia('(prefers-color-scheme: dark)').matches : pref !== 'light';
+          root.dataset.theme = dark ? 'dark' : 'light';
+          if (localStorage.getItem('rema.lang') === 'km') root.lang = 'km';
+        } catch (e) {
+          root.dataset.theme = 'dark';
+        }
+      })();
+    </script>
   </head>
   <body>
     <div id="root"></div>

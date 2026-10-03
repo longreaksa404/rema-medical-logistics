@@ -13,6 +13,7 @@ function polygonFeature(ring: Position[]): Feature<Polygon> {
   return { type: 'Feature', geometry: { type: 'Polygon', coordinates: [ring] }, properties: {} };
 }
 import type { DistrictCard } from '../api/dashboard.types';
+import { useI18n, districtLabel, type Translate } from '../i18n';
 
 type DeliveryMode = 'MOTORBIKE' | 'BICYCLE_OR_FOOT' | 'BOAT' | 'SUSPENDED';
 
@@ -85,12 +86,22 @@ const DISTRICT_CENTROIDS: Record<string, [number, number]> = {
   'Pou Senchey': [11.5529, 104.8180],
 };
 
+function districtNameIcon(t: Translate, name: string) {
+  return L.divIcon({
+    className: '',
+    html: `<div class="rema-district-name" style="border-color:${DISTRICT_BORDER[name] ?? '#ffffff'}">${districtLabel(t, name)}</div>`,
+    iconSize: [120, 24],
+    iconAnchor: [60, 12],
+  });
+}
+
 export function LeafletMap({
   districts,
   zoneDepths,
   selectedDistrictId,
   onDistrictClick,
 }: LeafletMapProps) {
+  const { t } = useI18n();
   const containerRef = useRef<HTMLDivElement>(null);
   const mapRef = useRef<any>(null);
   // zone layers: key = districtId:zone
@@ -181,16 +192,11 @@ export function LeafletMap({
       // district name label at district centroid
       const dCentroid = DISTRICT_CENTROIDS[district.name];
       if (dCentroid) {
-        const districtLabel = L.marker([dCentroid[0], dCentroid[1]], {
-          icon: L.divIcon({
-            className: '',
-            html: `<div class="rema-district-name" style="border-color:${borderColor}">${district.name}</div>`,
-            iconSize: [120, 24],
-            iconAnchor: [60, 12],
-          }),
+        const nameMarker = L.marker([dCentroid[0], dCentroid[1]], {
+          icon: districtNameIcon(t, district.name),
           interactive: false,
         }).addTo(map);
-        borderLayersRef.current[`${district.districtId}:namelabel`] = districtLabel;
+        borderLayersRef.current[`${district.districtId}:namelabel`] = nameMarker;
       }
 
       // thick outer border outline — no fill, sits on top of zone polygons
@@ -324,7 +330,14 @@ export function LeafletMap({
     }
   }, [selectedDistrictId, districts, zoneDepths]);
 
+  // relabel districts when the language changes (the map itself is built once)
+  useEffect(() => {
+    districts.forEach((district) => {
+      borderLayersRef.current[`${district.districtId}:namelabel`]?.setIcon(districtNameIcon(t, district.name));
+    });
+  }, [t, districts]);
+
   return (
-    <div ref={containerRef} style={{ height: '100%', width: '100%', background: '#0d1117' }} />
+    <div ref={containerRef} style={{ height: '100%', width: '100%', background: 'rgb(var(--bg-elevated))' }} />
   );
 }

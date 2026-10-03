@@ -4,9 +4,11 @@ import { Menu } from 'lucide-react';
 import { Sidebar } from './Sidebar';
 import { LiveAlerts } from './LiveAlerts';
 import { OfflineSync } from './OfflineSync';
+import { useI18n } from '../i18n';
 
 export function AppShell() {
   const [navOpen, setNavOpen] = useState(false);
+  const { t } = useI18n();
 
   return (
     // Fixed-height shell: the content column scrolls on its own, so page
@@ -18,7 +20,7 @@ export function AppShell() {
         <div className="md:hidden flex items-center gap-3 px-4 h-12 border-b border-bg-border bg-bg-secondary flex-shrink-0">
           <button
             onClick={() => setNavOpen(true)}
-            aria-label="Open navigation"
+            aria-label={t('sidebar.openNav')}
             className="w-9 h-9 -ml-2 flex items-center justify-center rounded-md text-text-secondary hover:text-text-primary hover:bg-bg-hover"
           >
             <Menu size={18} />
